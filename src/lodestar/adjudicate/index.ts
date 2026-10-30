@@ -83,7 +83,14 @@ export interface AdjudicateClaimInput {
    * 给了就不再为本条断言单独发查询——写着全部关键字段的那一页往往只有某个字段搜得到，
    * 各自检索会让共现门禁永远凑不齐。比对仍逐字段独立。
    */
-  sharedRetrieval?: { queries: string[]; candidates: EvidenceCandidate[]; searchCalls: number; provider: string };
+  sharedRetrieval?: {
+    queries: string[];
+    candidates: EvidenceCandidate[];
+    searchCalls: number;
+    provider: string;
+    /** 因提供者能力不足没发出去的查询（进足迹；旧调用方可以不传） */
+    skippedQueries?: string[];
+  };
   /**
    * 记录级共用的页面缓存（A3）：同一场的前一条断言刚抓过的页面直接复用，
    * 不重抓、也不占本条的 pageCap——抓取成本只在首个遇到它的断言付一次。
@@ -137,17 +144,21 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
   // ---- 检索编排（有共用结果时直接复用，不再为本条断言发查询） ----
   let candidates: EvidenceCandidate[] = [];
   let queries: string[] = [];
+  let skippedQueries: string[] = [];
   let searchCalls = 0;
+  let sharedSearchCalls: number | undefined;
   let retrievalFailed: string | null = null;
   if (input.sharedRetrieval) {
     candidates = input.sharedRetrieval.candidates;
     queries = input.sharedRetrieval.queries;
+    skippedQueries = input.sharedRetrieval.skippedQueries ?? [];
     /**
      * A1：共用检索的成本记在组级账本（engine 的 bundle.searchCalls 只加一次），
      * 断言级预算从 0 起算——否则同一场的每个字段都背一次全组检索量，
      * 开局就"检索触顶"，not_found 的三因归因全被污染成 budget。
      */
     searchCalls = 0;
+    sharedSearchCalls = input.sharedRetrieval.searchCalls;
     events.push({
       name: 'retrieval',
       attributes: {
@@ -156,6 +167,7 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
         candidateCount: candidates.length,
         searchCalls: input.sharedRetrieval.searchCalls,
         provider: input.sharedRetrieval.provider,
+        ...(skippedQueries.length > 0 ? { skippedQueries } : {}),
       },
     });
   } else
@@ -172,10 +184,16 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
     });
     candidates = retrieval.candidates;
     queries = retrieval.queries;
+    skippedQueries = retrieval.skippedQueries ?? [];
     searchCalls = retrieval.searchCalls;
     events.push({
       name: 'retrieval',
-      attributes: { queries, candidateCount: candidates.length, provider: retrieval.provider },
+      attributes: {
+        queries,
+        candidateCount: candidates.length,
+        provider: retrieval.provider,
+        ...(skippedQueries.length > 0 ? { skippedQueries } : {}),
+      },
     });
   } catch (error) {
     retrievalFailed = error instanceof Error ? error.message : String(error);
@@ -212,7 +230,11 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
       page = cached;
     } else {
       try {
-        page = await captureEvidencePage(store, evidenceId, candidate.url);
+        // 声明浏览器必备的包：证据页直接渲染。这类站点常用 200 返回一个只有导航的
+        // JS 空壳，裸 fetch 不报错也拿不到正文，先试裸抓根本等不到降级。
+        page = await captureEvidencePage(store, evidenceId, candidate.url, {
+          forceBrowser: pack.requirements?.browser === 'required',
+        });
         // 失败/被拦的页不计入 pagesFetched（A2）：pageCap 管的是"我们真读了多少页"，
         // 抓回空的、被反爬挡下的页既没花比对钱也没产出证据，不该消耗抓取名额
         pagesFetched += 1;
@@ -300,8 +322,15 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
     fetched,
     failed,
     rejected,
-    budget: { searchCalls, pagesFetched, searchCap: caps.maxSearchCalls, pageCap: caps.maxPages },
+    budget: {
+      searchCalls,
+      pagesFetched,
+      searchCap: caps.maxSearchCalls,
+      pageCap: caps.maxPages,
+      ...(sharedSearchCalls !== undefined ? { sharedSearchCalls } : {}),
+    },
     candidatesCovered: visited.size >= candidates.length,
+    ...(skippedQueries.length > 0 ? { skippedQueries } : {}),
   };
 
   if (paused) {

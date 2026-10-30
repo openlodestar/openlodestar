@@ -19,6 +19,7 @@ import { NO_ABLATIONS, type AblationState } from '@src/ablation';
 import { createLogger } from '@src/utils/logger';
 import { keyFieldKeysOf, type DomainPack, type FieldSpec } from './packs/pack';
 import porcelainPack from './packs/porcelain';
+import { assertPackRequirements } from './packs/requirements';
 import { createStore, readSnapshot, type LodestarStore } from './storage/adapter';
 import { DEFAULT_ELICITATION_OPTIONS, elicit, type ElicitationOptions, type ElicitationResult } from './intake/elicitation';
 import { deterministicClaimId } from './intake/atomize';
@@ -58,6 +59,11 @@ export interface RunQueryOptions {
   caps?: Partial<AdjudicationCaps>;
   /** 外部提交已原子化好的断言（跳过提问环，直接入库裁决） */
   externalClaims?: ClaimRecord[];
+  /**
+   * 外部提交时给这批断言挂的提问原文（只影响坐标/记录上写的 query，不影响检索构造）。
+   * 纯外部提交没有提问原文，若不传，坐标里会留一句"（外部提交，无提问原文）"。
+   */
+  queryLabel?: string;
   /** 提问环产出的进度回调（脚本用来打印实时状态） */
   onStage?: (stage: string, detail?: Record<string, unknown>) => void;
 }
@@ -108,6 +114,8 @@ const DEFAULT_PACK: DomainPack = porcelainPack;
 export async function runQuery(query: string, options: RunQueryOptions = {}): Promise<RunQueryResult> {
   const log = createLogger({ prefix: '[Lodestar Engine] ' });
   const pack = options.pack ?? DEFAULT_PACK;
+  // 开跑前先核对包声明的环境要求（瓷器包要求浏览器）：缺工具当场停，不花检索与模型预算
+  await assertPackRequirements(pack);
   const store = options.store ?? createStore();
   const ablations = options.ablations ?? NO_ABLATIONS;
   const caps: AdjudicationCaps = { ...DEFAULT_CAPS, ...(options.caps ?? {}) };
@@ -127,15 +135,20 @@ export async function runQuery(query: string, options: RunQueryOptions = {}): Pr
     rejected: elicited.rejectedClaims.length,
   });
 
+  // 纯外部提交没有提问原文：给坐标挂上调用方提供的标签，而不是让每份坐标都写"无提问原文"
+  const effectiveQuery =
+    query.trim() === '' ? (options.queryLabel?.trim() || elicited.query) : query;
+
   // ---- 底稿先行：断言（含被预筛拒收的）先落盘，再逐条推进状态 ----
   const allClaims = [...elicited.claims, ...elicited.rejectedClaims];
   for (const claim of allClaims) await store.append('claims', claim);
   for (const claim of elicited.rejectedClaims) {
     await store.patch('claims', claim.claimId, { triage: claim.triage, state: 'rejected' });
   }
-  // 外部提交的断言同样入库（它们没有记录容器，门禁自然跳过）
+  // 外部提交的断言同样入库；外部-only 分支里它们已在 allClaims 里，按主键去重避免重复落行
+  const alreadyInLedger = new Set(allClaims.map((claim) => claim.claimId));
   for (const claim of options.externalClaims ?? []) {
-    await store.append('claims', claim);
+    if (!alreadyInLedger.has(claim.claimId)) await store.append('claims', claim);
   }
 
   // 外部-only 那条分支里， elicited.claims 已经是外部断言本身；再并一次会把每条裁两遍
@@ -159,7 +172,7 @@ export async function runQuery(query: string, options: RunQueryOptions = {}): Pr
     store,
     verdicts: adjudicated.verdicts,
     evidence: adjudicated.evidence,
-    query,
+    query: effectiveQuery,
     queryId: elicited.queryId,
     runId,
   });
@@ -175,7 +188,7 @@ export async function runQuery(query: string, options: RunQueryOptions = {}): Pr
     testName: 'lodestar-query',
     traceId: adjudicated.queryTraceId,
     payload: {
-      query,
+      query: effectiveQuery,
       queryId: elicited.queryId,
       packId: pack.id,
       records: elicited.records.length,
@@ -213,7 +226,7 @@ export async function runQuery(query: string, options: RunQueryOptions = {}): Pr
 
   return {
     queryId: elicited.queryId,
-    query,
+    query: effectiveQuery,
     runId,
     packId: pack.id,
     records: elicited.records,
@@ -365,6 +378,7 @@ async function verifyClaims(input: {
           candidates: retrieval.candidates,
           searchCalls: retrieval.searchCalls,
           provider: retrieval.provider,
+          skippedQueries: retrieval.skippedQueries,
         };
         // 整组共用查询的预算只在组级记一次，避免按断言重复累加
         bundle.searchCalls += retrieval.searchCalls;
@@ -1002,6 +1016,8 @@ export async function resumeFromLedger(input: {
 }): Promise<RunQueryResult> {
   const store = input.store ?? createStore();
   const pack = input.pack ?? DEFAULT_PACK;
+  // 续跑同样可能抓新页：开跑前核对浏览器要求，缺工具就别再花检索钱
+  await assertPackRequirements(pack);
   const resumable = await store.query<ClaimRecord>('claims', (c) =>
     input.claimIds
       ? input.claimIds.includes(c.claimId)

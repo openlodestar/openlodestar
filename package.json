@@ -2,7 +2,27 @@
   "name": "openlodestar",
   "version": "0.1.0",
   "description": "Verification layer for LLM claims: turn model statements into auditable verdicts backed by re-runnable web evidence.",
+  "author": "The OpenLodestar Authors",
   "license": "Apache-2.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openlodestar/openlodestar.git"
+  },
+  "homepage": "https://github.com/openlodestar/openlodestar#readme",
+  "bugs": {
+    "url": "https://github.com/openlodestar/openlodestar/issues"
+  },
+  "keywords": [
+    "llm",
+    "fact-checking",
+    "verification",
+    "evidence",
+    "provenance",
+    "rag",
+    "agent",
+    "typescript"
+  ],
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -17,6 +37,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "browser:install": "pnpm --filter @openlodestar/browser-playwright run install-browser",
     "demo": "tsx src/cli.ts demo",
     "verify-quotes": "tsx src/cli.ts verify-quotes",
     "audit": "tsx src/cli.ts audit"
@@ -25,6 +46,7 @@
     "js-yaml": "^5.1.0"
   },
   "devDependencies": {
+    "@openlodestar/browser-playwright": "workspace:*",
     "@types/node": "^24.12.2",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",

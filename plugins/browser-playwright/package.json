@@ -1,0 +1,34 @@
+{
+  "name": "@openlodestar/browser-playwright",
+  "version": "0.1.0",
+  "description": "Playwright browser renderer plugin for OpenLodestar (install it only when a domain needs browser rendering).",
+  "license": "Apache-2.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openlodestar/openlodestar.git",
+    "directory": "plugins/browser-playwright"
+  },
+  "homepage": "https://github.com/openlodestar/openlodestar#readme",
+  "bugs": {
+    "url": "https://github.com/openlodestar/openlodestar/issues"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "install-browser": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.60.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
+  }
+}

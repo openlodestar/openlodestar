@@ -127,7 +127,7 @@ beforeEach(() => {
 });
 
 describe('A1：共用检索的断言级预算记 0', () => {
-  it('组级检索量不摊到断言头上：footprint.budget.searchCalls 为 0，实发次数只留在 retrieval 事件里', async () => {
+  it('组级检索量不摊到断言头上：searchCalls 为 0，组级次数另记 sharedSearchCalls', async () => {
     const result = await adjudicateClaim({
       store: memoryStore(),
       pack: porcelainPack,
@@ -139,6 +139,8 @@ describe('A1：共用检索的断言级预算记 0', () => {
       sharedRetrieval: sharedRetrieval(['https://a.test/1', 'https://b.test/1'], 4),
     });
     expect(result.footprint?.budget.searchCalls).toBe(0);
+    // 组级实发次数单独留痕：不参与本条断言的触顶判定，但读者能看出"不是没检索"
+    expect(result.footprint?.budget.sharedSearchCalls).toBe(4);
     expect(result.footprint?.queries).toEqual(['q1', 'q2', 'q3', 'q4']);
   });
 
@@ -253,5 +255,83 @@ describe('A4：检索/抓取上限可由 env 覆盖', () => {
     else process.env.LODESTAR_MAX_SEARCH_CALLS = ORIGINAL_SEARCH;
     if (ORIGINAL_PAGES === undefined) delete process.env.LODESTAR_MAX_PAGES;
     else process.env.LODESTAR_MAX_PAGES = ORIGINAL_PAGES;
+  });
+});
+
+describe('A4：声明浏览器必备的包直接渲染证据页', () => {
+  it('required 包传 forceBrowser=true；未声明的包不强制', async () => {
+    await adjudicateClaim({
+      store: memoryStore(),
+      pack: porcelainPack,
+      claim: claim(),
+      values: { auctionHouse: '北京保利' },
+      ablations: NO_ABLATIONS,
+      runId: 'run-required-pack',
+      traceId: 'tr-required-pack',
+      sharedRetrieval: sharedRetrieval(['https://a.test/1']),
+    });
+    expect(captureEvidencePage).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(String),
+      'https://a.test/1',
+      { forceBrowser: true },
+    );
+
+    (captureEvidencePage as Mock).mockClear();
+    const packWithoutRequirement = { ...porcelainPack, requirements: undefined };
+
+    await adjudicateClaim({
+      store: memoryStore(),
+      pack: packWithoutRequirement,
+      claim: claim(),
+      values: { auctionHouse: '北京保利' },
+      ablations: NO_ABLATIONS,
+      runId: 'run-optional-pack',
+      traceId: 'tr-optional-pack',
+      sharedRetrieval: sharedRetrieval(['https://a.test/1']),
+    });
+    expect(captureEvidencePage).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(String),
+      'https://a.test/1',
+      { forceBrowser: false },
+    );
+  });
+});
+
+describe('检索足迹：被能力位跳过的查询可审计', () => {
+  it('共用检索里跳过的 site: 查询进 footprint.skippedQueries', async () => {
+    const result = await adjudicateClaim({
+      store: memoryStore(),
+      pack: porcelainPack,
+      claim: claim(),
+      values: { auctionHouse: '北京保利' },
+      ablations: NO_ABLATIONS,
+      runId: 'run-capability',
+      traceId: 'tr-capability',
+      sharedRetrieval: {
+        ...sharedRetrieval(['https://a.test/1']),
+        skippedQueries: ['site:a.test 北京保利 禹贡Ⅰ'],
+      },
+    });
+
+    expect(result.footprint?.skippedQueries).toEqual(['site:a.test 北京保利 禹贡Ⅰ']);
+    // 发出去的和跳过的分开记：读者能分清"查了没结果"与"这类查询压根没发"
+    expect(result.footprint?.queries).toEqual(['q1', 'q2', 'q3', 'q4']);
+  });
+
+  it('没有跳过时不多写这个字段（旧底稿形状不变）', async () => {
+    const result = await adjudicateClaim({
+      store: memoryStore(),
+      pack: porcelainPack,
+      claim: claim(),
+      values: { auctionHouse: '北京保利' },
+      ablations: NO_ABLATIONS,
+      runId: 'run-no-skip',
+      traceId: 'tr-no-skip',
+      sharedRetrieval: sharedRetrieval(['https://a.test/1']),
+    });
+
+    expect(result.footprint?.skippedQueries).toBeUndefined();
   });
 });

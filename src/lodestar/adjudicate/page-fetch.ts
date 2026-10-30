@@ -9,6 +9,11 @@
  *
  * 抓取本身复用宿主系统既有通路（站点适配器 → 纯 fetch → 浏览器降级 + URL 缓存），
  * 浏览器不可用时把信号原样交给上层：那是 `paused`，不是判失败、也不消耗重试预算。
+ *
+ * 对**声明浏览器必备**的策略包（`requirements.browser === 'required'`），证据页直接走
+ * 浏览器渲染、不再先试裸 fetch：这类域名的站点常以 200 返回一个只有导航与脚本的空壳，
+ * 裸 fetch 既不报错也抓不到正文，先试后降级永远等不到降级。是否强制由调用方按包声明传入，
+ * 引擎不替领域做判断。
  */
 
 import { processHtml } from '@src/integrations/scraper-strategies/scraper-utils';
@@ -66,12 +71,13 @@ export class PageFetchFailedError extends Error {
  * 抓取一页并落快照。
  *
  * @param evidenceId 快照按证据行命名（一行一文件，verify-quotes 脚本按它回查）
+ * @param options.forceBrowser 跳过裸 fetch、直接用浏览器渲染（包声明浏览器必备时由上层传入）
  */
 export async function captureEvidencePage(
   store: LodestarStore,
   evidenceId: string,
   url: string,
-  options: { forceRefresh?: boolean } = {},
+  options: { forceRefresh?: boolean; forceBrowser?: boolean } = {},
 ): Promise<CapturedPage> {
   let fetched: SinglePageResult;
   try {
@@ -79,6 +85,7 @@ export async function captureEvidencePage(
     // 站点适配器按站方接口替我们拼的 HTML 不算（"我们自己改写过的正文"不算自抓原文）
     fetched = await fetchSinglePageHtml(url, {
       forceRefresh: options.forceRefresh,
+      forceBrowser: options.forceBrowser,
       allowSiteAdapter: false,
     });
   } catch (error) {

@@ -244,6 +244,10 @@ export const porcelainPack: DomainPack = {
   label: '瓷器拍卖专场',
   sourceLabel: '古玩收藏',
 
+  // 拍卖行的官方站点大多是 JS 外壳 + 反爬：直接抓只拿得到空壳，正文要浏览器渲染才有。
+  // 因此本包把浏览器列为必备——开跑前就核对，缺插件当场停下（而不是逐条断言暂停）。
+  requirements: { browser: 'required' },
+
   fields: () => FIELDS,
 
   mapRow(row) {

@@ -113,6 +113,23 @@ export interface DetailLinkInput {
  */
 export type PageMention = 'yes' | 'no' | 'unknown';
 
+/**
+ * 策略包对运行环境的要求（由引擎在开跑前核对，缺什么当场停下）
+ *
+ * 为什么放在包里而不是引擎里：**同一个引擎，不同领域对网页的期望不同**。
+ * 古董拍卖的官方站点普遍是 JS 外壳 + 反爬（正文要等脚本灌进去才出现），
+ * 不给浏览器就抓回空壳；而只读新闻/公告的领域全是静态 HTML，给它们强加浏览器依赖
+ * 属于凭空增加安装体积与启动延迟。所以"这个域要不要浏览器"是域知识，由包声明。
+ */
+export interface PackRequirements {
+  /**
+   * 浏览器渲染的必要性：
+   * - `required`：开跑前探针一次，不可用就抛 `BrowserUnavailableError`（不花检索与模型预算）；
+   * - `optional` / 缺省：只在"直接抓取拿不到正文"时按需调用，缺工具则该页记"需要浏览器"后暂停。
+   */
+  browser?: 'required' | 'optional';
+}
+
 /** 策略包契约 */
 export interface DomainPack {
   /** 包标识（写进坐标与底稿，便于分层统计） */
@@ -125,6 +142,12 @@ export interface DomainPack {
    * 而入口可以给任何古玩品类的机构/平台页。
    */
   readonly sourceLabel?: string;
+
+  /**
+   * 运行环境要求（缺省 = 除"直接抓取"外什么都不需要）。
+   * 声明了 `browser: 'required'` 的包，引擎会在花第一分钱之前核对浏览器插件可用。
+   */
+  readonly requirements?: PackRequirements;
 
   // ============ 记录容器与字段 ============
 

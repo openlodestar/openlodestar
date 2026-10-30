@@ -2,21 +2,23 @@
 /**
  * 单页 HTML 获取（不做提取、不落库、不触发事件记录器）
  *
- * 策略：纯 fetch → 浏览器降级（浏览器是可选依赖）。
+ * 策略：纯 fetch → 浏览器降级（浏览器是**插件**，不是内置依赖）。
  *
- * 为什么需要浏览器降级：一部分页面把正文放在客户端渲染的 JS 里，裸 fetch
- * 只能取到导航外壳（外壳非空，容易被误当成抓取成功）。装了 `playwright`
- * 就能渲染后取页；没装时抛 `BrowserUnavailableError`，上行把断言标成
- * `paused`——那是"缺工具"，不是"查无实据"。
+ * 为什么需要浏览器降级：一部分页面把正文放在客户端渲染的 JS 里，或者对裸请求
+ * 直接反爬拦截。装了浏览器插件（缺省 `playwright`）就能渲染后取页；插件不可用时
+ * 抛 `BrowserUnavailableError`，上行把断言标成 `paused`——那是"缺工具"，不是"查无实据"。
  *
  * 抓回的 HTML 会成为证据快照的来源，因此本函数**不读取任何缓存**、
  * **不经过站点适配器**（适配器拼出来的正文不是第三方页面上印着的话）。
  */
 
-import { createRequire } from 'node:module';
-import { BrowserUnavailableError } from '@src/utils/browser-unavailable-error';
-
-const requireFromHere = createRequire(import.meta.url);
+import { resolveBrowserPlugin, getBrowserPluginFromEnv } from '@src/integrations/browser-plugins';
+import {
+  assertPublicHostResolves,
+  assertPublicUrl,
+  isUnsafeUrlError,
+  safeFetchText,
+} from '@src/integrations/net/safe-fetch';
 
 /** 现代浏览器请求头（降低反爬拦截） */
 const SINGLE_PAGE_HEADERS: Record<string, string> = {
@@ -37,63 +39,19 @@ export interface SinglePageResult {
   ok: boolean;
 }
 
-async function fetchHtmlDirect(url: string, timeoutMs: number): Promise<string> {
-  const response = await fetch(url, {
+async function fetchHtmlDirect(url: URL, timeoutMs: number): Promise<string> {
+  return safeFetchText(url, {
+    timeoutMs,
     headers: SINGLE_PAGE_HEADERS,
-    signal: AbortSignal.timeout(timeoutMs),
   });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-  return response.text();
 }
 
-interface PlaywrightPage {
-  goto(url: string, options: { waitUntil: string; timeout: number }): Promise<unknown>;
-  waitForLoadState(state: string, options: { timeout: number }): Promise<unknown>;
-  content(): Promise<string>;
-}
-
-interface PlaywrightBrowser {
-  newPage(): Promise<PlaywrightPage>;
-  close(): Promise<void>;
-}
-
-interface PlaywrightModule {
-  chromium: { launch(options?: { headless?: boolean }): Promise<PlaywrightBrowser> };
-}
-
-/** 加载可选的 playwright（未安装时抛"浏览器不可用"） */
-function loadPlaywright(): PlaywrightModule {
-  try {
-    return requireFromHere('playwright') as PlaywrightModule;
-  } catch (error) {
-    throw new BrowserUnavailableError(
-      'not_installed',
-      `需要浏览器渲染但没有安装 playwright：${(error as Error).message}`,
-      { cause: error },
-    );
-  }
-}
-
-async function fetchHtmlWithBrowser(url: string, timeoutMs: number): Promise<string> {
-  const playwright = loadPlaywright();
-  let browser: PlaywrightBrowser;
-  try {
-    browser = await playwright.chromium.launch({ headless: true });
-  } catch (error) {
-    throw new BrowserUnavailableError('launch_failed', `浏览器启动失败：${(error as Error).message}`, {
-      cause: error,
-    });
-  }
-  try {
-    const page = await browser.newPage();
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
-    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
-    return await page.content();
-  } finally {
-    await browser.close().catch(() => undefined);
-  }
+/** 走已注册（或按包名约定自动发现）的浏览器插件渲染（插件不可用时抛 BrowserUnavailableError） */
+async function fetchHtmlWithBrowser(url: URL, timeoutMs: number): Promise<string> {
+  // 浏览器会自行解析域名；渲染前再核对一次，缩小 DNS 重绑定窗口（不能完全消除）
+  await assertPublicHostResolves(url);
+  const renderer = await resolveBrowserPlugin(getBrowserPluginFromEnv());
+  return renderer.render(url.toString(), { timeoutMs });
 }
 
 /**
@@ -116,20 +74,26 @@ export async function fetchSinglePageHtml(
 ): Promise<SinglePageResult> {
   const allowBrowser = options.allowBrowser ?? true;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  // 先做同步校验：协议 / 凭据 / localhost / 私网字面量。
+  // 不安全的 URL 不进入下面的降级逻辑——换个网络通路重试只会绕开防线。
+  const safeUrl = assertPublicUrl(url);
 
   if (options.forceBrowser === true) {
-    const html = await fetchHtmlWithBrowser(url, timeoutMs);
+    const html = await fetchHtmlWithBrowser(safeUrl, timeoutMs);
     return { url, html, strategy: 'browser', ok: html.trim() !== '' };
   }
 
   try {
-    const html = await fetchHtmlDirect(url, timeoutMs);
+    const html = await fetchHtmlDirect(safeUrl, timeoutMs);
     return { url, html, strategy: 'fetch', ok: html.trim() !== '' };
   } catch (error) {
+    // DNS 解析到私网、重定向指向私网等，属于"这个 URL 根本不该抓"，
+    // 不能降级到浏览器再试一次
+    if (isUnsafeUrlError(error)) throw error;
     if (!allowBrowser) throw error instanceof Error ? error : new Error(String(error));
   }
 
-  const html = await fetchHtmlWithBrowser(url, timeoutMs);
+  const html = await fetchHtmlWithBrowser(safeUrl, timeoutMs);
   return { url, html, strategy: 'browser', ok: html.trim() !== '' };
 }
 

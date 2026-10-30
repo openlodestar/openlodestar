@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenLodestar — 大模型说的话，先去网上查一遍</title>
+<meta name="description" content="OpenLodestar 是一个给大模型输出把关的程序：把模型说的每条信息当成待核实的线索，去公开网页找证据；找到就留下原文和出处，找不到也写清楚是哪种找不到。">
+<link rel="canonical" href="https://openlodestar.github.io/openlodestar/">
+<link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon-180.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="OpenLodestar — 大模型说的话，先去网上查一遍">
+<meta property="og:description" content="把模型说的每条信息当成待核实的线索，去公开网页找证据；找到就留下原文和出处，找不到也写清楚是哪种找不到。留下的结论能重跑。">
+<meta property="og:url" content="https://openlodestar.github.io/openlodestar/">
+<meta property="og:image" content="https://openlodestar.github.io/openlodestar/assets/social-preview-1280x640.png">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+:root{
+  --navy:#101E3C;
+  --cream:#F4EEE2;
+  --cream-dim:#C9C2B4;
+  --paper:#FBF7EF;
+  --card:#FFFDF8;
+  --ink:#171B24;
+  --muted:#5B5F68;
+  --line:#DED6C6;
+  --max:1040px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+  line-height:1.8;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit}
+a:focus-visible,button:focus-visible{outline:2px solid var(--navy);outline-offset:3px;border-radius:2px}
+.hero a:focus-visible{outline-color:var(--cream)}
+.skip{
+  position:absolute;left:-9999px;top:0;background:var(--cream);color:var(--navy);
+  padding:10px 16px;z-index:10;border-radius:0 0 8px 0;
+}
+.skip:focus{left:0}
+.hero{background:var(--navy);color:var(--cream);padding:0 24px 76px}
+.top{
+  max-width:var(--max);margin:0 auto;padding:22px 0 40px;
+  display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;
+}
+.brand{font-weight:650;letter-spacing:.01em;text-decoration:none;font-size:1.02rem}
+.top nav{display:flex;gap:22px;flex-wrap:wrap}
+.top nav a{color:var(--cream-dim);text-decoration:none;font-size:.94rem}
+.top nav a:hover{color:var(--cream)}
+.hero-inner{max-width:var(--max);margin:0 auto}
+.lockup{display:block;width:min(360px,72vw);height:auto;margin:0 0 40px}
+h1{
+  margin:0 0 24px;max-width:820px;
+  font-size:clamp(2rem,4.6vw,3.5rem);line-height:1.22;letter-spacing:-.01em;font-weight:650;
+}
+.lede{margin:0 0 14px;max-width:780px;font-size:clamp(1.04rem,1.7vw,1.18rem);color:var(--cream);opacity:.94}
+.lede.strong{margin-top:18px;font-weight:600}
+.actions{display:flex;gap:12px;flex-wrap:wrap;margin:34px 0 0}
+.button{
+  display:inline-block;padding:12px 20px;border:1px solid var(--cream-dim);border-radius:999px;
+  text-decoration:none;font-weight:600;font-size:.96rem;color:var(--cream);
+}
+.button:hover{border-color:var(--cream);background:rgba(244,238,226,.08)}
+.button.primary{background:var(--cream);color:var(--navy);border-color:var(--cream)}
+.button.primary:hover{background:#fff;border-color:#fff}
+.en{
+  max-width:780px;margin:36px 0 0;padding-left:14px;border-left:2px solid var(--cream-dim);
+  color:var(--cream-dim);font-size:.9rem;line-height:1.7;
+}
+.section{max-width:var(--max);margin:0 auto;padding:58px 24px;border-bottom:1px solid var(--line)}
+.section:last-of-type{border-bottom:0}
+h2{font-size:clamp(1.35rem,2.4vw,1.7rem);line-height:1.3;margin:0 0 18px;font-weight:650}
+p{margin:0 0 16px}
+.section p{max-width:820px}
+.example{
+  margin:24px 0 0;padding:20px 22px;background:#F2EBDC;border-left:4px solid var(--navy);
+  border-radius:0 12px 12px 0;
+}
+.example p:last-child{margin-bottom:0}
+.example-q{font-weight:650}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 20px 18px}
+.card h3{margin:0 0 8px;font-size:1.04rem;line-height:1.4}
+.card p{margin:0;color:var(--muted);font-size:.95rem;line-height:1.75}
+.steps{list-style:none;margin:26px 0 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:18px 28px;counter-reset:step}
+.steps li{position:relative;padding-left:48px;counter-increment:step}
+.steps li::before{
+  content:counter(step);position:absolute;left:0;top:2px;width:32px;height:32px;border-radius:50%;
+  background:var(--navy);color:var(--cream);font-weight:650;font-size:.92rem;
+  display:flex;align-items:center;justify-content:center;
+}
+.steps strong{display:block;font-size:1rem;line-height:1.45}
+.steps span{display:block;color:var(--muted);font-size:.94rem;line-height:1.7}
+pre{
+  margin:22px 0 18px;padding:18px 20px;background:var(--navy);color:var(--cream);
+  border-radius:12px;overflow-x:auto;font-size:.92rem;line-height:1.7;
+}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.note{color:var(--muted);font-size:.94rem}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:36px 56px}
+.split ul{margin:0;padding-left:20px}
+.split li{margin:0 0 12px;color:var(--muted)}
+.split li:last-child{margin-bottom:0}
+.split strong{color:var(--ink)}
+.limit-note{margin-top:22px;color:var(--muted);font-size:.94rem}
+footer{background:var(--navy);color:var(--cream-dim);padding:34px 24px}
+.footer-inner{max-width:var(--max);margin:0 auto;display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;align-items:center}
+footer p{margin:0;font-size:.9rem}
+footer nav{display:flex;gap:18px;flex-wrap:wrap}
+footer a{color:var(--cream-dim);text-decoration:none;font-size:.9rem}
+footer a:hover{color:var(--cream)}
+@media (max-width:820px){
+  .cards{grid-template-columns:1fr}
+  .steps{grid-template-columns:1fr}
+  .split{grid-template-columns:1fr}
+  .hero{padding-bottom:58px}
+  .top{padding-bottom:28px}
+  .lockup{margin-bottom:28px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+
+<div class="hero">
+  <header class="top">
+    <a class="brand" href="#top">OpenLodestar</a>
+    <nav aria-label="主导航">
+      <a href="https://github.com/openlodestar/openlodestar">GitHub</a>
+      <a href="https://github.com/openlodestar/openlodestar/releases/tag/v0.1.0">v0.1.0</a>
+      <a href="https://github.com/openlodestar/openlodestar/blob/main/README.md">README</a>
+    </nav>
+  </header>
+
+  <div class="hero-inner" id="top">
+    <img class="lockup" src="assets/lockup-cream-800x200.png" alt="OpenLodestar" width="400" height="100">
+    <h1>大模型说的话，先去网上查一遍</h1>
+    <p class="lede">OpenLodestar 是一个给大模型输出把关的程序。模型说的每条信息，它都当成待核实的线索，去公开网页上找证据：找到，就把原文和出处一起留下；找不到，也会写清楚是没查完、没有可用来源，还是确实不存在。</p>
+    <p class="lede strong">留下的每条结论，都能照着同样的步骤重跑一遍。</p>
+    <div class="actions">
+      <a class="button primary" href="https://github.com/openlodestar/openlodestar">在 GitHub 上看代码</a>
+      <a class="button" href="https://github.com/openlodestar/openlodestar/blob/main/README.md">先读 README</a>
+    </div>
+    <p class="en" lang="en">OpenLodestar is a verification layer for LLM output. Every claim is treated as a lead and checked against public web pages. When evidence is found, the exact quote and its source are kept; when it is not, the result says which kind of not-found it is. Every kept verdict can be re-run step by step.</p>
+  </div>
+</div>
+
+<main id="main">
+
+<section class="section">
+  <h2>它到底在做什么</h2>
+  <p>模型很容易说出一句听起来很对、但没有任何出处的话。直接信，错了也看不出来；完全不信，又没法用。OpenLodestar 把这件事变成可以检查的：有没有证据、证据是什么、够不够。</p>
+  <div class="example">
+    <p class="example-q">比如模型说：某拍卖行在 2026 年 5 月办过一场拍卖会。</p>
+    <p>它会去搜公开页面，找到官方场次页，确认页面里真的有这句话，再把原文和出处留下。只有一家来源时，它只给“弱”；要第二家独立来源也出现同样的事实，才会升级成“强”。</p>
+  </div>
+</section>
+
+<section class="section">
+  <h2>它守着三条规矩</h2>
+  <div class="cards">
+    <article class="card">
+      <h3>模型先说的，只当线索</h3>
+      <p>不因为一句话听起来合理就放行。每条都要过证据这一关。</p>
+    </article>
+    <article class="card">
+      <h3>证据只从外面来</h3>
+      <p>不用自己采集的语料给自己作证，避免自说自话。</p>
+    </article>
+    <article class="card">
+      <h3>结论要能重跑</h3>
+      <p>检索、抓页、比对、判定都留下记录。错了能定位到哪一步。</p>
+    </article>
+  </div>
+</section>
+
+<section class="section">
+  <h2>一条信息会经历什么</h2>
+  <ol class="steps">
+    <li><strong>拿到一条说法</strong><span>一条说法、一个字段，不贪多。</span></li>
+    <li><strong>判断怎么查</strong><span>能直接查就直接查，太大就拆开，查不了就当场拒绝。</span></li>
+    <li><strong>去公开网页搜</strong><span>中英两条查询轨，尽量不漏。</span></li>
+    <li><strong>把页面存下来，逐页比对</strong><span>模型看到的是哪份正文，就存哪份；引文必须逐字命中。</span></li>
+    <li><strong>计票，决定留不留</strong><span>分成强、弱、拒收三档；“查不到”也分三种原因。</span></li>
+    <li><strong>留下带出处的记录</strong><span>每条结论都带引文、页面快照和重新检查的入口。</span></li>
+  </ol>
+</section>
+
+<section class="section">
+  <h2>自己跑一遍</h2>
+  <p>需要 Node.js 20 和 pnpm。下面四步都在本地完成，不联网，也不需要 API key。</p>
+  <pre><code>git clone https://github.com/openlodestar/openlodestar.git
+cd openlodestar
+pnpm install
+pnpm run demo:real</code></pre>
+  <p class="note">跑完会得到一份真实公开报道案例的完整记录：说法、证据、判定和引文校验。</p>
+</section>
+
+<section class="section split">
+  <div>
+    <h2>现在到哪一步</h2>
+    <p><strong>0.1 早期实验版。</strong>离线例子和测试可以复现；在线查证还是实验性的，默认预算下可能拿不到可读结果。具体读数（查了多少条、留下多少证据、判定结果、在线结果）都写在 README 的“当前状态”里，随代码更新。</p>
+    <p><a href="https://github.com/openlodestar/openlodestar/blob/main/README.md#%E5%BD%93%E5%89%8D%E7%8A%B6%E6%80%81">看 README 里的当前读数</a></p>
+  </div>
+  <div>
+    <h2>它不做什么</h2>
+    <ul>
+      <li>不是事实数据库，也不保证模型说的都对。它只把“有没有证据、证据是什么”摆出来。</li>
+      <li>不是通用事实核查器。目前只有一个古玩领域的策略包，换领域要另写规则。</li>
+      <li>0.1.0 不发布到 npm，按源码或命令行运行；接口在 1.0 前可能变。</li>
+    </ul>
+    <p class="limit-note">名字里的 Lodestar 是北极星：不是替你做判断，而是给你一个可以反复对照的参照点。</p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <p>Apache-2.0 · © 2026 The OpenLodestar Authors</p>
+    <nav aria-label="页脚">
+      <a href="https://github.com/openlodestar/openlodestar">GitHub</a>
+      <a href="https://github.com/openlodestar/openlodestar/releases/tag/v0.1.0">Release</a>
+      <a href="https://github.com/openlodestar/openlodestar/blob/main/SECURITY.md">安全策略</a>
+      <a href="https://github.com/openlodestar/openlodestar/blob/main/CONTRIBUTING.md">参与贡献</a>
+      <a href="https://segmentfault.com/blog/yita">构建记录</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

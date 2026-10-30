@@ -33,6 +33,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Site check
+        run: node scripts/check-site.mjs
+
       - name: Offline demo
         run: pnpm run demo
 

@@ -28,6 +28,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./lodestar/packs/porcelain": "./src/lodestar/packs/porcelain/index.ts",
     "./*": "./src/*.ts"
   },
   "engines": {

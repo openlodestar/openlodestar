@@ -17,6 +17,20 @@
 /** 语言桶：英文类（含欧洲与印欧语系）/ 中文类（含港澳台繁体与东亚语言） */
 export type LanguageClass = 'en' | 'zh';
 
+/**
+ * C0/C1 控制字符（保留换行与制表）。
+ *
+ * 页面里的控制字符不是可读文本：它们能伪造换行、制造看不见的间隔，
+ * 也可以把指令藏在正文里。清洗快照与解析模型输出共用这一条规则，
+ * 保证"页面上的字"在两边是同一个答案。
+ */
+const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g;
+
+/** 去掉控制字符（换行 \n 与制表 \t 保留） */
+export function stripControlChars(input: string): string {
+  return typeof input === 'string' ? input.replace(CONTROL_CHARS, '') : input;
+}
+
 /** 最短可投票的有效字符数：低于此值不投票（避免 "Sotheby's" 这类短名被硬判） */
 const MIN_VOTE_CHARS = 8;
 

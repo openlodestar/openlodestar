@@ -9,10 +9,21 @@
 
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 
+const { searchMock } = vi.hoisted(() => ({ searchMock: vi.fn() }));
+
 vi.mock('@src/llm', async (importOriginal) => {
   // 只 stub invokeLLM；extractJsonArray 等解析原语要保真（parse-answer 依赖它）
   const actual = await importOriginal<typeof import('@src/llm')>();
   return { ...actual, invokeLLM: vi.fn() };
+});
+
+vi.mock('@src/integrations/search-providers', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@src/integrations/search-providers')>();
+  return {
+    ...actual,
+    createSearchProvider: () => ({ name: 'fake', search: searchMock }),
+    getSearchProviderFromEnv: () => 'fake',
+  };
 });
 
 import { invokeLLM } from '@src/llm';
@@ -95,45 +106,34 @@ describe('原始应答落盘（answers 底稿，底稿起点前移）', () => {
 describe('检索增强兜底', () => {
   beforeEach(() => {
     (invokeLLM as Mock).mockReset();
+    searchMock.mockReset();
+    searchMock.mockResolvedValue({
+      results: [
+        { url: 'https://a.test/1', title: '搜索资料', snippet: '全文……', position: 1, queryIndex: 0 },
+      ],
+    });
   });
 
-  /**
-   * 角色感知的 stub：text 角色按队列出（先记忆后提取），web-search 角色单独按队列出
-   * （兜底 1 次搜索，失败会重试一次）
-   */
-  function stubRoles(memory: string[], search: (string | 'THROW')[], extraction: string[]): void {
+  /** 角色感知的 stub：text 角色按队列出（先记忆后提取）；搜索走 provider mock */
+  function stubRoles(memory: string[], extraction: string[]): void {
     const memoryQueue = [...memory];
     const extractionQueue = [...extraction];
-    const searchQueue = [...search];
-    (invokeLLM as Mock).mockImplementation(async (role: string) => {
-      if (role === 'web-search') {
-        const next = searchQueue.shift();
-        if (next === 'THROW') throw new Error('搜索超时');
-        return { content: next ?? '' };
-      }
+    (invokeLLM as Mock).mockImplementation(async () => {
       const next = memoryQueue.length > 0 ? memoryQueue.shift() : extractionQueue.shift();
       if (next === 'THROW') throw new Error('网络超时');
       return { content: next ?? '' };
     });
   }
 
-  /** 取全部 web-search 调用的用户消息文本（校验搜索问句用） */
-  function webSearchPrompts(): string[] {
-    return (invokeLLM as Mock)
-      .mock.calls.filter((call) => call[0] === 'web-search')
-      .map((call) => (call[1] as { content: string }[])[0]!.content);
-  }
-
-  it('兜底搜索的问句就是原问句（不带任何追加指向词）', async () => {
-    stubRoles(['[]', '[]', '[]'], ['搜索资料全文……'], [GOOD_ROW, GOOD_ROW]);
+  it('兜底搜索走搜索提供者，问句就是原问句（不带任何追加指向词）', async () => {
+    stubRoles(['[]', '[]', '[]'], [GOOD_ROW, GOOD_ROW]);
     await elicit('列出近五年的瓷器拍卖专场', porcelainPack, { stabilityRuns: 3 });
-    const prompts = webSearchPrompts();
-    expect(prompts).toHaveLength(1);
-    expect(prompts[0]).toBe('列出近五年的瓷器拍卖专场');
+    expect(searchMock).toHaveBeenCalledTimes(1);
+    expect(searchMock.mock.calls[0]![0]).toEqual(['列出近五年的瓷器拍卖专场']);
   });
 
   it('记忆复问整轮全空 → 触发兜底：1 次搜索 + 2 轮提取，两轮一致过稳定线，渠道标记 retrieval-assisted', async () => {
-    stubRoles(['[]', '[]', '[]'], ['搜索资料全文……'], [GOOD_ROW, GOOD_ROW]);
+    stubRoles(['[]', '[]', '[]'], [GOOD_ROW, GOOD_ROW]);
     const answers: AnswerRecord[] = [];
     const result = await elicit('列出近五年的瓷器拍卖专场', porcelainPack, {
       stabilityRuns: 3,
@@ -150,30 +150,30 @@ describe('检索增强兜底', () => {
     expect(result.claims.length).toBeGreaterThan(0);
     expect(result.claims.every((c) => c.channel === 'retrieval-assisted')).toBe(true);
 
-    // 底稿：搜索一行（note 标明来源），提取两轮各一行（note 标记）
+    // 底稿：搜索一行（内容来自搜索提供者，note 标明来源），提取两轮各一行（note 标记）
     const searchRows = answers.filter((a) => a.kind === 'retrieval-search');
     expect(searchRows).toHaveLength(1);
-    expect(searchRows[0]?.rawText).toBe('搜索资料全文……');
+    expect(searchRows[0]?.rawText).toContain('https://a.test/1');
+    expect(searchRows[0]?.rawText).toContain('搜索资料');
     expect(searchRows[0]?.note).toContain('原问句');
     const extractRows = answers.filter((a) => a.note?.includes('检索增强提取'));
     expect(extractRows).toHaveLength(2);
     expect(extractRows.map((a) => a.runIndex)).toEqual([3, 4]);
-    // 兜底后调用次数：3 记忆 + 1 搜索 + 2 提取 = 6
-    expect(invokeLLM).toHaveBeenCalledTimes(6);
+    // 兜底后调用次数：3 记忆 + 2 提取 = 5（搜索不再借 web-search 角色）
+    expect(invokeLLM).toHaveBeenCalledTimes(5);
   });
 
   it('记忆轮有产出 → 不触发兜底（不多花一次搜索）', async () => {
-    stubRoles([GOOD_ROW, GOOD_ROW, GOOD_ROW], ['不该被用到'], []);
+    stubRoles([GOOD_ROW, GOOD_ROW, GOOD_ROW], []);
     const result = await elicit('列出近五年的瓷器拍卖专场', porcelainPack, { stabilityRuns: 3 });
 
     expect(result.stats.intakeMode).toBe('memory');
     expect(result.stats.rowsPerRun).toEqual([1, 1, 1]);
-    const roles = (invokeLLM as Mock).mock.calls.map((call) => call[0]);
-    expect(roles).not.toContain('web-search');
+    expect(searchMock).not.toHaveBeenCalled();
   });
 
   it('retrievalFallback 关闭 → 记忆全空也不兜底', async () => {
-    stubRoles(['[]', '[]', '[]'], ['不该被用到'], []);
+    stubRoles(['[]', '[]', '[]'], []);
     const result = await elicit('列出近五年的瓷器拍卖专场', porcelainPack, {
       stabilityRuns: 3,
       retrievalFallback: false,
@@ -182,10 +182,11 @@ describe('检索增强兜底', () => {
     expect(result.stats.intakeMode).toBe('memory');
     expect(result.records).toHaveLength(0);
     expect(invokeLLM).toHaveBeenCalledTimes(3);
+    expect(searchMock).not.toHaveBeenCalled();
   });
 
   it('提取只命中一轮 → recordHits=1 不过稳定线，断言被预筛拒收（unstable-replay）', async () => {
-    stubRoles(['[]', '[]', '[]'], ['搜索资料全文……'], [GOOD_ROW, '[]']);
+    stubRoles(['[]', '[]', '[]'], [GOOD_ROW, '[]']);
     const result = await elicit('列出近五年的瓷器拍卖专场', porcelainPack, { stabilityRuns: 3 });
 
     expect(result.stats.intakeMode).toBe('retrieval-assisted');
@@ -197,7 +198,8 @@ describe('检索增强兜底', () => {
   });
 
   it('兜底搜索失败 → 就地放弃，不换措辞重试，intakeMode 仍标记 retrieval-assisted', async () => {
-    stubRoles(['[]', '[]', '[]'], ['THROW', 'THROW'], []);
+    stubRoles(['[]', '[]', '[]'], []);
+    searchMock.mockRejectedValue(new Error('搜索超时'));
     const answers: AnswerRecord[] = [];
     const result = await elicit('列出近五年的瓷器拍卖专场', porcelainPack, {
       stabilityRuns: 3,
@@ -209,7 +211,8 @@ describe('检索增强兜底', () => {
     expect(result.stats.intakeMode).toBe('retrieval-assisted');
     expect(result.records).toHaveLength(0);
     // 搜索重试 2 次都抛错 → 提取轮一次都没跑
-    expect(invokeLLM).toHaveBeenCalledTimes(3 + 2);
+    expect(invokeLLM).toHaveBeenCalledTimes(3);
+    expect(searchMock).toHaveBeenCalledTimes(2);
     const searchRow = answers.find((a) => a.kind === 'retrieval-search');
     expect(searchRow?.rawText).toBeNull();
     expect(searchRow?.note).toContain('兜底搜索失败');

@@ -28,6 +28,12 @@ export interface InvokeParams {
   /** 见 SamplingParams.enableThinking */
   enableThinking?: boolean;
   responseFormat?: { type: 'json_object' | 'text' };
+  /**
+   * 厂商扩展字段：原样合并进 `/chat/completions` 请求体（基础字段优先，不可覆盖）。
+   * 用于各家的联网开关等非标准参数，如 `{ enable_search: true }`（DashScope 兼容模式）、
+   * `{ web_search_options: {} }`（OpenAI 搜索模型）。引擎自身不内置任何厂商字段。
+   */
+  extraBody?: Record<string, unknown>;
 }
 
 /** 调用结果 */
@@ -97,6 +103,7 @@ export async function invokeLLM(
   const cfg = ROLE_REGISTRY[role];
   const model = getRoleModelName(role, params?.model);
   const body: Record<string, unknown> = {
+    ...(params?.extraBody ?? {}),
     model,
     messages: toMessages(messages),
   };

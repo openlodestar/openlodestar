@@ -10,6 +10,7 @@
  */
 
 import { invokeLLM, type ChatMessage } from '@src/llm';
+import { createSearchProvider, getSearchProviderFromEnv } from '@src/integrations/search-providers';
 import { getLodestarLoader } from '@src/prompts';
 import { createLogger } from '@src/utils/logger';
 import { newId } from '../ids';
@@ -127,15 +128,24 @@ async function askOnce(
 }
 
 /**
- * 检索增强兜底的搜索式调用（web-search 角色，enable_search 由角色配置带上）。
- * 返回搜索结果全文作为提取上下文；失败返回 null，兜底就地放弃（不重试换措辞）。
+ * 检索增强兜底的搜索式调用：走与裁决层同一个搜索提供者（SEARCH_PROVIDER）。
+ *
+ * 为什么不再直接调 `invokeLLM('web-search')`：那个角色只有模型名，没有「联网」这个动作——
+ * 模型会凭记忆写一段泛泛而谈的概述，提取轮拿它当证据只能提取出空数组。搜索提供者才知道
+ * 怎么真的发一次搜索（llm-web 带联网开关、serper 走 Google）。返回结果拼成带 URL 的上下文；
+ * 失败返回 null，兜底就地放弃（不重试换措辞）。
  */
 async function searchOnce(query: string, log: ReturnType<typeof createLogger>): Promise<string | null> {
-  const messages: ChatMessage[] = [{ role: 'user', content: query }];
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const result = await invokeLLM('web-search', messages, { enableThinking: false });
-      if (typeof result.content === 'string' && result.content.trim() !== '') return result.content;
+      const provider = createSearchProvider(getSearchProviderFromEnv());
+      const { results } = await provider.search([query], { numResults: 10 });
+      const context = results
+        .map((item, index) => `[${index + 1}] ${item.title}\n${item.url}\n${item.snippet}`)
+        .join('\n\n')
+        .trim();
+      if (context !== '') return context;
+      log.dev.warn(`兜底搜索第 ${attempt + 1} 次没有返回任何结果`);
     } catch (error) {
       log.dev.warn(`兜底搜索第 ${attempt + 1} 次尝试失败：${error instanceof Error ? error.message : String(error)}`);
     }

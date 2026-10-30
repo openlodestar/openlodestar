@@ -180,9 +180,25 @@ export interface SearchFootprint {
    */
   rejected: Array<{ url: string; reason: string }>;
   /** 预算使用与触顶观测 */
-  budget: { searchCalls: number; pagesFetched: number; searchCap: number; pageCap: number };
+  budget: {
+    /**
+     * 本条断言自己发出的检索次数。同记录组共用检索时为 0——组级次数另记在
+     * `sharedSearchCalls`，不摊到每条断言头上（否则 not_found 会被误归因成预算耗尽）。
+     */
+    searchCalls: number;
+    pagesFetched: number;
+    searchCap: number;
+    pageCap: number;
+    /** 同记录组共用检索的实际次数（组级，只记一次；没有共用检索时不出现） */
+    sharedSearchCalls?: number;
+  };
   /** 候选是否已覆盖完（未覆盖完就下 not_found 只能记 budget 因） */
   candidatesCovered: boolean;
+  /**
+   * 因搜索提供者能力不足而没发出去的查询（如提供者不支持 site: 时的域定向查询）。
+   * 与 queries 分开记：读者要能分清"查了没结果"与"这类查询我们压根没发"。
+   */
+  skippedQueries?: string[];
 }
 
 /** 一条断言的终态 */

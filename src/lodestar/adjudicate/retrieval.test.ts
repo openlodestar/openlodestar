@@ -12,19 +12,27 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { searchMock, translateMock } = vi.hoisted(() => ({
+const { searchMock, translateMock, providerState } = vi.hoisted(() => ({
   searchMock: vi.fn(),
   translateMock: vi.fn(),
+  /** 假提供者的能力位：undefined = 不声明（契约缺省视为不支持 site:） */
+  providerState: { siteOperator: true as boolean | undefined },
 }));
 
 vi.mock('@src/integrations/search-providers', () => ({
-  createSearchProvider: () => ({ name: 'fake', search: searchMock }),
-  getSearchProviderFromEnv: () => 'serper',
+  createSearchProvider: () => ({
+    name: 'fake',
+    ...(providerState.siteOperator === undefined
+      ? {}
+      : { capabilities: { siteOperator: providerState.siteOperator } }),
+    search: searchMock,
+  }),
+  getSearchProviderFromEnv: () => 'fake',
 }));
 
 vi.mock('@src/services/query-translation', () => ({ translateQueries: translateMock }));
 
-import { retrieveCandidates } from './retrieval';
+import { buildEvidenceQueries, buildRecordQueries, retrieveCandidates } from './retrieval';
 import { NO_ABLATIONS } from '@src/ablation';
 import porcelainPack from '../packs/porcelain';
 import type { ClaimRecord } from '../types';
@@ -67,8 +75,51 @@ function baseInput() {
 beforeEach(() => {
   searchMock.mockReset();
   translateMock.mockReset();
+  providerState.siteOperator = true;
   searchMock.mockResolvedValue({ results: [], rawResponse: {} });
   translateMock.mockResolvedValue({ queries: [], cacheHit: false, model: 'fake', failed: false });
+});
+
+describe('buildRecordQueries — 字段轮转', () => {
+  it('检索名额按字段轮转，不会全花在第一个字段的模板上', () => {
+    const values = {
+      auctionHouse: '北京保利',
+      dateText: '2021年12月5日',
+      sessionName: '禹贡Ⅰ—盛清御瓷新风尚',
+    };
+    const specs = new Map(porcelainPack.fields().map((field) => [field.key, field]));
+    const claims = (['auctionHouse', 'dateText', 'sessionName'] as const).map((fieldKey) => {
+      const claim = {
+        ...CLAIM,
+        claimId: `cl-test-${fieldKey}`,
+        fieldKey,
+        object: values[fieldKey],
+        subject: fieldKey === 'auctionHouse' ? '北京保利' : values.auctionHouse,
+        atomicText: `${values.auctionHouse} ${values.dateText} ${values.sessionName}`,
+      } as unknown as ClaimRecord;
+      return { claim, spec: specs.get(fieldKey) };
+    });
+
+    const queries = buildRecordQueries({
+      pack: porcelainPack,
+      claims,
+      values,
+      domains: ['polyauction.com.cn'],
+      maxQueries: 3,
+    });
+    const firstOfEach = claims.map(({ claim, spec }) =>
+      buildEvidenceQueries({
+        pack: porcelainPack,
+        claim,
+        values,
+        spec,
+        domains: ['polyauction.com.cn'],
+        maxQueries: 3,
+      })[0],
+    );
+
+    expect(queries).toEqual(firstOfEach);
+  });
 });
 
 describe('retrieveCandidates — 双语双轨', () => {
@@ -119,5 +170,49 @@ describe('retrieveCandidates — 双语双轨', () => {
     expect(result.searchCalls).toBe(0);
     expect(searchMock).not.toHaveBeenCalled();
     expect(translateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('retrieveCandidates — 能力位生效（site: 不降级）', () => {
+  const SITE_QUERY = 'site:cguardian.com 中国嘉德';
+
+  it('提供者不支持 site: → 域定向查询被跳过并记账，不发送、不降级成普通词', async () => {
+    providerState.siteOperator = false;
+
+    const result = await retrieveCandidates({ ...baseInput(), prebuiltQueries: [ZH_QUERY, SITE_QUERY] });
+
+    expect(searchMock).toHaveBeenCalledTimes(1);
+    expect(searchMock).toHaveBeenCalledWith([ZH_QUERY], expect.objectContaining({ language: 'zh-cn' }));
+    expect(result.queries).toEqual([ZH_QUERY]);
+    expect(result.skippedQueries).toEqual([SITE_QUERY]);
+    expect(result.searchCalls).toBe(1);
+  });
+
+  it('未声明 capabilities（缺省视为不支持）同样跳过 site: 查询', async () => {
+    providerState.siteOperator = undefined;
+
+    const result = await retrieveCandidates({ ...baseInput(), prebuiltQueries: [ZH_QUERY, SITE_QUERY] });
+
+    expect(result.skippedQueries).toEqual([SITE_QUERY]);
+    expect(searchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('声明 siteOperator=true 时 site: 查询照常发出', async () => {
+    const result = await retrieveCandidates({ ...baseInput(), prebuiltQueries: [ZH_QUERY, SITE_QUERY] });
+
+    expect(searchMock).toHaveBeenCalledWith([ZH_QUERY, SITE_QUERY], expect.anything());
+    expect(result.skippedQueries).toEqual([]);
+  });
+
+  it('全部查询都是 site: 且提供者不支持 → 0 次检索，但提供者名仍记下（可归因）', async () => {
+    providerState.siteOperator = false;
+
+    const result = await retrieveCandidates({ ...baseInput(), prebuiltQueries: [SITE_QUERY] });
+
+    expect(searchMock).not.toHaveBeenCalled();
+    expect(translateMock).not.toHaveBeenCalled();
+    expect(result.searchCalls).toBe(0);
+    expect(result.skippedQueries).toEqual([SITE_QUERY]);
+    expect(result.provider).toBe('fake');
   });
 });

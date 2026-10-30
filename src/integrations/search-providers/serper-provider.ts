@@ -10,6 +10,7 @@
  */
 
 import type { SearchProvider, SearchProviderResult, SearchOptions, SearchResultItem } from './types';
+import { SearchProviderCallError, SearchProviderConfigError } from './errors';
 
 interface SerperOrganicResult {
   title: string;
@@ -38,7 +39,9 @@ export class SerperProvider implements SearchProvider {
   constructor() {
     const apiKey = process.env.SERPER_API_KEY;
     if (!apiKey) {
-      throw new Error('缺少 SERPER_API_KEY：检索证据需要搜索提供者的密钥（demo 命令不需要）。');
+      throw new SearchProviderConfigError(
+        '缺少 SERPER_API_KEY：检索证据需要搜索提供者的密钥（demo 命令不需要；或改用 SEARCH_PROVIDER=llm-web 走模型自带联网搜索）。',
+      );
     }
     this.apiKey = apiKey;
     this.baseUrl = process.env.SERPER_BASE_URL || 'https://google.serper.dev';
@@ -64,7 +67,7 @@ export class SerperProvider implements SearchProvider {
       });
 
       if (!response.ok) {
-        throw new Error(`Serper API error: ${response.status} ${response.statusText}`);
+        throw new SearchProviderCallError(`Serper API error: ${response.status} ${response.statusText}`);
       }
 
       const data = (await response.json()) as SerperResponse;

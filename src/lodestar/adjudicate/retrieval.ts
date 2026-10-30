@@ -45,10 +45,13 @@ export interface SharedRetrieval {
   candidates: EvidenceCandidate[];
   searchCalls: number;
   provider: string;
+  /** 因提供者能力不足没发出去的查询（见 RetrievalResult.skippedQueries） */
+  skippedQueries?: string[];
 }
 
 /** 检索执行结果 */
 export interface RetrievalResult {
+  /** 实际发出的查询（已剔除提供者做不到的；能力位跳过的不在这里，见 skippedQueries） */
   queries: string[];
   candidates: EvidenceCandidate[];
   /** 实际发出的搜索请求数（= 查询条数，serper 一类提供者逐条请求） */
@@ -57,10 +60,30 @@ export interface RetrievalResult {
   rejected: Array<{ url: string; reason: string }>;
   /** 搜索提供者名（成本归因用） */
   provider: string;
+  /** 因提供者能力不足而没发出去的查询（如不支持 site: 时的域定向查询；不降级成普通词） */
+  skippedQueries: string[];
 }
 
 /** 非 HTML 资源（图片 / 视频 / 文档）不抓——与宿主系统同判据，但理由不同：这里抓回来也没有正文可比对 */
 const NON_HTML_PATTERN = /\.(jpg|jpeg|png|gif|webp|mp4|pdf|zip|docx?|xlsx?|pptx?)(\?|$)/i;
+
+/** 域定向查询的形态：`site:` 开头（大小写不敏感） */
+const SITE_QUERY_PATTERN = /^\s*site:/i;
+
+/**
+ * 按提供者能力拆分查询集：不支持 `site:` 的提供者（如 LLM 自带搜索）不发这类查询，
+ * 记进 skipped 而不是降级成普通关键词——降级会悄悄改变查询语义，比少搜几条更危险。
+ */
+export function partitionQueriesByCapabilities(
+  queries: string[],
+  siteOperator: boolean,
+): { executable: string[]; skipped: string[] } {
+  if (siteOperator) return { executable: [...queries], skipped: [] };
+  const executable: string[] = [];
+  const skipped: string[] = [];
+  for (const query of queries) (SITE_QUERY_PATTERN.test(query) ? skipped : executable).push(query);
+  return { executable, skipped };
+}
 
 /**
  * 把各槽换成策略包给的"检索面写法"（首选形态），**只改查询串、不改断言内容**。
@@ -154,19 +177,43 @@ export function buildRecordQueries(input: {
   domains: string[];
   maxQueries: number;
 }): string[] {
-  const queries: string[] = [];
-  for (const { claim, spec } of input.claims) {
-    for (const query of buildEvidenceQueries({
+  /**
+   * 按字段轮转取模板，而不是把一个字段的模板先取光。
+   *
+   * 实测后果：拍卖机构字段自带 3 条模板，顺序取满 `maxQueries=4` 后，日期与专场名
+   * 一条查询都进不了共用池——而"写着这场全部关键字段的那一页"通常正是用专场名才搜得到。
+   * 于是门禁永远凑不齐共现，问题被错记成"世界没有这个页面"。
+   *
+   * 轮转不改变每条查询的内容与总次数，只改变"名额先给谁"。
+   */
+  const perClaim = input.claims.map(({ claim, spec }) =>
+    buildEvidenceQueries({
       pack: input.pack,
       claim,
       values: input.values,
       spec,
       domains: input.domains,
       maxQueries: input.maxQueries,
-    })) {
-      if (!queries.includes(query)) queries.push(query);
+    }),
+  );
+  const queries: string[] = [];
+  const seen = new Set<string>();
+  const push = (query: string): boolean => {
+    if (seen.has(query)) return false;
+    seen.add(query);
+    queries.push(query);
+    return true;
+  };
+  for (let depth = 0; queries.length < input.maxQueries; depth++) {
+    let tookAny = false;
+    for (const list of perClaim) {
+      const query = list[depth];
+      if (query === undefined) continue;
+      tookAny = true;
+      push(query);
       if (queries.length >= input.maxQueries) return queries;
     }
+    if (!tookAny) break;
   }
   return queries;
 }
@@ -253,6 +300,9 @@ export function filterAndRankCandidates(
  *
  * 搜索 API 异常向上抛（infra 失败与"查无实据"是两个世界，不能混为一谈）：
  * 上层把该断言记成 `failed`，不伪装成阴性结论。
+ *
+ * 能力位在这里生效：提供者声明 `siteOperator: false` 时，`site:` 定向查询**不发出**、
+ * 记入 `skippedQueries`（足迹可审计），也不降级成普通关键词。
  */
 export async function retrieveCandidates(input: {
   pack: DomainPack;
@@ -267,7 +317,7 @@ export async function retrieveCandidates(input: {
   prebuiltQueries?: string[];
 }): Promise<RetrievalResult> {
   const log = input.logger ?? createLogger({ prefix: '[Lodestar Retrieval] ' });
-  const queries = input.prebuiltQueries ?? buildEvidenceQueries({
+  const constructed = input.prebuiltQueries ?? buildEvidenceQueries({
     pack: input.pack,
     claim: input.claim,
     values: input.values,
@@ -276,11 +326,32 @@ export async function retrieveCandidates(input: {
     maxQueries: input.maxQueries,
   });
 
-  if (queries.length === 0) {
-    return { queries, candidates: [], searchCalls: 0, rejected: [], provider: '' };
+  if (constructed.length === 0) {
+    return { queries: [], candidates: [], searchCalls: 0, rejected: [], skippedQueries: [], provider: '' };
   }
 
   const provider = createSearchProvider(getSearchProviderFromEnv());
+
+  // 能力位不是装饰：提供者声明不支持 site: 时，域定向查询跳过并记账（不降级成普通词）
+  const { executable: queries, skipped: skippedQueries } = partitionQueriesByCapabilities(
+    constructed,
+    provider.capabilities?.siteOperator === true,
+  );
+  if (skippedQueries.length > 0) {
+    log.dev.debug(
+      `[${input.claim.claimId}] 提供者 ${provider.name} 不支持 site:，跳过 ${skippedQueries.length} 条域定向查询`,
+    );
+  }
+  if (queries.length === 0) {
+    return {
+      queries,
+      candidates: [],
+      searchCalls: 0,
+      rejected: [],
+      skippedQueries,
+      provider: provider.name,
+    };
+  }
 
   // 双语双轨：源轨按自身语言类选搜索地区参数，反向轨的查询词由源轨
   // **整条翻译**而来——只改地区参数不改查询词覆盖不到另一种语言的语料面（实测
@@ -330,5 +401,6 @@ export async function retrieveCandidates(input: {
     searchCalls,
     rejected,
     provider: provider.name,
+    skippedQueries,
   };
 }

@@ -11,6 +11,8 @@
 
 **English** — OpenLodestar is a verification layer for LLM claims. Every statement is treated as a candidate, checked against public web evidence, and kept only if it survives; each kept verdict carries a re-runnable evidence chain with verbatim quotes, and "not found" is a first-class outcome. Status: early 0.1 — the offline demos and test suite are reproducible, while live search is experimental and not reproducible.
 
+项目主页：<https://openlodestar.github.io/openlodestar/>
+
 ## 它产出什么
 
 大模型能一口气说出一堆"它记得"的事，但一条都不带出处：说对了是碰巧，说错了你也看不出来。OpenLodestar 补的正是这个缺口——它产出的不是又一段读着很像样的文字，而是**核过的记录**：

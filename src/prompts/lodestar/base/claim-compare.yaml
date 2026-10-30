@@ -1,0 +1,69 @@
+name: lodestar_claim_compare
+version: "1.1.0"
+last_updated: "2026-10-04"
+updated_by: "AI Assistant"
+
+description: |
+  逐源独立比对：一条断言 × 一个来源页面 = 一次独立调用。
+  纪律来源——把多个来源塞进同一次调用，模型会给一个折中结论，
+  而裁决需要每个来源各自的立场。引文逐字必填，是全系统唯一可机械核验的部分（证据必须自抓、引文必须逐字）。
+
+template: |
+  # 任务
+  只依据下面这一份页面正文，判断它与给定断言的关系。不要用你的先验知识补全，也不要参考任何其他来源。
+
+  # 断言
+  {{claim}}
+
+  # 判定规则（本领域细则）
+  {{rules}}
+
+  # 页面正文（抓取于 {{fetched_at}}，来源 {{url}}）
+  {{page_text}}
+
+  # 输出要求
+  {{rules_extra}}
+
+  # 输出格式
+  仅输出一个 JSON 对象：
+  {
+    "relation": "supports | refutes | irrelevant",
+    "quote": "从上面正文里逐字复制的一句原文",
+    "contentWeight": 1.0,
+    "pageTopic": "一句话说明这个页面在讲什么",
+    "rationale": "为什么是这个关系（一到两句）"
+  }
+
+llm_params:
+  temperature: 0
+  max_tokens: 800
+
+rules:
+  - name: quote_verbatim
+    enabled: true
+    content: quote 必须是从上面正文里**原样复制**的一段——引号、书名号、破折号、全角半角都按页面怎么写就怎么抄（页面写「」就不要改成“”，写 Ⅱ 就不要改成 II）。宁可只摘十个字的确证短句，也不要摘一句"意思对但被重排过"的长句；找不到可逐字复制的原句，就不要给出 supports 或 refutes。
+  - name: page_content_only
+    enabled: true
+    content: 判定只依据正文写了什么。搜索引擎摘要、URL 里的参数、页面标题之外的导航文字都不算依据。
+  - name: irrelevant_is_a_real_answer
+    enabled: true
+    content: 页面没有谈到这条断言时判 irrelevant；此时 quote 摘一句能说明该页在讲什么的原文（同样必须逐字复制），pageTopic 写清这页是什么。不要为了给出结论而勉强判矛盾。
+  - name: refuted_needs_explicit_conflict
+    enabled: true
+    content: 只有页面明确写出与断言冲突的事实才算 refutes（该场不存在、该机构那年没有此专场、名称指向另一场）。"页面没提到"不是矛盾。
+  - name: content_weight
+    enabled: true
+    content: contentWeight 取 1.0 表示页面直接陈述了这条断言的内容；取 0.6 表示只能通过并列信息间接推断（例如从拍品构成推断专场性质）。
+
+changelog:
+  - version: "1.1.0"
+    date: "2026-10-04"
+    changes:
+      - 引文逐字纪律从"不得改写"细化成"原样复制，标点引号照抄，宁短勿全"，并规定没有可复制原句就不许给 supports
+      - irrelevant 的留档引文同样要求逐字复制
+    reason: 首轮实测里三条被硬护栏挡下的证据都是模型把页面句子重排或把「」改写成“”后的转述句（如页面写「大巧若拙——竹月堂藏瓷II」专场，返回的却是"瓷器工艺品部推出“…”专场，共32件精彩拍品"）；这条一票否决不许放宽匹配，只能把"只复制不转述"讲到无法误解
+  - version: "1.0.0"
+    date: "2026-10-04"
+    changes:
+      - 初版：一断言×一页面一次调用；引文逐字、irrelevant 也需留档与页面主题句、refuted 需明确冲突三条写进规则
+    reason: 三条硬性要求与防一致性偏见纪律需要落到可执行的提示词上

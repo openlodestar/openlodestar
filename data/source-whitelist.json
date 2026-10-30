@@ -1,0 +1,254 @@
+[
+  {
+    "domain": "sothebys.com",
+    "name": "苏富比",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "christies.com",
+    "name": "佳士得",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "phillips.com",
+    "name": "富艺斯",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "bonhams.com",
+    "name": "邦瀚斯",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "heritageauctions.com",
+    "name": "Heritage Auctions",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "ha.com",
+    "name": "Heritage Auctions",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "catawiki.com",
+    "name": "Catawiki",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "invaluable.com",
+    "name": "Invaluable",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "auctionzip.com",
+    "name": "AuctionZip",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "the-saleroom.com",
+    "name": "The Saleroom",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "icollector.com",
+    "name": "iCollector",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "polypm.com.cn",
+    "name": "保利拍卖在线",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "council.com.cn",
+    "name": "匡时",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "hanhai.net",
+    "name": "北京翰海",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "sungari1995.com",
+    "name": "中贸圣佳",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "xlysauc.com",
+    "name": "西泠印社拍卖",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "duoyunxuan.com.cn",
+    "name": "朵云轩",
+    "category": "auction",
+    "status": "verified"
+  },
+  {
+    "domain": "polyauction.com.cn",
+    "name": "保利拍卖官网",
+    "category": "auction",
+    "status": "candidate"
+  },
+  {
+    "domain": "cguardian.com",
+    "name": "嘉德",
+    "category": "auction",
+    "status": "candidate"
+  },
+  {
+    "domain": "barnebys.com",
+    "name": "Barnebys",
+    "category": "auction",
+    "status": "candidate"
+  },
+  {
+    "domain": "yipai.com",
+    "name": "易拍全球",
+    "category": "auction",
+    "status": "candidate"
+  },
+  {
+    "domain": "liveauctioneers.com",
+    "name": "LiveAuctioneers",
+    "category": "auction",
+    "status": "candidate"
+  },
+  {
+    "domain": "ebay.com",
+    "name": "eBay",
+    "category": "ecommerce",
+    "status": "verified"
+  },
+  {
+    "domain": "amazon.com",
+    "name": "Amazon",
+    "category": "ecommerce",
+    "status": "verified"
+  },
+  {
+    "domain": "etsy.com",
+    "name": "Etsy",
+    "category": "ecommerce",
+    "status": "candidate"
+  },
+  {
+    "domain": "1stdibs.com",
+    "name": "1stDibs",
+    "category": "collector_site",
+    "status": "candidate"
+  },
+  {
+    "domain": "rubylane.com",
+    "name": "Ruby Lane",
+    "category": "collector_site",
+    "status": "candidate"
+  },
+  {
+    "domain": "mycollect.net",
+    "name": "华夏收藏网",
+    "category": "collector_site",
+    "status": "candidate"
+  },
+  {
+    "domain": "pamono.com",
+    "name": "Pamono",
+    "category": "collector_site",
+    "status": "candidate"
+  },
+  {
+    "domain": "chairish.com",
+    "name": "Chairish",
+    "category": "collector_site",
+    "status": "candidate"
+  },
+  {
+    "domain": "trocadero.com",
+    "name": "Trocadero",
+    "category": "collector_site",
+    "status": "candidate"
+  },
+  {
+    "domain": "proantic.com",
+    "name": "Proantic",
+    "category": "collector_site",
+    "status": "candidate"
+  },
+  {
+    "domain": "vcoins.com",
+    "name": "VCoins",
+    "category": "collector_site",
+    "status": "candidate"
+  },
+  {
+    "domain": "ma-shops.com",
+    "name": "MA-Shops",
+    "category": "collector_site",
+    "status": "candidate"
+  },
+  {
+    "domain": "artsy.net",
+    "name": "Artsy",
+    "category": "collector_site",
+    "status": "candidate"
+  },
+  {
+    "domain": "artron.net",
+    "name": "雅昌艺术网",
+    "category": "media",
+    "status": "verified"
+  },
+  {
+    "domain": "thevalue.com",
+    "name": "TheValue 值点网",
+    "category": "media",
+    "status": "verified"
+  },
+  {
+    "domain": "artprice.com",
+    "name": "Artprice",
+    "category": "media",
+    "status": "verified"
+  },
+  {
+    "domain": "artnet.com",
+    "name": "artnet",
+    "category": "media",
+    "status": "verified"
+  },
+  {
+    "domain": "mutualart.com",
+    "name": "MutualArt",
+    "category": "media",
+    "status": "candidate"
+  },
+  {
+    "domain": "worthpoint.com",
+    "name": "WorthPoint",
+    "category": "media",
+    "status": "candidate"
+  },
+  {
+    "domain": "artpro.com",
+    "name": "ArtPro",
+    "category": "media",
+    "status": "candidate"
+  }
+]

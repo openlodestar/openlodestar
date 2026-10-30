@@ -1,0 +1,57 @@
+name: lodestar_claim_atomize
+version: "1.0.0"
+last_updated: "2026-10-04"
+updated_by: "AI Assistant"
+
+description: |
+  原子化与拆分共用模板：把一段表述拆成"一条只装一个命题"的可判定句子。
+  两个调用场景——外部提交的自由文本入库；路由判为 decompose 的复合/统计断言拆层后重入。
+  纪律来源（一个时间限定、一个主体、可判定性优先、保留原文）。
+
+template: |
+  # 任务
+  把下面这段表述拆成若干条**只装一个命题**的断言。
+
+  # 待拆表述
+  {{raw_text}}
+
+  # 拆分纪律
+  {{rules}}
+
+  # 输出格式
+  仅输出 JSON 数组，每个对象形如：
+  {
+    "atomicText": "完整可判定的一句话",
+    "subject": "主体",
+    "predicate": "谓词",
+    "object": "客体/取值",
+    "timeFrom": "YYYY-MM-DD 或空",
+    "timeTo": "YYYY-MM-DD 或空",
+    "undecidable": false
+  }
+  拆不出可判定形态时，输出一个对象并把 undecidable 置 true，atomicText 写明为什么写不出判定规则。
+
+llm_params:
+  temperature: 0
+  max_tokens: 1500
+
+rules:
+  - name: one_proposition
+    enabled: true
+    content: 一条断言只装一个命题：一个时间限定、一个主体、一个谓词。跨时间段的拆成逐段，涉及两个机构的关系拆成各自存在性加关系断言。
+  - name: decidable_or_flag
+    enabled: true
+    content: 拆到每条都写得出一句「一致／矛盾」的判定规则为止；写不出判定规则的那条标 undecidable=true，不要硬拆成看起来可判定的句子。
+  - name: keep_meaning
+    enabled: true
+    content: 不得新增原文没有的要素，也不得把原文的具体值泛化（"2014年5月"不能写成"2014年"）。
+  - name: no_aggregate_left
+    enabled: true
+    content: 统计量（总额、比例、均值）单独成一条，并在 atomicText 里写明它统计的是哪个集合。
+
+changelog:
+  - version: "1.0.0"
+    date: "2026-10-04"
+    changes:
+      - 初版：原子化与 decompose 重入共用一份模板，避免同一件事两套提示词
+    reason: 四条拆分纪律要落到可执行提示词，且路由的 decompose 分支需要同一个动作

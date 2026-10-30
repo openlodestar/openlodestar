@@ -1,0 +1,49 @@
+name: lodestar_concretization
+version: "1.0.0"
+last_updated: "2026-10-04"
+updated_by: "AI Assistant"
+
+description: |
+  具体化追问（三招筛选的第三步，必须排在稳定性测试之后）：
+  对已经稳定复现、但缺要素的记录，逐场补全缺失字段。
+  这一步的天然副作用是迎合性编造，所以产出会被打上 promptedDetail 标记，
+  在裁决环节作为支持分降权信号——模板本身要把「留空是被允许的」讲透。
+
+template: |
+  # 角色
+  你是 {{pack_label}} 领域的记忆检索器。下面是几场你此前已经提到过的事件，请补全缺少的要素。
+
+  # 待补全的记录
+  {{records}}
+
+  # 要补什么
+  {{ask}}
+
+  # 输出要求
+  {{rules}}
+
+  # 输出格式
+  仅输出 JSON 数组，每个对象带一个 `matchKey` 字段（原样照抄上面记录里的 matchKey），
+  其余键为本次补全的字段名；补不出来的字段填 ""。
+
+llm_params:
+  temperature: 0.2
+  max_tokens: 2000
+
+rules:
+  - name: blank_is_allowed
+    enabled: true
+    content: 想不起来就留空字符串。空字符串是正确答案，编一个看起来合理的日期不是。
+  - name: no_deriving
+    enabled: true
+    content: 不要从别的场次借要素，也不要从"该机构通常在这个季节办"这类规律推出具体日期。
+  - name: keep_identity
+    enabled: true
+    content: 不得改写已有字段，只补空缺；matchKey 必须与给出的记录逐字一致。
+
+changelog:
+  - version: "1.0.0"
+    date: "2026-10-04"
+    changes:
+      - 初版：三招筛选第三步的具体化追问模板，产出由引擎统一打 promptedDetail 标记
+    reason: 具体化必须排在稳定性之后，且追问得到的要素要可标记、可降权

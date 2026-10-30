@@ -1,0 +1,33 @@
+{
+  "name": "openlodestar",
+  "version": "0.1.0",
+  "description": "Verification layer for LLM claims: turn model statements into auditable verdicts backed by re-runnable web evidence.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "demo": "tsx src/cli.ts demo",
+    "verify-quotes": "tsx src/cli.ts verify-quotes",
+    "audit": "tsx src/cli.ts audit"
+  },
+  "dependencies": {
+    "js-yaml": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "id": "poly-2021-autumn",
+  "title": "北京保利 2021 秋拍「禹贡」专场",
+  "subtitle": "四份公开报道的节选，两份真实场次：一份拿到强坐标，一份只到弱档；另外两条候选被拒收",
+  "query": "北京保利2021年秋季拍卖会，中国古董珍玩板块有哪些专场？各场的拍卖机构、举办时间、专场名称是什么？",
+  "capturedAt": "2026-10-29",
+  "snapshotManifest": "snapshots/manifest.json",
+  "summary": "2021 年 12 月 5 日，北京保利秋拍「禹贡Ⅰ—盛清御瓷新风尚」在 AMMA 与 The Value 两个独立家族的一手报道里同时出现机构、日期与专场名，拿到 strong 坐标；同季「禹贡Ⅱ」只有一篇雅昌原创稿（经澎湃号转载）支持，家族归并后仍是单一来源，只到 weak。两条注入的候选——把日期写成 11 月 15 日、以及凭空多出的「禹贡Ⅲ」——分别被 refuted 与 not_found 拦下，没有产生坐标。",
+  "sources": [
+    {
+      "id": "amma",
+      "url": "https://amma.artron.net/observation_shownews.php?newid=1104807",
+      "publisher": "雅昌艺术市场监测中心（AMMA）",
+      "publishedAt": "2021-12-05 20:26",
+      "tier": "primary",
+      "family": "artron.net",
+      "capture": "snapshots/amma-2021-12-05.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-10-29T16:36:00+08:00"
+    },
+    {
+      "id": "thevalue",
+      "url": "https://hk.thevalue.com/articles/poly-auction-beijing-qianlong-yangcai-elephant-robin-egg-glaze-revolving-vase-result",
+      "publisher": "The Value（值點網）",
+      "publishedAt": "2021-12-05 22:19",
+      "tier": "primary",
+      "family": "thevalue.com",
+      "capture": "snapshots/thevalue-2021-12-05.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-10-29T16:37:00+08:00"
+    },
+    {
+      "id": "thepaper",
+      "url": "https://m.thepaper.cn/newsDetail_forward_15697852",
+      "publisher": "澎湃号·湃客「雅昌艺术网」官方账号（原创：李保兴，雅昌艺术网）",
+      "publishedAt": "2021-12-05 09:24",
+      "tier": "primary",
+      "family": "artron.net",
+      "capture": "snapshots/thepaper-2021-12-05.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-10-29T16:36:00+08:00",
+      "note": "转载稿：来源家族按原创方 artron.net 归并，不增加独立票"
+    },
+    {
+      "id": "chinanews",
+      "url": "https://www.chinanews.com/m/cul/2021/11-25/9616104.shtml",
+      "publisher": "中国新闻网",
+      "publishedAt": "2021-11-25 17:56",
+      "tier": "unlisted",
+      "family": "chinanews.com",
+      "capture": "snapshots/chinanews-2021-11-25.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-10-29T16:35:00+08:00"
+    }
+  ],
+  "expectations": [
+    {
+      "recordId": "rec-poly-2021-yugong-1",
+      "gate": "strong",
+      "anchor": "strong",
+      "story": "机构、日期、专场名在两个独立家族的一手报道里都成立，而且两家页面各自同时写到三项——共现命中 2 页，最低等级 E2。"
+    },
+    {
+      "recordId": "rec-poly-2021-yugong-1-nov15",
+      "gate": "rejected",
+      "anchor": null,
+      "story": "机构与专场名成立，但日期被两家独立来源的 2021-12-05 直接反驳——整条记录拒收，不导坐标。"
+    },
+    {
+      "recordId": "rec-poly-2021-yugong-2",
+      "gate": "weak",
+      "anchor": "weak",
+      "story": "三项都成立，但只有一条独立来源（雅昌原创稿经澎湃号转载，家族仍算 artron.net）——E1，只给 weak 坐标，默认不可读。"
+    },
+    {
+      "recordId": "rec-poly-2021-yugong-3",
+      "gate": "rejected",
+      "anchor": null,
+      "story": "机构与日期成立，但「禹贡Ⅲ」在四份节选里没有任何说法——not_found（coverage），整条记录拒收。"
+    }
+  ],
+  "notProven": [
+    "「禹贡Ⅲ—盛清御瓷新风尚」在这四份节选里没有任何提及。not_found 说的是「这批节选里没有」，不是「原文全文里没有」，更不是「世界上不存在」；要把它升级成「确证无记录」，得先把候选来源覆盖完。",
+    "「2021年11月15日」被 AMMA 与 The Value 两家独立来源的「2021年12月5日」直接反驳。被拒的是这条候选记录，不是「禹贡Ⅰ」本身。",
+    "「禹贡Ⅱ」的三项关键字段都成立，但只有一条独立来源；因此它只有 weak 坐标，默认不能当结论读。"
+  ],
+  "limitations": [
+    "这是一个冻结的离线底稿：演示只重算已有证据，不重新检索、不重新抓取、不调用模型。",
+    "四份来源都是中文公开页面；拍卖行官网与英文来源本轮没有纳入，所以「禹贡Ⅱ」只有单一来源。",
+    "快照是抓取后的正文节选，不是全文，也不是浏览器完整 DOM。每份节选的抓取时间、抓取方式、全文长度与 SHA-256 指纹在 snapshots/manifest.json；原始 URL 同时记录在 evidence.jsonl 与本节 sources 里。",
+    "节选只保留含引文的自然段与直接上下文，所以「这批节选里没有」不等于「原文里没有」。not_found 的覆盖面只能按节选的边界理解；要判断原文全文，得按 manifest 里的指纹重抓原页。",
+    "「禹贡Ⅲ」与「11月15日」是注入的负样本，用来演示 not_found 与 refuted；它们不代表对现实世界的否定判断。",
+    "来源家族按原创方归并：澎湃号转载的雅昌稿仍算 artron.net，因此不能把「两个网站」误当成「两个独立来源」。"
+  ]
+}

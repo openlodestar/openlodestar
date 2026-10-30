@@ -2,3 +2,6 @@
 *.png binary
 *.jpg binary
 *.woff2 binary
+# 冻结证据快照按字节校验（manifest 记 sha256 与字节数）：禁止检出时做换行转换，
+# 否则在 core.autocrlf=true 的机器上克隆后引文回查与指纹都会对不上。
+examples/*/snapshots/* -text

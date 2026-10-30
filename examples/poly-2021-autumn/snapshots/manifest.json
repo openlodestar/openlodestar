@@ -1,0 +1,141 @@
+{
+  "case": "poly-2021-autumn",
+  "generatedAt": "2026-10-29",
+  "note": "四份来源页在仓库里都是节选：全文与原始 HTML 已不在仓库中，只保留全文长度与 SHA-256 指纹。节选只保留含引文的自然段与直接上下文；任何人拿原页重抓后，可用 fullText.sha256 判断页面是否仍是抓取时那一版。",
+  "captureTimeBasis": "capturedAt 取自 2026-10-29 抓取命令的会话时间戳（精确到分钟）；快照文件的 mtime 是随后写入示例目录的时间，不是抓取时间。",
+  "license": "snapshots/ 下的正文摘录是第三方文字，不在 Apache-2.0 授权范围内；逐条见 ../THIRD_PARTY_NOTICES.md。",
+  "sources": [
+    {
+      "id": "amma",
+      "snapshot": "snapshots/amma-2021-12-05.txt",
+      "url": "https://amma.artron.net/observation_shownews.php?newid=1104807",
+      "publisher": "雅昌艺术市场监测中心（AMMA）",
+      "title": "雅昌快讯｜北京保利2021秋拍：清雍正炉钧釉葫芦尊2760万元成交",
+      "publishedAt": "2021-12-05 20:26",
+      "capturedAt": "2026-10-29T16:36:00+08:00",
+      "capture": {
+        "transport": "curl -L --max-time 40 -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'",
+        "renderer": "无（未执行页面 JavaScript，直接解析服务端返回的 HTML）",
+        "extractor": "Python html.parser：跳过 script/style/noscript/svg，块级标签断行，HTML 实体反转义，压缩空白与全角空格，丢弃空行",
+        "rawHtmlRetained": false,
+        "unknowns": [
+          "HTTP 状态码与响应头未留存",
+          "重定向后的最终 URL 未留存"
+        ],
+        "note": "页面未执行脚本，正文直接来自服务端 HTML。"
+      },
+      "fullText": {
+        "chars": 1645,
+        "bytes": 3815,
+        "sha256": "d19209b46d80ca8c0e37ff7e6878570da4d1e40f0215066e80899155ff8ffb05"
+      },
+      "excerpt": {
+        "bodyChars": 271,
+        "fileChars": 754,
+        "fileBytes": 1566,
+        "sha256": "adc08eecc3f29ebef5b3607e6b39c52469c856f867d751e9950a6799c146ac37",
+        "keptLines": "40–43、45–49、52（1-based）",
+        "dropped": "导航、广告位、图注、关键词、推荐位、评论与页脚；藏品描述两段（第 50–51 行）"
+      }
+    },
+    {
+      "id": "thevalue",
+      "snapshot": "snapshots/thevalue-2021-12-05.txt",
+      "url": "https://hk.thevalue.com/articles/poly-auction-beijing-qianlong-yangcai-elephant-robin-egg-glaze-revolving-vase-result",
+      "publisher": "The Value（值點網）",
+      "title": "2021秋拍最貴瓷器 傳世唯一爐鈞轉心瓶RMB 8,222萬北京保利成交",
+      "publishedAt": "2021-12-05 22:19",
+      "capturedAt": "2026-10-29T16:37:00+08:00",
+      "capture": {
+        "transport": "curl -L --ssl-no-revoke --max-time 40 -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'（首次请求 TLS 失败后重取）",
+        "renderer": "无（未执行页面 JavaScript，直接解析服务端返回的 HTML）",
+        "extractor": "Python html.parser：跳过 script/style/noscript/svg，块级标签断行，HTML 实体反转义，压缩空白与全角空格，丢弃空行",
+        "rawHtmlRetained": false,
+        "unknowns": [
+          "HTTP 状态码与响应头未留存",
+          "重定向后的最终 URL 未留存"
+        ],
+        "note": "繁体页面，保留原文用字与「拍賣日期：2021/12/5」的写法。"
+      },
+      "fullText": {
+        "chars": 3433,
+        "bytes": 8024,
+        "sha256": "8f9ea1680e72e14c8b43a5583e25822b7feeace5dd0fdaabc0f6af70c56cb1e4"
+      },
+      "excerpt": {
+        "bodyChars": 393,
+        "fileChars": 949,
+        "fileBytes": 1921,
+        "sha256": "148345127b336d6ee87c8fe35229c5c3c2a97f5e84896c80233cdbc977d278da",
+        "keptLines": "13–19、90–98（1-based）",
+        "dropped": "导航、语言切换、拍品详情、转心瓶背景、其余焦点拍品（第 20–89 行）、相关文章与页脚"
+      }
+    },
+    {
+      "id": "thepaper",
+      "snapshot": "snapshots/thepaper-2021-12-05.txt",
+      "url": "https://m.thepaper.cn/newsDetail_forward_15697852",
+      "publisher": "澎湃号·湃客「雅昌艺术网」官方账号（原创：李保兴，雅昌艺术网）",
+      "title": "北京保利2021秋拍 | 以明清宫廷艺术为主线，发掘更多更好的中国古董珍玩",
+      "publishedAt": "2021-12-05 09:24",
+      "capturedAt": "2026-10-29T16:36:00+08:00",
+      "capture": {
+        "transport": "curl -L --max-time 40 -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'",
+        "renderer": "无（未执行页面 JavaScript，直接解析服务端返回的 HTML）",
+        "extractor": "Python html.parser：跳过 script/style/noscript/svg，块级标签断行，HTML 实体反转义，压缩空白与全角空格，丢弃空行",
+        "rawHtmlRetained": false,
+        "unknowns": [
+          "HTTP 状态码与响应头未留存",
+          "重定向后的最终 URL 未留存"
+        ],
+        "note": "转载稿：正文原创方为雅昌艺术网，来源家族按 artron.net 归并，不增加独立票。"
+      },
+      "fullText": {
+        "chars": 9411,
+        "bytes": 24916,
+        "sha256": "294f79bea1d62c9ca8c391c5aa37e3e4eb47c1f659946f17e3d6c6d516ffb4e5"
+      },
+      "excerpt": {
+        "bodyChars": 761,
+        "fileChars": 1260,
+        "fileBytes": 3144,
+        "sha256": "fee43be4fe21f1f9840facb4c56ef3db47a4aa61f53e7d01b337803c01de391a",
+        "keptLines": "1、4–17（1-based）",
+        "dropped": "导航行、第 18 行起的其余专场与拍品详情、文末特别声明与推荐位"
+      }
+    },
+    {
+      "id": "chinanews",
+      "snapshot": "snapshots/chinanews-2021-11-25.txt",
+      "url": "https://www.chinanews.com/m/cul/2021/11-25/9616104.shtml",
+      "publisher": "中国新闻网",
+      "title": "北京保利2021秋拍将举槌 呈现超8000件艺术品",
+      "publishedAt": "2021-11-25 17:56",
+      "capturedAt": "2026-10-29T16:35:00+08:00",
+      "capture": {
+        "transport": "curl -L --max-time 30 -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'",
+        "renderer": "无（未执行页面 JavaScript，直接解析服务端返回的 HTML）",
+        "extractor": "Python html.parser：跳过 script/style/noscript/svg，块级标签断行，HTML 实体反转义，压缩空白与全角空格，丢弃空行",
+        "rawHtmlRetained": false,
+        "unknowns": [
+          "HTTP 状态码与响应头未留存",
+          "重定向后的最终 URL 未留存"
+        ],
+        "note": "该页在本轮只用于「预展地点」一条次要字段，来源档位为 unlisted。"
+      },
+      "fullText": {
+        "chars": 1087,
+        "bytes": 2940,
+        "sha256": "9385e005c43798303a69adaa6b68d34e28ad1daca103b6916d0d49528b671566"
+      },
+      "excerpt": {
+        "bodyChars": 458,
+        "fileChars": 934,
+        "fileBytes": 2179,
+        "sha256": "ae9bd4f7b309b64389e9bbc13865f198da6f482b6daaa36eb950e6a44b408b97",
+        "keptLines": "18–21、25、28–29（1-based）",
+        "dropped": "导航、中国书画与古代书画板块、图片说明、现当代艺术段（第 22–24、26–27 行）、频道推荐与页脚"
+      }
+    }
+  ]
+}

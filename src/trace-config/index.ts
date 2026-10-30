@@ -126,7 +126,39 @@ export class TraceStore {
   }
 }
 
-const traceBaseDir = process.env.OPENLODESTAR_TRACE_DIR ?? path.resolve(PACKAGE_ROOT, '.traces');
+/**
+ * Trace 落点：**惰性解析**，而不是模块加载时定死。
+ *
+ * 在线实验（`live` 命令）要先把本轮 trace 目录切到自己的运行目录，再开跑；
+ * 若在 import 时就读取环境变量，命令层再设置已经晚了，所有实验的 trace 会混进
+ * 仓库根的 `.traces/`。惰性构造让"先设环境变量、后第一次写 trace"成为可用顺序。
+ */
+function resolveTraceBaseDir(): string {
+  const fromEnv = process.env.OPENLODESTAR_TRACE_DIR?.trim();
+  if (fromEnv === '') return path.resolve(PACKAGE_ROOT, '.traces');
+  if (fromEnv === undefined) return path.resolve(PACKAGE_ROOT, '.traces');
+  return path.isAbsolute(fromEnv) ? fromEnv : path.resolve(PACKAGE_ROOT, fromEnv);
+}
 
-/** 全局 TraceStore 实例 */
-export const traceStore = new TraceStore({ baseDir: traceBaseDir });
+let cachedTraceStore: TraceStore | null = null;
+
+/** 当前进程的 TraceStore（首次使用时按当时的 `OPENLODESTAR_TRACE_DIR` 构造） */
+export function getTraceStore(): TraceStore {
+  if (cachedTraceStore === null) {
+    cachedTraceStore = new TraceStore({ baseDir: resolveTraceBaseDir() });
+  }
+  return cachedTraceStore;
+}
+
+/**
+ * 丢弃已构造的实例，让下一次写入按**新的**环境变量重建。
+ * 单进程里连续跑多个实验（如 replay 与 full）时，每个实验各自一个 trace 目录。
+ */
+export function resetTraceStoreForRun(): void {
+  cachedTraceStore = null;
+}
+
+/** 兼容既有调用点：写入委托给惰性单例 */
+export const traceStore = {
+  save: (record: TraceRecord): Promise<void> => getTraceStore().save(record),
+};

@@ -15,11 +15,13 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createStore, readSnapshot, type LodestarStore } from './lodestar/storage/adapter';
-import { quoteMatches } from './lodestar/adjudicate/compare';
+import { createStore, type LodestarStore } from './lodestar/storage/adapter';
 import { retallyAndRegate } from './lodestar/engine';
 import { findCooccurringUrls } from './lodestar/record-gate/cooccurrence';
 import { isReadableAnchor } from './lodestar/anchor-source';
+import { parseDemoCase, renderDemoReport, type DemoCase } from './demo-report';
+import { inspectEvidence, printEvidenceCheck } from './lodestar/evidence-check';
+import { commandLive, liveUsage } from './live';
 import porcelainPack from './lodestar/packs/porcelain';
 import type {
   AnchorRecord,
@@ -36,22 +38,31 @@ const PACKAGE_ROOT = path.resolve(MODULE_DIR, '..');
 const USAGE = `OpenLodestar CLI
 
 Usage:
-  tsx src/cli.ts demo            [--workdir <dir>] [--limit <n>]
+  tsx src/cli.ts demo            [--example <name>] [--workdir <dir>] [--report <file>] [--limit <n>]
   tsx src/cli.ts verify-quotes   [--data <dir>] [--claim <claimId>] [--limit <n>]
   tsx src/cli.ts audit           [--data <dir>] [--limit <n>]
+${liveUsage()}
 
 Commands:
-  demo            Recompute verdicts / record gates / anchors from the bundled
-                  example evidence (no model or network calls), then verify every
-                  quote against its own snapshot.
+  demo            Recompute verdicts / record gates / anchors from a bundled
+                  example ledger (no model or network calls), then verify every
+                  quote against its own snapshot. Optionally write a standalone
+                  HTML report.
+  live            Run the engine against live search and pages. Modes:
+                  pages (re-fetch frozen source pages only), replay (submit the
+                  frozen claims again), full (elicit from the query), both.
+                  Output goes to .openlodestar-demo/live/<runId>/<mode>/.
   verify-quotes   Hard guard: every evidence quote must appear verbatim in that
                   row's own snapshot and must mention the field it was cited for.
   audit           Check ledger integrity: primary-key references, snapshot files,
                   claim-id derivation, and whether strong anchors still co-occur.
 
 Options:
+  --example <n>   Example directory under <package>/examples (default: porcelain).
   --data <dir>    Ledger directory (default: <package>/lodestar or OPENLODESTAR_DATA_DIR).
-  --workdir <dir> Demo working copy (default: <package>/.openlodestar-demo).
+  --workdir <dir> Demo working copy (default: <package>/.openlodestar-demo,
+                  or .openlodestar-demo/<example> for non-default examples).
+  --report <file> Write a self-contained HTML report (default: <workdir>/demo-report.html).
   --claim <id>    Restrict verify-quotes to one claim.
   --limit <n>     Maximum violations to print (default: 20).
 `;
@@ -118,119 +129,47 @@ async function copyDir(from: string, to: string): Promise<void> {
 }
 
 // ============================================
-// 引文硬校验（demo 与 verify-quotes 共用）
-// ============================================
-
-interface EvidenceViolation {
-  evidenceId: string;
-  claimId: string;
-  url: string;
-  reason: string;
-}
-
-interface EvidenceCheck {
-  total: number;
-  verbatimOk: number;
-  clueOk: number;
-  violations: EvidenceViolation[];
-  /** 取不到字段值、第二道判据未能适用（告警不判失败） */
-  clueUnverifiable: string[];
-}
-
-async function inspectEvidence(
-  store: LodestarStore,
-  rows: EvidenceRecord[],
-  claimById: Map<string, ClaimRecord>,
-): Promise<EvidenceCheck> {
-  const check: EvidenceCheck = {
-    total: rows.length,
-    verbatimOk: 0,
-    clueOk: 0,
-    violations: [],
-    clueUnverifiable: [],
-  };
-
-  for (const row of rows) {
-    if (row.fetchedBy !== 'lodestar') {
-      check.violations.push({
-        evidenceId: row.evidenceId,
-        claimId: row.claimId,
-        url: row.url,
-        reason: `fetchedBy=${String(row.fetchedBy)}（证据必须由本管线自抓；自家派生物充当证据即违规）`,
-      });
-      continue;
-    }
-
-    const snapshot = await readSnapshot(store, row.snapshotRef);
-    if (snapshot === null) {
-      check.violations.push({
-        evidenceId: row.evidenceId,
-        claimId: row.claimId,
-        url: row.url,
-        reason: `快照文件缺失（${row.snapshotRef}）——没有可比对的正文，引文无法自证`,
-      });
-      continue;
-    }
-    if (!quoteMatches(row.quote, snapshot)) {
-      check.violations.push({
-        evidenceId: row.evidenceId,
-        claimId: row.claimId,
-        url: row.url,
-        reason: `引文在自家快照里找不到：${row.quote.slice(0, 80)}`,
-      });
-      continue;
-    }
-    check.verbatimOk += 1;
-
-    if (row.relation === 'irrelevant') continue;
-    const claim = claimById.get(row.claimId);
-    if (!claim) {
-      check.clueUnverifiable.push(`${row.evidenceId}（claim=${row.claimId} 在 claims 底稿里找不到，取不到字段值）`);
-      continue;
-    }
-    const clue = porcelainPack.quoteBearsFieldClue(row.fieldKey, claim.object, row.quote);
-    if (clue === 'no') {
-      check.violations.push({
-        evidenceId: row.evidenceId,
-        claimId: row.claimId,
-        url: row.url,
-        reason: `引文没写到所裁字段（${String(row.fieldKey)}=${claim.object}）：${row.quote.slice(0, 60)}`,
-      });
-      continue;
-    }
-    check.clueOk += 1;
-  }
-
-  return check;
-}
-
-function printEvidenceCheck(check: EvidenceCheck, limit: number): void {
-  console.log(
-    `Evidence rows: ${check.total} | verbatim ${check.verbatimOk} | field-clue ${check.clueOk} | ` +
-      `violations ${check.violations.length}`,
-  );
-  if (check.clueUnverifiable.length > 0) {
-    console.log(`\nWarning: field-clue check not applicable to ${check.clueUnverifiable.length} row(s):`);
-    for (const item of check.clueUnverifiable.slice(0, limit)) console.log(`  ? ${item}`);
-  }
-  for (const violation of check.violations.slice(0, limit)) {
-    console.log(`\n  x ${violation.evidenceId}  claim=${violation.claimId}`);
-    console.log(`    url: ${violation.url}`);
-    console.log(`    reason: ${violation.reason}`);
-  }
-  if (check.violations.length > limit) {
-    console.log(`\n  ... ${check.violations.length - limit} more violation(s) not printed (use --limit).`);
-  }
-}
-
-// ============================================
 // demo
 // ============================================
 
+/** `case.json` 是可选的案例卡；读不懂就退回通用报告，不让演示因文案文件坏掉 */
+async function loadDemoCase(exampleDir: string): Promise<DemoCase | null> {
+  try {
+    const raw = await fs.readFile(path.join(exampleDir, 'case.json'), 'utf8');
+    const parsed = parseDemoCase(JSON.parse(raw) as unknown);
+    if (parsed === null) {
+      console.warn('Warning: case.json failed validation; the HTML report will use generic copy.');
+    }
+    return parsed;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT') {
+      console.warn(`Warning: could not read case.json (${error instanceof Error ? error.message : String(error)})`);
+    }
+    return null;
+  }
+}
+
 async function commandDemo(flags: Map<string, string>): Promise<number> {
-  const exampleDir = path.resolve(PACKAGE_ROOT, 'examples/porcelain');
-  const workDir = path.resolve(flags.get('workdir') ?? path.join(PACKAGE_ROOT, '.openlodestar-demo'));
+  const exampleName = flags.get('example') ?? 'porcelain';
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(exampleName)) {
+    console.error(`Invalid --example "${exampleName}": use lowercase letters, digits and dashes.`);
+    return 1;
+  }
+  const exampleDir = path.resolve(PACKAGE_ROOT, 'examples', exampleName);
+  const defaultWorkDir =
+    exampleName === 'porcelain'
+      ? path.join(PACKAGE_ROOT, '.openlodestar-demo')
+      : path.join(PACKAGE_ROOT, '.openlodestar-demo', exampleName);
+  const workDir = path.resolve(flags.get('workdir') ?? defaultWorkDir);
   const limit = limitOf(flags);
+
+  try {
+    await fs.access(path.join(exampleDir, 'claims.jsonl'));
+  } catch {
+    console.error(`Example not found: examples/${exampleName} (missing claims.jsonl)`);
+    return 1;
+  }
 
   await fs.rm(workDir, { recursive: true, force: true });
   await fs.mkdir(workDir, { recursive: true });
@@ -244,7 +183,10 @@ async function commandDemo(flags: Map<string, string>): Promise<number> {
   const claimsBefore = await store.query<ClaimRecord>('claims');
   const evidence = await store.allRows<EvidenceRecord>('evidence');
   const claimById = new Map(claimsBefore.map((claim) => [claim.claimId, claim]));
-  const snapshotFiles = await fs.readdir(path.join(workDir, 'snapshots'));
+  // 只数正文快照；目录里的 manifest.json 等说明文件不算一份快照
+  const snapshotFiles = (await fs.readdir(path.join(workDir, 'snapshots'))).filter((name) =>
+    name.endsWith('.txt'),
+  );
 
   console.log('OpenLodestar demo — offline, no model or search calls');
   console.log(`Fixture: ${path.relative(process.cwd(), exampleDir)}`);
@@ -295,12 +237,38 @@ async function commandDemo(flags: Map<string, string>): Promise<number> {
   const readable = outcome.anchors.filter((anchor) => isReadableAnchor(anchor)).length;
   console.log(`  Readable anchors (strong and not stale): ${readable}/${outcome.anchors.length}`);
 
-  const check = await inspectEvidence(store, evidence, claimById);
+  const check = await inspectEvidence(store, evidence, claimById, porcelainPack);
   console.log('\nQuote hard guard:');
   printEvidenceCheck(check, limit);
 
+  const reportFlag = flags.get('report');
+  if (reportFlag !== undefined) {
+    const reportPath = reportFlag === 'true'
+      ? path.join(workDir, 'demo-report.html')
+      : path.resolve(reportFlag);
+    const caseMeta = await loadDemoCase(exampleDir);
+    const html = renderDemoReport({
+      exampleName,
+      fixtureDir: exampleDir,
+      workDir,
+      query,
+      caseMeta,
+      fields: porcelainPack.fields().map((field) => ({ key: field.key, label: field.label, role: field.role })),
+      claims: claimsBefore,
+      evidence,
+      verdicts: outcome.verdicts,
+      summaries: outcome.summaries,
+      anchors: outcome.anchors,
+      guard: check,
+      generatedAt: new Date().toISOString(),
+    });
+    await fs.mkdir(path.dirname(reportPath), { recursive: true });
+    await fs.writeFile(reportPath, html, 'utf8');
+    console.log(`\nHTML report: ${path.relative(process.cwd(), reportPath)}`);
+  }
+
   console.log(`\nWrote verdicts/records/anchors to: ${workDir}`);
-  console.log('Re-run: npm run demo (working copy is reset on every run)');
+  console.log(`Re-run: npx tsx src/cli.ts demo --example ${exampleName} (working copy is reset on every run)`);
 
   return check.violations.length > 0 ? 1 : 0;
 }
@@ -318,13 +286,13 @@ async function commandVerifyQuotes(flags: Map<string, string>): Promise<number> 
 
   if (rows.length === 0) {
     console.log('No evidence rows to verify (empty ledger or no match for --claim).');
-    console.log('An empty ledger is not a failure. Run `npm run demo` first if you want data to check.');
+    console.log('An empty ledger is not a failure. Run `pnpm run demo` first if you want data to check.');
     return 0;
   }
 
   const claims = await store.query<ClaimRecord>('claims');
   const claimById = new Map(claims.map((claim) => [claim.claimId, claim]));
-  const check = await inspectEvidence(store, rows, claimById);
+  const check = await inspectEvidence(store, rows, claimById, porcelainPack);
   printEvidenceCheck(check, limit);
 
   if (check.violations.length > 0) {
@@ -394,7 +362,7 @@ async function commandAudit(flags: Map<string, string>): Promise<number> {
   }
 
   // ---- evidence ----
-  const check = await inspectEvidence(store, evidence, claimById);
+  const check = await inspectEvidence(store, evidence, claimById, porcelainPack);
   for (const violation of check.violations) {
     add('evidence', violation.evidenceId, violation.reason);
   }
@@ -569,6 +537,8 @@ async function main(argv: string[]): Promise<number> {
       return commandVerifyQuotes(flags);
     case 'audit':
       return commandAudit(flags);
+    case 'live':
+      return commandLive(flags);
     default:
       console.error(`Unknown command: ${command}\n`);
       console.log(USAGE);

@@ -39,6 +39,7 @@
     "typecheck": "tsc --noEmit",
     "browser:install": "pnpm --filter @openlodestar/browser-playwright run install-browser",
     "demo": "tsx src/cli.ts demo",
+    "demo:real": "tsx src/cli.ts demo --example poly-2021-autumn --report .openlodestar-demo/poly-2021-autumn/demo-report.html",
     "verify-quotes": "tsx src/cli.ts verify-quotes",
     "audit": "tsx src/cli.ts audit"
   },

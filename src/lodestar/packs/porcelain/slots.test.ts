@@ -139,6 +139,11 @@ describe('引文须含该字段线索形态', () => {
     expect(quoteBearsFieldClue('dateText', '2024年4月', '「大巧若拙——竹月堂藏瓷II」')).toBe('no');
   });
 
+  it('零宽字符不影响字段线索判定（与逐字比对同一条空白纪律）', () => {
+    expect(quoteBearsFieldClue('dateText', '2021年12月5日', '该场于2021年12\u200B月5日举行')).toBe('yes');
+    expect(quoteBearsFieldClue('auctionHouse', '中国嘉德（香港）', '中国嘉德\u200B香港2024春季拍卖会')).toBe('yes');
+  });
+
   it('引文里写明了时间 → yes（年份、月份、季度三种形态都算"有说法"）', () => {
     expect(
       quoteBearsFieldClue('dateText', '2024年4月', '4月7日晚上，为期5天的中国嘉德香港2024春季拍卖会，圆满结束'),

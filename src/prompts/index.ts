@@ -79,6 +79,11 @@ export interface RenderVariables {
 export interface RenderOptions {
   /** 消融状态：机制块剥离依据；不传 = 无消融 */
   ablations?: AblationState;
+  /**
+   * 渲染模板里的哪个字段（默认 `template`）。
+   * 比对模板用 `data_template` 单独渲染"待检数据"消息，避免把页面正文和规则放进同一条消息。
+   */
+  field?: string;
 }
 
 function getPromptsBasePath(agentType: string, customBasePath?: string): string {
@@ -152,10 +157,17 @@ export class PromptLoader {
     );
   }
 
-  /** 渲染模板 */
+  /** 渲染模板（默认 `template` 字段；可用 `options.field` 指定 `data_template` 等字段） */
   render(name: string, variables: RenderVariables = {}, options?: RenderOptions): string {
     const template = this.load(name);
-    let content = template.template || template.template_text_only || '';
+    const field = options?.field ?? 'template';
+    const section = template[field];
+    let content =
+      typeof section === 'string'
+        ? section
+        : field === 'template'
+          ? template.template_text_only ?? ''
+          : '';
 
     for (const field of ['role', 'role_multimodal', 'output_format']) {
       const value = template[field];

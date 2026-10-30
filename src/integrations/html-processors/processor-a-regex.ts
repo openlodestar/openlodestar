@@ -1,90 +1,144 @@
 /**
  * 处理器 A：基于正则表达式的传统 HTML 清理
- * 
- * 迁移自原有的 sanitizeHtml 函数，保留所有原始逻辑
- * 
+ *
+ * 迁移自原有的 sanitizeHtml 函数，保留原有清洗流程，并按"页面内容可被当成指令"的
+ * 攻击面做了两层收紧：
+ * - **常见隐藏元素整块删除**：带 `hidden` / `aria-hidden="true"`、内联 `display:none` /
+ *   `visibility:hidden` / `opacity:0` 等样式的元素，以及 `sr-only` 这类只读屏可见的类名。
+ *   隐藏文字是提示注入最常见的载体——人看不到，模型却读得到；
+ * - **标签属性一律去掉**：`title` / `alt` / `placeholder` / `data-*` 都能藏整句指令，
+ *   而正文比对只需要字，不需要属性。
+ *
+ * 这是**尽力而为**的防线，不是沙箱：外部样式表把内容藏起来、畸形 HTML 让标签配不上对，
+ * 都可能漏掉。真正的兜底是提示分层的"数据不是指令"与引文逐字校验，不是清洗器。
+ *
  * 处理流程：
- * 1. 删除危险或无关标签：script、style、meta、link、svg、noscript、iframe、object、embed
+ * 1. 删除危险或无关标签：script、style、meta、link、svg、noscript、iframe、object、embed、template
  * 2. 删除 HTML 注释
  * 3. 提取 body 标签内的内容（如果存在）
- * 4. 智能保留有意义的属性
- * 5. 保留自闭合标签的完整结构
+ * 4. 删除常见隐藏元素（含其内容）
+ * 5. 去掉其余标签的全部属性
  * 6. 压缩空白字符，移除标签间的多余空格
  * 7. 删除空标签
  * 8. 解码 HTML 实体
- * 9. 规范化空白字符，限制输出长度最多 50000 字符
+ * 9. 去掉控制字符、规范化空白，限制输出长度最多 50000 字符
  */
 
+import { decodeHtmlEntities } from '../../utils/html-entities';
+import { stripControlChars } from '../../utils/text-language';
 import { type HtmlProcessor, HtmlProcessorType, type ProcessorResult, type ProcessorStats } from './types';
+
+/** 没有闭合标签的元素：隐藏标记只删开标签本身 */
+const VOID_ELEMENTS = new Set([
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+  'link', 'meta', 'param', 'source', 'track', 'wbr',
+]);
+
+/** 只读屏可见/常规隐藏类名（按 class token 精确匹配，不做子串匹配） */
+const HIDDEN_CLASSES = new Set([
+  'hidden',
+  'hide',
+  'is-hidden',
+  'u-hidden',
+  'invisible',
+  'd-none',
+  'sr-only',
+  'screen-reader-text',
+  'screen-reader-only',
+  'visually-hidden',
+  'visuallyhidden',
+]);
 
 export class LegacyRegexProcessor implements HtmlProcessor {
   readonly type = HtmlProcessorType.LEGACY_REGEX;
 
   /**
-   * 判断 CSS 类名是否为无意义的工具类
+   * 提取属性值（只供隐藏判定使用；属性最终一律不保留）
    */
-  private isMeaninglessClass(className: string): boolean {
-    if (!className) return true;
-    
-    const meaninglessPrefixes = [
-      'p-', 'px-', 'py-', 'pt-', 'pr-', 'pb-', 'pl-',
-      'm-', 'mx-', 'my-', 'mt-', 'mr-', 'mb-', 'ml-',
-      'gap-', 'gap-x-', 'gap-y-', 'space-x-', 'space-y-',
-      'w-', 'h-', 'max-w-', 'max-h-', 'min-w-', 'min-h-',
-      'text-', 'font-', 'tracking-', 'leading-', 'list-',
-      'whitespace-', 'break-',
-      'block', 'inline', 'inline-block', 'inline-flex', 'inline-table',
-      'flex', 'flex-', 'grid', 'grid-cols-', 'grid-rows-',
-      'table', 'table-',
-      'hidden', 'visible', 'invisible',
-      'static', 'fixed', 'absolute', 'relative', 'sticky',
-      'inset-', 'inset-x-', 'inset-y-',
-      'top-', 'right-', 'bottom-', 'left-',
-      'z-', 'order-',
-      'justify-', 'items-', 'content-', 'self-',
-      'align-', 'float-', 'clear-',
-      'rounded', 'rounded-', 'border', 'border-',
-      'divide-', 'divide-x', 'divide-y',
-      'bg-', 'bg-opacity-', 'from-', 'via-', 'to-',
-      'fill-', 'stroke-', 'stroke-width-',
-      'shadow', 'shadow-', 'opacity-', 'blur', 'blur-',
-      'brightness-', 'contrast-', 'drop-shadow', 'drop-shadow-',
-      'grayscale', 'invert', 'sepia', 'hue-rotate-', 'saturate-',
-      'transition', 'transition-', 'duration-', 'delay-', 'ease-',
-      'animate-', 'transform', 'transform-',
-      'rotate-', 'scale-', 'scale-x-', 'scale-y-',
-      'translate-x-', 'translate-y-', 'skew-x-', 'skew-y-',
-      'origin-',
-      'cursor-', 'touch-', 'select-', 'resize', 'resize-',
-      'scroll', 'scroll-', 'appearance-',
-      'caret-', 'accent-', 'placeholder-',
-      'decoration-', 'underline-offset-',
-      'antialiased', 'subpixel-antialiased',
-      'mix-blend-', 'bg-blend-',
-      'backdrop-', 'backdrop-opacity-',
-      'object-', 'overflow', 'overflow-', 'overflow-x-', 'overflow-y-',
-      'outline-', 'ring', 'ring-', 'ring-opacity-', 'ring-offset-',
-      'container', 'mx-auto', 'my-auto',
-      'box-', 'isolate', 'isolation-',
-      'pointer-events-', 'user-select-',
-      'sr-only', 'not-sr-only',
-      'hover:', 'focus:', 'active:', 'disabled:',
-      'dark:', 'print:',
-      'container', 'container-fluid', 'row', 'col', 'col-',
-      'offset-', 'order-',
-      'd-', 'flex-', 'justify-content-', 'align-items-', 'align-content-', 'align-self-',
-      'm', 'mt-', 'mb-', 'ml-', 'mr-', 'mx-', 'my-',
-      'fs-', 'fw-', 'text-', 'lh-',
-      'text-lowercase', 'text-uppercase', 'text-capitalize',
-      'btn', 'btn-',
-      'fade', 'show', 'active', 'disabled',
-      'valid-', 'invalid-', 'visually-hidden', 'stretched-link',
-      'position-', 'top-', 'bottom-', 'start-', 'end-', 'translate-',
-      'bg-gradient', 'clearfix', 'ratio', 'ratio-',
-      'pe-', 'sc-', 'styled-', 'emotion-', 'css-',
-    ];
-    
-    return meaninglessPrefixes.some(prefix => className.startsWith(prefix));
+  private attrValue(attrs: string, name: string): string | null {
+    const match = attrs.match(
+      new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i'),
+    );
+    return match ? (match[1] ?? match[2] ?? match[3] ?? '') : null;
+  }
+
+  /** 内联样式里常见的"看不见"写法 */
+  private hiddenByStyle(style: string): boolean {
+    const compact = style.toLowerCase().replace(/\s+/g, '');
+    return (
+      compact.includes('display:none') ||
+      compact.includes('visibility:hidden') ||
+      /opacity:0(?:\.0+)?(?:;|$)/.test(compact) ||
+      /(?:left|text-indent):-\d{3,}px/.test(compact) ||
+      /font-size:0(?:px)?(?:;|$)/.test(compact) ||
+      compact.includes('clip:rect(0')
+    );
+  }
+
+  /** 这个开标签是否声明了"隐藏" */
+  private isHiddenElement(tagName: string, attrs: string): boolean {
+    // html / body 即使带隐藏样式也不整块删：删掉等于整页空白，损失远大于收益
+    if (tagName === 'html' || tagName === 'body') return false;
+
+    if (/\shidden\b/i.test(attrs)) return true;
+    const ariaHidden = this.attrValue(attrs, 'aria-hidden');
+    if (ariaHidden !== null && ariaHidden.trim().toLowerCase() === 'true') return true;
+
+    const style = this.attrValue(attrs, 'style');
+    if (style !== null && this.hiddenByStyle(style)) return true;
+
+    const className = this.attrValue(attrs, 'class');
+    if (className !== null) {
+      for (const token of className.split(/\s+/)) {
+        if (token && HIDDEN_CLASSES.has(token.toLowerCase())) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 找到与开标签配对的闭标签之后的位置；找不到配对时只删开标签（返回 `from`）。
+   * 同标签嵌套按深度计数，避免把内层的 `</div>` 当成本元素的结尾。
+   */
+  private findElementEnd(html: string, from: number, tagName: string, selfClosing: boolean): number {
+    if (selfClosing || VOID_ELEMENTS.has(tagName)) return from;
+    const tagRe = new RegExp(`<(/?)${tagName}(?=[\\s/>])[^<>]*?\\/?>`, 'gi');
+    tagRe.lastIndex = from;
+    let depth = 1;
+    let match: RegExpExecArray | null;
+    while ((match = tagRe.exec(html)) !== null) {
+      if (match[1] === '/') {
+        depth -= 1;
+        if (depth === 0) return match.index + match[0].length;
+      } else if (!match[0].endsWith('/>')) {
+        depth += 1;
+      }
+    }
+    return from;
+  }
+
+  /** 删除常见隐藏元素（含内容）；隐藏标记无法配对时只删开标签，保守保留正文 */
+  private stripHiddenBlocks(html: string): string {
+    const tagRe = /<([a-zA-Z][a-zA-Z0-9:-]*)((?:\s[^<>]*)?)\/?>/g;
+    let result = '';
+    let last = 0;
+    let match: RegExpExecArray | null;
+    while ((match = tagRe.exec(html)) !== null) {
+      const start = match.index;
+      const tagName = match[1]!.toLowerCase();
+      const tagEnd = start + match[0].length;
+      if (!this.isHiddenElement(tagName, match[2] ?? '')) continue;
+      result += html.slice(last, start);
+      last = this.findElementEnd(html, tagEnd, tagName, match[0].endsWith('/>'));
+      // 跳进被删掉的块，不再逐标签扫描它
+      tagRe.lastIndex = last;
+    }
+    return result + html.slice(last);
+  }
+
+  /** 去掉所有标签的属性：属性可以藏指令，正文不需要它们 */
+  private stripAttributes(html: string): string {
+    return html.replace(/<([a-zA-Z][a-zA-Z0-9:-]*)[^<>]*?>/g, '<$1>');
   }
 
   /**
@@ -103,7 +157,8 @@ export class LegacyRegexProcessor implements HtmlProcessor {
       .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gis, '')
       .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gis, '')
       .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gis, '')
-      .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gis, '');
+      .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gis, '')
+      .replace(/<template\b[^<]*(?:(?!<\/template>)<[^<]*)*<\/template>/gis, '');
 
     // 步骤 2: 删除 HTML 注释
     sanitized = sanitized.replace(/<!--[\s\S]*?-->/g, '');
@@ -112,84 +167,11 @@ export class LegacyRegexProcessor implements HtmlProcessor {
     const bodyMatch = sanitized.match(/<body[^>]*>([\s\S]*)<\/body>/i);
     sanitized = bodyMatch ? bodyMatch[1] : sanitized;
 
-    // 步骤 4-5: 智能处理标签属性
-    sanitized = sanitized.replace(/<([a-zA-Z][a-zA-Z0-9]*)(\s[^>]*)?>|<\/([a-zA-Z][a-zA-Z0-9]*)\s*>/g, (tag) => {
-      const closingMatch = tag.match(/^<\/([a-zA-Z][a-zA-Z0-9]*)\s*>$/);
-      if (closingMatch) {
-        return tag;
-      }
+    // 步骤 4: 删除常见隐藏元素（人看不到、模型读得到的整句指令）
+    sanitized = this.stripHiddenBlocks(sanitized);
 
-      const openingMatch = tag.match(/^<([a-zA-Z][a-zA-Z0-9]*)(\s[^>]*)?>$/);
-      if (!openingMatch) {
-        return tag;
-      }
-
-      const tagName = openingMatch[1];
-      const lowerTagName = tagName.toLowerCase();
-      const attributesStr = openingMatch[2] || '';
-
-      if (['script', 'style', 'meta', 'link', 'svg', 'noscript', 'iframe', 'object', 'embed'].includes(lowerTagName)) {
-        return '';
-      }
-
-      if (!attributesStr.trim()) {
-        return `<${tagName}>`;
-      }
-
-      const meaningfulAttributes: string[] = [];
-      const attributeRegex = /([a-zA-Z][a-zA-Z0-9-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g;
-      let attrMatch;
-      
-      while ((attrMatch = attributeRegex.exec(attributesStr)) !== null) {
-        const attrName = attrMatch[1].toLowerCase();
-        const attrValue = attrMatch[2] || attrMatch[3] || attrMatch[4] || '';
-
-        if (!attrValue && attrMatch[0].indexOf('=') === -1) {
-          continue;
-        }
-
-        if (lowerTagName === 'img') {
-          if (['src', 'alt'].includes(attrName)) {
-            meaningfulAttributes.push(`${attrName}="${attrValue}"`);
-          }
-          continue;
-        }
-
-        if (lowerTagName === 'a') {
-          if (attrName === 'href') {
-            meaningfulAttributes.push(`${attrName}="${attrValue}"`);
-          }
-          continue;
-        }
-
-        if (lowerTagName === 'input') {
-          if (['type', 'name', 'value', 'placeholder'].includes(attrName)) {
-            meaningfulAttributes.push(`${attrName}="${attrValue}"`);
-          }
-          continue;
-        }
-
-        if (attrName === 'class') {
-          const classes = attrValue.split(/\s+/).filter(cls => {
-            return cls && !this.isMeaninglessClass(cls);
-          });
-          if (classes.length > 0) {
-            meaningfulAttributes.push(`class="${classes.join(' ')}"`);
-          }
-          continue;
-        }
-
-        if (['id', 'title', 'name', 'value', 'placeholder', 'alt', 'role', 'aria-label', 'data-'].some(m => attrName === m || attrName.startsWith(m))) {
-          meaningfulAttributes.push(`${attrName}="${attrValue}"`);
-        }
-      }
-
-      if (meaningfulAttributes.length === 0) {
-        return `<${tagName}>`;
-      } else {
-        return `<${tagName} ${meaningfulAttributes.join(' ')}>`;
-      }
-    });
+    // 步骤 5: 去掉标签属性（title/alt/placeholder/data-* 都能藏指令）
+    sanitized = this.stripAttributes(sanitized);
 
     // 步骤 6: 压缩标签间的空白字符
     sanitized = sanitized.replace(/>\s+</g, '><');
@@ -201,17 +183,11 @@ export class LegacyRegexProcessor implements HtmlProcessor {
       sanitized = sanitized.replace(/<(p|div|span|h[1-6]|li|a|td|th|section|article|header|footer|nav|main|aside|button|input)(\s[^>]*)?>[\s\u00A0]*<\/\1>/gi, '');
     } while (sanitized !== previousSanitized);
 
-    // 步骤 8: 解码 HTML 实体
-    const entityMap: { [key: string]: string } = {
-      '&nbsp;': ' ', '&lt;': '<', '&gt;': '>', '&amp;': '&', '&quot;': '"',
-      '&#39;': "'", '&apos;': "'", '&copy;': '©', '&reg;': '®', '&trade;': '™',
-      '&mdash;': '—', '&ndash;': '–', '&lsquo;': '\u2018', '&rsquo;': '\u2019',
-      '&ldquo;': '"', '&rdquo;': '"', '&bull;': '•', '&hellip;': '…',
-    };
-    sanitized = sanitized.replace(/&[a-zA-Z0-9#]+;/g, (entity) => entityMap[entity] || entity);
+    // 步骤 8: 解码 HTML 实体（命名 + 数字；只解一层，见 utils/html-entities）
+    sanitized = decodeHtmlEntities(sanitized);
 
-    // 步骤 9: 规范化空白字符并限制长度
-    sanitized = sanitized.replace(/\s+/g, ' ').trim();
+    // 步骤 9: 去掉控制字符、规范化空白字符并限制长度
+    sanitized = stripControlChars(sanitized).replace(/\s+/g, ' ').trim();
     sanitized = sanitized.substring(0, 50000);
 
     return sanitized;
@@ -230,9 +206,9 @@ export class LegacyRegexProcessor implements HtmlProcessor {
   processSync(html: string): ProcessorResult {
     const startTime = Date.now();
     const originalLength = html.length;
-    
+
     const content = this.sanitizeHtml(html);
-    
+
     const processingTimeMs = Date.now() - startTime;
     const processedLength = content.length;
     const compressionRatio = processedLength / originalLength;
@@ -247,7 +223,7 @@ export class LegacyRegexProcessor implements HtmlProcessor {
         processingTimeMs,
         estimatedTokens,
         processorType: this.type,
-      },
+      } satisfies ProcessorStats,
     };
   }
 

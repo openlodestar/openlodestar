@@ -15,7 +15,16 @@ import porcelainPack from '../packs/porcelain';
 import type { ClaimRecord, EvidenceRecord } from '../types';
 import type { CapturedPage } from './page-fetch';
 import { independentSources, isDecisive, tally } from './voting';
-import { compareClaimToPage, parseComparison, quoteMatches } from './compare';
+import {
+  compareClaimToPage,
+  describeQuoteMismatch,
+  MAX_PAGE_TOPIC_CHARS,
+  MAX_QUOTE_CHARS,
+  MAX_RATIONALE_CHARS,
+  parseComparison,
+  quoteCharLimit,
+  quoteMatches,
+} from './compare';
 
 /** 比对调用要模型、要提示词；这里只钉"引文与字段的关系"，两者都给假件（离线、不花钱） */
 vi.mock('@src/llm', async (importOriginal) => {
@@ -261,6 +270,45 @@ describe('引文逐字命中（机械校验）', () => {
     // 只折字形不改语义：换成另一件东西仍不命中
     expect(quoteMatches('清乾隆青花天球瓶', page)).toBe(false);
   });
+
+  it('HTML 标签是排版：跨标签的引文命中，标签本身不进入比对', () => {
+    const page =
+      '<h3>禹贡Ⅰ—盛清御瓷新风尚</h3><p class="org">北京保利</p><p class="time">2021-12-05</p>';
+    expect(quoteMatches('禹贡Ⅰ—盛清御瓷新风尚 北京保利 2021-12-05', page)).toBe(true);
+    expect(quoteMatches('<h3>禹贡Ⅰ—盛清御瓷新风尚</h3>', page)).toBe(true);
+    expect(quoteMatches('禹贡Ⅱ—盛清御瓷新风尚 北京保利', page)).toBe(false);
+  });
+
+  it('真实案例回归：腾讯转载页的空格不参与比对，省略空格的引文命中', () => {
+    // 2026-10-29 在线实测被拒收的那一句；快照原文在字与字之间带空格
+    const page = '为期5 天的中国嘉德香港2024春季拍卖会， 4月7日晚上 圆满收官。12个专场';
+    expect(quoteMatches('中国嘉德香港2024春季拍卖会，4月7日晚上圆满收官。', page)).toBe(true);
+  });
+
+  it('零宽字符、BOM、软连字符是排版噪声：不计入差异，但不能拿来拼句', () => {
+    const page = '甲\u200B乙\uFEFF丙\u00AD丁';
+    expect(quoteMatches('甲乙丙丁', page)).toBe(true);
+    expect(quoteMatches('甲乙丙', page)).toBe(true);
+    expect(quoteMatches('甲丙', page)).toBe(false);
+    expect(quoteMatches('甲乙丙丁戊', page)).toBe(false);
+  });
+
+  it('HTML 命名与数字实体按解码后的字比对', () => {
+    expect(quoteMatches('甲&#x4E59;丙', '甲乙丙')).toBe(true);
+    expect(quoteMatches('甲 乙', '甲&#160;乙')).toBe(true);
+    expect(quoteMatches('甲\u0000乙', '甲乙')).toBe(true);
+    expect(quoteMatches('甲&#38;乙', '甲&amp;乙')).toBe(true);
+    // 只解一层：&amp;lt; 停在 &lt;，不能二次解成 <
+    expect(quoteMatches('&lt;', '&amp;lt;')).toBe(false);
+    expect(quoteMatches('甲&#0;乙', '甲乙')).toBe(false);
+  });
+
+  it('未命中时指出第一处对不上的位置', () => {
+    expect(describeQuoteMismatch('甲乙', '甲乙')).toBe('');
+    const hint = describeQuoteMismatch('甲乙丙', '甲乙丁');
+    expect(hint).toContain('前 2 个有效字符');
+    expect(hint).toContain('丙');
+  });
 });
 
 describe('比对返回解析', () => {
@@ -280,6 +328,53 @@ describe('比对返回解析', () => {
       '{"relation":"supports","quote":"2014春季拍卖会瓷器工艺品专场","contentWeight":1,"pageTopic":"嘉德2014春拍瓷器专场图录","rationale":"页面直接写明该场"}',
     );
     expect(parsed).toMatchObject({ relation: 'supports', contentWeight: 1, pageTopic: '嘉德2014春拍瓷器专场图录' });
+  });
+});
+
+describe('比对输出边界（防注入的第三层）', () => {
+  it('引文超过上限整条拒收，不截断', () => {
+    const parsed = parseComparison(
+      JSON.stringify({ relation: 'supports', quote: '甲'.repeat(MAX_QUOTE_CHARS + 1) }),
+    );
+    expect(parsed).toMatchObject({ rejected: true });
+    expect(String((parsed as { reason: string }).reason)).toContain('引文过长');
+  });
+
+  it('上限可用环境变量覆盖，非法值回落默认', () => {
+    const previous = process.env.LODESTAR_MAX_QUOTE_CHARS;
+    try {
+      process.env.LODESTAR_MAX_QUOTE_CHARS = '5';
+      expect(quoteCharLimit()).toBe(5);
+      expect(
+        parseComparison(JSON.stringify({ relation: 'supports', quote: '甲乙丙丁戊己' })),
+      ).toMatchObject({ rejected: true });
+      expect(
+        parseComparison(JSON.stringify({ relation: 'supports', quote: '甲乙丙丁戊' })),
+      ).toMatchObject({ relation: 'supports' });
+
+      process.env.LODESTAR_MAX_QUOTE_CHARS = 'not-a-number';
+      expect(quoteCharLimit()).toBe(MAX_QUOTE_CHARS);
+    } finally {
+      if (previous === undefined) delete process.env.LODESTAR_MAX_QUOTE_CHARS;
+      else process.env.LODESTAR_MAX_QUOTE_CHARS = previous;
+    }
+  });
+
+  it('控制字符从引文与说明字段里去掉，说明字段超长截断', () => {
+    const parsed = parseComparison(
+      JSON.stringify({
+        relation: 'supports',
+        quote: '甲\u0000乙\u0007丙',
+        pageTopic: '题'.repeat(MAX_PAGE_TOPIC_CHARS + 10),
+        rationale: '理'.repeat(MAX_RATIONALE_CHARS + 10),
+      }),
+    );
+    expect(parsed).toMatchObject({ quote: '甲乙丙' });
+    const outcome = parsed as { pageTopic: string; rationale: string };
+    expect(outcome.pageTopic).toHaveLength(MAX_PAGE_TOPIC_CHARS + 1);
+    expect(outcome.pageTopic.endsWith('…')).toBe(true);
+    expect(outcome.rationale).toHaveLength(MAX_RATIONALE_CHARS + 1);
+    expect(outcome.rationale.endsWith('…')).toBe(true);
   });
 });
 

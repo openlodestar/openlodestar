@@ -8,10 +8,22 @@
  * 归一化不改写原文——claims.rawText / atomicText 永远保留原样，这里只产比较键。
  */
 
+import { decodeHtmlEntities } from '@src/utils/html-entities';
 import { foldGlyphVariants } from '@src/utils/text-language';
 
 /** 参与折叠的标点与空白（中文全角 + ASCII 常见分隔） */
 const PUNCT_PATTERN = /[\s　、，。；：！？"'“”‘’()（）【】《》.,;:!?\-_/\\|]+/g;
+
+/**
+ * 不可见格式字符：零宽空格/连接符、BOM、软连字符、方向控制等。
+ * 它们来自 HTML 排版与复制噪声，不是页面上的字；比对与去重时一律不计。
+ */
+const INVISIBLE_FORMAT = /[\u00AD\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF]/g;
+
+/** 去掉不可见格式字符（比较键与引文比对共用同一条规则） */
+export function stripInvisibleFormat(input: string): string {
+  return input.replace(INVISIBLE_FORMAT, '');
+}
 
 /**
  * 归一化文本：全角转半角、**字形折叠（繁/异体→简体正体）**、去标点与空白、拉丁字母小写。
@@ -21,8 +33,9 @@ const PUNCT_PATTERN = /[\s　、，。；：！？"'“”‘’()（）【】�
  */
 export function normalizeText(input: string): string {
   if (typeof input !== 'string') return '';
-  const widthFixed = foldGlyphVariants(input.normalize('NFKC'));
-  return widthFixed.replace(PUNCT_PATTERN, '').toLowerCase();
+  const decoded = decodeHtmlEntities(input);
+  const widthFixed = foldGlyphVariants(decoded.normalize('NFKC'));
+  return stripInvisibleFormat(widthFixed).replace(PUNCT_PATTERN, '').toLowerCase();
 }
 
 /** 断言的复现/去重键：主体 × 谓词 × 客体 × 时间范围，缺项以空段占位 */

@@ -11,8 +11,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
-vi.mock('@src/integrations/net/safe-fetch', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@src/integrations/net/safe-fetch')>();
+vi.mock('../net/safe-fetch', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../net/safe-fetch')>();
   return {
     ...actual,
     safeFetchText: vi.fn(),
@@ -20,9 +20,9 @@ vi.mock('@src/integrations/net/safe-fetch', async (importOriginal) => {
   };
 });
 
-import { registerBrowserPlugin, unregisterBrowserPlugin } from '@src/integrations/browser-plugins';
-import { safeFetchText } from '@src/integrations/net/safe-fetch';
-import { BrowserUnavailableError, isBrowserUnavailableError } from '@src/utils/browser-unavailable-error';
+import { registerBrowserPlugin, unregisterBrowserPlugin } from '../browser-plugins';
+import { safeFetchText } from '../net/safe-fetch';
+import { BrowserUnavailableError, isBrowserUnavailableError } from '../../utils/browser-unavailable-error';
 import { fetchSinglePageHtml } from './single-page-fetch';
 
 const PLUGIN = 'fake-browser';

@@ -16,7 +16,7 @@ import type { ClaimTimeScope, RoutingInfo } from '../../types';
 import {
   getAllWhitelistEntries,
   type WhitelistEntry,
-} from '@src/integrations/source-whitelist';
+} from '../../../integrations/source-whitelist';
 import {
   canonicalHouseName,
   categoryTagsFrom,

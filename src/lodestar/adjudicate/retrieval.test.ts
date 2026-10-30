@@ -19,7 +19,7 @@ const { searchMock, translateMock, providerState } = vi.hoisted(() => ({
   providerState: { siteOperator: true as boolean | undefined },
 }));
 
-vi.mock('@src/integrations/search-providers', () => ({
+vi.mock('../../integrations/search-providers', () => ({
   createSearchProvider: () => ({
     name: 'fake',
     ...(providerState.siteOperator === undefined
@@ -30,13 +30,13 @@ vi.mock('@src/integrations/search-providers', () => ({
   getSearchProviderFromEnv: () => 'fake',
 }));
 
-vi.mock('@src/services/query-translation', () => ({ translateQueries: translateMock }));
+vi.mock('../../services/query-translation', () => ({ translateQueries: translateMock }));
 
 import { buildEvidenceQueries, buildRecordQueries, retrieveCandidates } from './retrieval';
-import { NO_ABLATIONS } from '@src/ablation';
+import { NO_ABLATIONS } from '../../ablation';
 import porcelainPack from '../packs/porcelain';
 import type { ClaimRecord } from '../types';
-import { createLogger } from '@src/utils/logger';
+import { createLogger } from '../../utils/logger';
 
 const logger = createLogger({ prefix: '[retrieval-test] ' });
 

@@ -16,13 +16,13 @@
 
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
-vi.mock('@src/llm', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@src/llm')>();
+vi.mock('../llm', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../llm')>();
   return { ...actual, invokeLLM: vi.fn() };
 });
 
-import { invokeLLM } from '@src/llm';
-import type { ChatMessage } from '@src/llm';
+import { invokeLLM } from '../llm';
+import type { ChatMessage } from '../llm';
 import porcelainPack from './packs/porcelain';
 import type { ClaimRecord } from './types';
 import type { CapturedPage } from './adjudicate/page-fetch';

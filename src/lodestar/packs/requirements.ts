@@ -15,8 +15,8 @@ import {
   getBrowserPluginFromEnv,
   resolveBrowserPlugin,
   type BrowserRenderer,
-} from '@src/integrations/browser-plugins';
-import { BrowserUnavailableError, isBrowserUnavailableError } from '@src/utils/browser-unavailable-error';
+} from '../../integrations/browser-plugins';
+import { BrowserUnavailableError, isBrowserUnavailableError } from '../../utils/browser-unavailable-error';
 import type { DomainPack } from './pack';
 
 /** 探针用到的插件接口（只依赖 `probe`，便于测试注入假实现） */

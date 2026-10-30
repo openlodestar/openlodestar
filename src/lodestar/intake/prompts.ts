@@ -7,7 +7,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import { getLodestarLoader } from '@src/prompts';
+import { getLodestarLoader } from '../../prompts';
 import { keyFieldKeysOf, type DomainPack, type FieldSpec } from '../packs/pack';
 
 /** 枚举式提问的单轮提示词 */

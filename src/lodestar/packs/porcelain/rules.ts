@@ -7,9 +7,9 @@
  * `packs/pack.ts` 顶部注释。
  */
 
-import { getAllWhitelistEntries } from '@src/integrations/source-whitelist';
+import { getAllWhitelistEntries } from '../../../integrations/source-whitelist';
 import { normalizeText } from '../../normalize';
-import { foldGlyphVariants } from '@src/utils/text-language';
+import { foldGlyphVariants } from '../../../utils/text-language';
 import type { SourceTier } from '../../types';
 
 /** registrable domain 之外的多级公共后缀（需要整体保留的国别二级域） */

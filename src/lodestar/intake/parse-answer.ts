@@ -7,7 +7,7 @@
  * 非 JSON 数组、数组里混非对象、列名对不上，分别计数上报（弃权率要看它们）。
  */
 
-import { extractJsonArray } from '@src/llm';
+import { extractJsonArray } from '../../llm';
 import type { DomainPack } from '../packs/pack';
 import { isDiscardableRow, type MappedRow } from './record-container';
 

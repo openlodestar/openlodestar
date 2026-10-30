@@ -9,8 +9,8 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { registerBrowserPlugin, unregisterBrowserPlugin } from '@src/integrations/browser-plugins';
-import { isUnsafeUrlError } from '@src/integrations/net/safe-fetch';
+import { registerBrowserPlugin, unregisterBrowserPlugin } from '../browser-plugins';
+import { isUnsafeUrlError } from '../net/safe-fetch';
 import { fetchSinglePageHtml } from './single-page-fetch';
 
 const PLUGIN = 'guard-fake-browser';

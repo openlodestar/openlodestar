@@ -12,9 +12,9 @@
  *   上层只用源轨，检索不因翻译失败而失败。
  */
 
-import { createLogger } from '@src/utils/logger';
-import { extractJsonArray, invokeLLM, type ChatMessage } from '@src/llm';
-import { getSharedLoader } from '@src/prompts';
+import { createLogger } from '../utils/logger';
+import { extractJsonArray, invokeLLM, type ChatMessage } from '../llm';
+import { getSharedLoader } from '../prompts';
 
 /** 目标语言桶（与 text-language 的 LanguageClass 同值域） */
 export type TranslationTarget = 'en' | 'zh';

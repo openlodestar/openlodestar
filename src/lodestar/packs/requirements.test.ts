@@ -11,8 +11,8 @@ import {
   registerBrowserPlugin,
   unregisterBrowserPlugin,
   type BrowserRenderer,
-} from '@src/integrations/browser-plugins';
-import { BrowserUnavailableError, isBrowserUnavailableError } from '@src/utils/browser-unavailable-error';
+} from '../../integrations/browser-plugins';
+import { BrowserUnavailableError, isBrowserUnavailableError } from '../../utils/browser-unavailable-error';
 import porcelainPack from './porcelain';
 import { assertPackRequirements, type RequirementProbe } from './requirements';
 import type { DomainPack } from './pack';

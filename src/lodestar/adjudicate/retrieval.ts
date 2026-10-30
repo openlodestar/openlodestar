@@ -12,20 +12,20 @@
  * 白名单不参与准入，只参与排序——白名单外的来源落 `unlisted` 档、降权但留档。
  */
 
-import { extractHostname, normalizedUrlKey } from '@src/utils/url-utils';
-import { createLogger } from '@src/utils/logger';
-import { interleaveTracks } from '@src/utils/interleave';
-import { dominantLanguageClass, toSearchHl, type LanguageClass } from '@src/utils/text-language';
-import { translateQueries, type TranslationTarget } from '@src/services/query-translation';
+import { extractHostname, normalizedUrlKey } from '../../utils/url-utils';
+import { createLogger } from '../../utils/logger';
+import { interleaveTracks } from '../../utils/interleave';
+import { dominantLanguageClass, toSearchHl, type LanguageClass } from '../../utils/text-language';
+import { translateQueries, type TranslationTarget } from '../../services/query-translation';
 import {
   createSearchProvider,
   getSearchProviderFromEnv,
   type SearchResultItem,
-} from '@src/integrations/search-providers';
-import { createSourceBlacklistService, type SourceBlacklistService } from '@src/integrations/source-blacklist';
+} from '../../integrations/search-providers';
+import { createSourceBlacklistService, type SourceBlacklistService } from '../../integrations/source-blacklist';
 import { fillTemplate, type DomainPack, type FieldSpec } from '../packs/pack';
 import { normalizeText } from '../normalize';
-import type { AblationState } from '@src/ablation';
+import type { AblationState } from '../../ablation';
 import type { ClaimRecord, SourceTier } from '../types';
 
 /** 一条断言的检索候选来源 */

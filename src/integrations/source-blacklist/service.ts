@@ -6,7 +6,7 @@
  * 数据消费返回"无数据"值，系统行为等价于黑名单从未存在过。
  */
 
-import { type AblationState } from '@src/ablation';
+import { type AblationState } from '../../ablation';
 import { type BlacklistEntry, getBlacklistEntries } from './entries';
 import { matchBlacklistEntry, isUrlBlocked } from './matching';
 

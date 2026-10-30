@@ -13,10 +13,10 @@
  * 3. **不判真伪**：本模块只产候选。页面能不能当入口由 `deriveSourceAnchor` 判。
  */
 
-import { invokeLLM, type ChatMessage } from '@src/llm';
-import { getLodestarLoader } from '@src/prompts';
-import { createLogger } from '@src/utils/logger';
-import { normalizedUrlKey } from '@src/utils/url-utils';
+import { invokeLLM, type ChatMessage } from '../../llm';
+import { getLodestarLoader } from '../../prompts';
+import { createLogger } from '../../utils/logger';
+import { normalizedUrlKey } from '../../utils/url-utils';
 import { newId } from '../ids';
 import type { DomainPack } from '../packs/pack';
 import type { AnswerRecord } from '../types';

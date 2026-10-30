@@ -16,9 +16,9 @@
  * 引擎不替领域做判断。
  */
 
-import { processHtml } from '@src/integrations/scraper-strategies/scraper-utils';
-import { fetchSinglePageHtml, type SinglePageResult } from '@src/integrations/scraper-strategies';
-import { findBrowserUnavailableError } from '@src/utils/browser-unavailable-error';
+import { processHtml } from '../../integrations/scraper-strategies/scraper-utils';
+import { fetchSinglePageHtml, type SinglePageResult } from '../../integrations/scraper-strategies';
+import { findBrowserUnavailableError } from '../../utils/browser-unavailable-error';
 import { snapshotRefFor } from '../paths';
 import { writeSnapshot, type LodestarStore } from '../storage/adapter';
 

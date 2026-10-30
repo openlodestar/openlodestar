@@ -12,7 +12,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { traceStore, type TraceEvent } from '@src/trace-config';
+import { traceStore, type TraceEvent } from '../trace-config';
 
 /** 一条底稿的阶段名（宿主的 trace 浏览器按它归堆） */
 export type LodestarTraceNode = 'LodestarQuery' | 'LodestarClaim';

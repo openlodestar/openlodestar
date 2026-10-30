@@ -8,8 +8,8 @@
  * 归一化不改写原文——claims.rawText / atomicText 永远保留原样，这里只产比较键。
  */
 
-import { decodeHtmlEntities } from '@src/utils/html-entities';
-import { foldGlyphVariants } from '@src/utils/text-language';
+import { decodeHtmlEntities } from '../utils/html-entities';
+import { foldGlyphVariants } from '../utils/text-language';
 
 /** 参与折叠的标点与空白（中文全角 + ASCII 常见分隔） */
 const PUNCT_PATTERN = /[\s　、，。；：！？"'“”‘’()（）【】《》.,;:!?\-_/\\|]+/g;

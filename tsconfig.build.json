@@ -7,6 +7,7 @@
     "noEmit": false,
     "emitDeclarationOnly": true,
     "declaration": true,
+    "tsBuildInfoFile": "./dist/tsconfig.build.tsbuildinfo",
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],

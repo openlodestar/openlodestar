@@ -8,9 +8,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
-import { NO_ABLATIONS } from '@src/ablation';
-import { createSourceBlacklistService } from '@src/integrations/source-blacklist';
-import type { SearchResultItem } from '@src/integrations/search-providers';
+import { NO_ABLATIONS } from '../../ablation';
+import { createSourceBlacklistService } from '../../integrations/source-blacklist';
+import type { SearchResultItem } from '../../integrations/search-providers';
 import porcelainPack from '../packs/porcelain';
 import type { ClaimRecord, EvidenceRecord } from '../types';
 import type { CapturedPage } from './page-fetch';
@@ -27,12 +27,12 @@ import {
 } from './compare';
 
 /** 比对调用要模型、要提示词；这里只钉"引文与字段的关系"，两者都给假件（离线、不花钱） */
-vi.mock('@src/llm', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@src/llm')>();
+vi.mock('../../llm', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../llm')>();
   return { ...actual, invokeLLM: vi.fn() };
 });
-vi.mock('@src/prompts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@src/prompts')>();
+vi.mock('../../prompts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../prompts')>();
   return {
     ...actual,
     getLodestarLoader: () => ({
@@ -42,7 +42,7 @@ vi.mock('@src/prompts', async (importOriginal) => {
   };
 });
 
-import { invokeLLM } from '@src/llm';
+import { invokeLLM } from '../../llm';
 import { buildEvidenceQueries, filterAndRankCandidates } from './retrieval';
 import { routeClaim } from './routing';
 

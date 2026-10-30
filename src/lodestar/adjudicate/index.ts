@@ -11,8 +11,8 @@
  * 本模块只写 Lodestar 自己的底稿，不 import 宿主系统的任何写库函数。
  */
 
-import { createLogger } from '@src/utils/logger';
-import type { AblationState } from '@src/ablation';
+import { createLogger } from '../../utils/logger';
+import type { AblationState } from '../../ablation';
 import { newId } from '../ids';
 import type { DomainPack, FieldSpec } from '../packs/pack';
 import type { LodestarStore } from '../storage/adapter';
@@ -23,7 +23,7 @@ import type {
   VerdictRecord,
 } from '../types';
 import { createHash } from 'node:crypto';
-import { getRoleModelName } from '@src/llm';
+import { getRoleModelName } from '../../llm';
 import { routeClaim } from './routing';
 import { retrieveCandidates, type EvidenceCandidate } from './retrieval';
 import { captureEvidencePage, PageFetchFailedError, PageNeedsBrowserError, type CapturedPage } from './page-fetch';

@@ -13,10 +13,10 @@
  * 搜索与抓取的瞬时压力）；需浏览器而浏览器不可用 → `paused`，不消耗重试预算。
  */
 
-import { extractJsonArray, getRoleModelName, invokeLLM, type ChatMessage } from '@src/llm';
-import { getLodestarLoader } from '@src/prompts';
-import { NO_ABLATIONS, type AblationState } from '@src/ablation';
-import { createLogger } from '@src/utils/logger';
+import { extractJsonArray, getRoleModelName, invokeLLM, type ChatMessage } from '../llm';
+import { getLodestarLoader } from '../prompts';
+import { NO_ABLATIONS, type AblationState } from '../ablation';
+import { createLogger } from '../utils/logger';
 import { keyFieldKeysOf, type DomainPack, type FieldSpec } from './packs/pack';
 import porcelainPack from './packs/porcelain';
 import { assertPackRequirements } from './packs/requirements';

@@ -1,0 +1,68 @@
+name: Bug report
+description: 报告一个可复现的问题（安全漏洞请走私密渠道）
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢报告。请先确认这是 OpenLodestar 自己的问题，而不是第三方站点不可用、反爬或搜索排名变化。
+        安全漏洞不要用公开 issue，按 [SECURITY.md](https://github.com/openlodestar/openlodestar/blob/main/SECURITY.md) 的私密渠道报告。
+  - type: input
+    id: version
+    attributes:
+      label: 版本或提交
+      description: 例如 0.1.0，或 git commit 短哈希
+      placeholder: 0.1.0 / a1b2c3d
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: 出问题的入口
+      options:
+        - 离线 demo / 测试
+        - verify-quotes 或 audit
+        - live 在线实验
+        - 作为库调用
+        - 文档
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: 命令
+      description: 贴完整命令，去掉密钥
+      placeholder: pnpm run demo:real
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望看到什么
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际发生了什么
+      description: 贴报错、退出码或异常读数；有底稿片段更好
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: 环境
+      description: 操作系统、Node 与 pnpm 版本
+      placeholder: Windows 11 / Node 20.19 / pnpm 10.33.0
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 自查
+      options:
+        - label: 已经去掉密钥、个人信息和未脱敏的第三方正文
+          required: true
+        - label: 这不是安全漏洞（安全问题走 SECURITY.md 的私密渠道）
+          required: true

@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   check:
-    name: typecheck · test · offline demo
+    name: typecheck · test · offline demos
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,3 +41,12 @@ jobs:
 
       - name: Ledger audit
         run: pnpm exec tsx src/cli.ts audit --data .openlodestar-demo
+
+      - name: Real-case offline demo
+        run: pnpm run demo:real
+
+      - name: Quote hard guard (real case)
+        run: pnpm exec tsx src/cli.ts verify-quotes --data .openlodestar-demo/poly-2021-autumn
+
+      - name: Ledger audit (real case)
+        run: pnpm exec tsx src/cli.ts audit --data .openlodestar-demo/poly-2021-autumn

@@ -1,6 +1,6 @@
 # Porcelain example ledger
 
-A tiny, fully offline ledger used by `npm run demo` and the test suite. It shows
+A tiny, fully offline ledger used by `pnpm run demo` and the test suite. It shows
 the whole verification path without any model or network call:
 
 ```
@@ -41,7 +41,7 @@ contract; they do not describe real auctions.
 Run it:
 
 ```bash
-npm run demo          # recompute + verify, writes to .openlodestar-demo/
-npm run verify-quotes # hard guard over the ledger
-npm run audit         # reference / snapshot / anchor integrity
+pnpm run demo                                      # recompute + verify, writes to .openlodestar-demo/
+pnpm run verify-quotes -- --data .openlodestar-demo # hard guard over the ledger
+pnpm run audit         -- --data .openlodestar-demo # reference / snapshot / anchor integrity
 ```

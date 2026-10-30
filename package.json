@@ -29,6 +29,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./lodestar/packs/porcelain": "./src/lodestar/packs/porcelain/index.ts",
+    "./integrations/browser-plugins": "./src/integrations/browser-plugins/index.ts",
+    "./integrations/search-providers": "./src/integrations/search-providers/index.ts",
+    "./integrations/scraper-strategies": "./src/integrations/scraper-strategies/index.ts",
+    "./prompts": "./src/prompts/index.ts",
     "./*": "./src/*.ts"
   },
   "engines": {

@@ -22,10 +22,8 @@ import {
   getSearchProviderFromEnv,
   type SearchResultItem,
 } from '../../integrations/search-providers';
-import { createSourceBlacklistService, type SourceBlacklistService } from '../../integrations/source-blacklist';
 import { fillTemplate, type DomainPack, type FieldSpec } from '../packs/pack';
 import { normalizeText } from '../normalize';
-import type { AblationState } from '../../ablation';
 import type { ClaimRecord, SourceTier } from '../types';
 
 /** 一条断言的检索候选来源 */
@@ -222,7 +220,6 @@ export function buildRecordQueries(input: {
 export function filterAndRankCandidates(
   results: SearchResultItem[],
   pack: DomainPack,
-  blacklist: SourceBlacklistService,
 ): { candidates: EvidenceCandidate[]; rejected: Array<{ url: string; reason: string }> } {
   const candidates = new Map<string, EvidenceCandidate>();
   const rejected: Array<{ url: string; reason: string }> = [];
@@ -236,9 +233,9 @@ export function filterAndRankCandidates(
       rejected.push({ url: item.url, reason: '非 HTML 资源（图片/视频/文档）' });
       continue;
     }
-    const blocked = blacklist.matchUrl(item.url);
+    const blocked = pack.blockedReason?.(item.url) ?? null;
     if (blocked) {
-      rejected.push({ url: item.url, reason: `命中黑名单（${blocked.domain}${blocked.path ?? ''}，${blocked.reason}）` });
+      rejected.push({ url: item.url, reason: blocked });
       continue;
     }
     const domain = extractHostname(item.url) ?? '';
@@ -311,7 +308,6 @@ export async function retrieveCandidates(input: {
   spec?: FieldSpec;
   maxQueries: number;
   numResultsPerQuery: number;
-  ablations: AblationState;
   logger?: ReturnType<typeof createLogger>;
   /** 记录级已拼好的查询集：给了就不再按本条断言重拼（同一记录共用候选池） */
   prebuiltQueries?: string[];
@@ -387,8 +383,7 @@ export async function retrieveCandidates(input: {
     (item) => normalizedUrlKey(item.url),
   );
 
-  const blacklist = createSourceBlacklistService(input.ablations);
-  const { candidates, rejected } = filterAndRankCandidates(mergedResults, input.pack, blacklist);
+  const { candidates, rejected } = filterAndRankCandidates(mergedResults, input.pack);
 
   log.dev.debug(
     `[${input.claim.claimId}] 查询 ${queries.length} 条 × ${tracks.length} 轨（共 ${searchCalls} 次检索）→ ` +

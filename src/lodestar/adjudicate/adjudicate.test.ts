@@ -8,8 +8,6 @@
  */
 
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
-import { NO_ABLATIONS } from '../../ablation';
-import { createSourceBlacklistService } from '../../integrations/source-blacklist';
 import type { SearchResultItem } from '../../integrations/search-providers';
 import porcelainPack from '../packs/porcelain';
 import type { ClaimRecord, EvidenceRecord } from '../types';
@@ -428,7 +426,6 @@ describe('检索编排：唤起多源，不定位实例页', () => {
     const { candidates } = filterAndRankCandidates(
       results,
       porcelainPack,
-      createSourceBlacklistService(NO_ABLATIONS),
     );
     // 前 3 条就要覆盖到两个独立来源家族（否则 maxPages=3 时永远拿不到"两个独立来源"）
     const families = new Set(candidates.slice(0, 3).map((c) => c.sourceFamily));
@@ -444,6 +441,7 @@ describe('检索编排：唤起多源，不定位实例页', () => {
 
   it('候选过滤：黑名单与非 HTML 被剔，同 URL 取更靠前的排序位，排序按权威档降序', () => {
     const results: SearchResultItem[] = [
+      { url: 'https://zhihu.com/question/1', title: '黑名单站', snippet: '', position: 0, queryIndex: 0 },
       { url: 'https://www.barnebys.com/a', title: '聚合', snippet: '', position: 1, queryIndex: 0 },
       { url: 'https://www.cguardian.com/a', title: '官方', snippet: '', position: 5, queryIndex: 0 },
       { url: 'https://www.cguardian.com/a', title: '官方（重复）', snippet: '', position: 2, queryIndex: 1 },
@@ -453,12 +451,12 @@ describe('检索编排：唤起多源，不定位实例页', () => {
     const { candidates, rejected } = filterAndRankCandidates(
       results,
       porcelainPack,
-      createSourceBlacklistService(NO_ABLATIONS),
     );
     expect(candidates.map((c) => c.url)).toEqual(['https://www.cguardian.com/a', 'https://www.barnebys.com/a']);
     expect(candidates[0]!.tier).toBe('official');
     expect(candidates[0]!.position).toBe(2);
-    expect(rejected.map((r) => r.reason).join(' ')).toMatch(/非 HTML|非 http/);
+    expect(rejected.map((r) => r.reason).join(' ')).toMatch(/命中黑名单|非 HTML|非 http/);
+    expect(rejected.find((r) => r.url === 'https://zhihu.com/question/1')?.reason).toMatch(/命中黑名单/);
   });
 });
 

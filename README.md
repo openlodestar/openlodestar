@@ -166,17 +166,16 @@ src/
     adjudicate/             路由、双语检索、抓取与快照、逐源比对、计票
     record-gate/            记录级共现门禁与坐标导出
     storage/                文件底稿适配器（唯一的写入路径）
-    packs/                  领域策略包接口 + porcelain（中国古玩拍卖）
+    packs/                  领域策略包接口 + porcelain（中国古玩拍卖，含域名清单与无效页判据）
     anchor-source.ts        给下游的只读入口
   prompts/                  提示词模板（YAML，每条规则都带 enabled）
-  integrations/             搜索提供者（注册表 + 内置 llm-web/serper）、浏览器插件注册表与约定加载、抓取策略、HTML 清洗、来源白名单/黑名单
+  integrations/             搜索提供者（注册表 + 内置 llm-web/serper）、浏览器插件注册表与约定加载、抓取策略、HTML 清洗
   llm/                      OpenAI 兼容调用与重试
 plugins/browser-playwright/ playwright 渲染插件（独立包；自带 package.json 与 playwright 依赖）
 examples/porcelain/         最小离线底稿（合成数据，契约测试用）
 examples/poly-2021-autumn/  真实案例底稿（公开报道的正文节选 + 抓取档案 + 四条候选记录 + case.json）
 docs/demo-design-guide.md   演示方法论：一条演示该证明什么、怎么挑素材、怎么摆证据
 .env.example                在线链路的环境变量模板（复制为 .env；离线命令不需要）
-data/                       来源白名单与黑名单
 .github/                    CI 与 issue 模板
 CONTRIBUTING.md             参与方式、硬规矩与 PR 检查单
 SECURITY.md                 漏洞报告渠道与范围
@@ -324,7 +323,6 @@ process.env.BROWSER_PLUGIN = 'my-renderer';
 | `SEARCH_RESULT_COUNT` | 每条查询要几条结果（默认 10） |
 | `OPENLODESTAR_DATA_DIR` | 底稿目录（默认仓库根下的 `lodestar/`） |
 | `OPENLODESTAR_ANCHORS_FILE` | 单独覆盖坐标文件路径 |
-| `OPENLODESTAR_WHITELIST_FILE` / `OPENLODESTAR_BLACKLIST_FILE` | 覆盖 `data/*.json` |
 | `OPENLODESTAR_TRACE_DIR` | trace 存放目录（默认仓库根下的 `.traces/`） |
 | `OPENLODESTAR_LOG` | `debug` / `warn` / `silent`（默认 `warn`） |
 | `OPENLODESTAR_PAGE_TIMEOUT_MS` | 单页抓取超时（默认 25000） |

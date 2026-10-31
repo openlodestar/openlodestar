@@ -179,7 +179,6 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
       spec: input.spec,
       maxQueries: caps.maxSearchCalls,
       numResultsPerQuery: caps.numResultsPerQuery,
-      ablations: input.ablations,
       logger: log,
     });
     candidates = retrieval.candidates;

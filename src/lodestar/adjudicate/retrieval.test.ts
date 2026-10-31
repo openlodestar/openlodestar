@@ -33,7 +33,6 @@ vi.mock('../../integrations/search-providers', () => ({
 vi.mock('../../services/query-translation', () => ({ translateQueries: translateMock }));
 
 import { buildEvidenceQueries, buildRecordQueries, retrieveCandidates } from './retrieval';
-import { NO_ABLATIONS } from '../../ablation';
 import porcelainPack from '../packs/porcelain';
 import type { ClaimRecord } from '../types';
 import { createLogger } from '../../utils/logger';
@@ -66,7 +65,6 @@ function baseInput() {
     values: {},
     maxQueries: 4,
     numResultsPerQuery: 10,
-    ablations: NO_ABLATIONS,
     logger,
     prebuiltQueries: [ZH_QUERY],
   };

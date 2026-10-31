@@ -369,7 +369,6 @@ async function verifyClaims(input: {
           values: groupValues,
           maxQueries: queries.length,
           numResultsPerQuery: input.caps.numResultsPerQuery,
-          ablations: input.ablations,
           logger: log,
           prebuiltQueries: queries,
         });

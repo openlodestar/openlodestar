@@ -11,14 +11,14 @@ import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 
 const { searchMock } = vi.hoisted(() => ({ searchMock: vi.fn() }));
 
-vi.mock('@src/llm', async (importOriginal) => {
+vi.mock('../../llm', async (importOriginal) => {
   // 只 stub invokeLLM；extractJsonArray 等解析原语要保真（parse-answer 依赖它）
-  const actual = await importOriginal<typeof import('@src/llm')>();
+  const actual = await importOriginal<typeof import('../../llm')>();
   return { ...actual, invokeLLM: vi.fn() };
 });
 
-vi.mock('@src/integrations/search-providers', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@src/integrations/search-providers')>();
+vi.mock('../../integrations/search-providers', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../integrations/search-providers')>();
   return {
     ...actual,
     createSearchProvider: () => ({ name: 'fake', search: searchMock }),
@@ -26,7 +26,7 @@ vi.mock('@src/integrations/search-providers', async (importOriginal) => {
   };
 });
 
-import { invokeLLM } from '@src/llm';
+import { invokeLLM } from '../../llm';
 import porcelainPack from '../packs/porcelain';
 import { elicit } from './elicitation';
 import type { AnswerRecord } from '../types';

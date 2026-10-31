@@ -7,9 +7,9 @@
  * `packs/pack.ts` 顶部注释。
  */
 
-import { getAllWhitelistEntries } from '@src/integrations/source-whitelist';
+import { WHITELIST_ENTRIES } from './sources';
 import { normalizeText } from '../../normalize';
-import { foldGlyphVariants } from '@src/utils/text-language';
+import { foldGlyphVariants } from '../../../utils/text-language';
 import type { SourceTier } from '../../types';
 
 /** registrable domain 之外的多级公共后缀（需要整体保留的国别二级域） */
@@ -81,7 +81,7 @@ function whitelistCategory(domain: string): string | undefined {
   if (registered === '') return undefined;
   // 读全量条目（含 candidate）但排除 dead：**档位看内容身份，不看我们此刻抓不抓得动**。
   // 只用 verified 清单会把嘉德官网降成"来路不明"，而它的页面正是该场拍卖的一手记录。
-  const entry = getAllWhitelistEntries().find(
+  const entry = WHITELIST_ENTRIES.find(
     (e) => e.status !== 'dead' && registrableDomain(e.domain) === registered,
   );
   return entry?.category;
@@ -328,7 +328,7 @@ export function knownHostsOf(
     .map((needle) => foldGlyphVariants(needle).toLowerCase())
     .filter((needle) => needle.length >= 2);
   if (needles.length === 0) return [];
-  const hosts = getAllWhitelistEntries()
+  const hosts = WHITELIST_ENTRIES
     .filter((entry) => entry.status !== 'dead')
     .filter((entry) => !categories || (entry.category !== undefined && categories.includes(entry.category)))
     .filter((entry) => {

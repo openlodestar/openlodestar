@@ -12,8 +12,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
-vi.mock('@src/integrations/scraper-strategies', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@src/integrations/scraper-strategies')>();
+vi.mock('../../integrations/scraper-strategies', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../integrations/scraper-strategies')>();
   return { ...actual, fetchSinglePageHtml: vi.fn() };
 });
 vi.mock('../storage/adapter', async (importOriginal) => {
@@ -21,8 +21,8 @@ vi.mock('../storage/adapter', async (importOriginal) => {
   return { ...actual, writeSnapshot: vi.fn() };
 });
 
-import { fetchSinglePageHtml } from '@src/integrations/scraper-strategies';
-import { BrowserUnavailableError } from '@src/utils/browser-unavailable-error';
+import { fetchSinglePageHtml } from '../../integrations/scraper-strategies';
+import { BrowserUnavailableError } from '../../utils/browser-unavailable-error';
 import { createStore } from '../storage/adapter';
 import { writeSnapshot } from '../storage/adapter';
 import {

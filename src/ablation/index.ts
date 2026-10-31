@@ -9,8 +9,6 @@
 
 /** 可消融的机制名（与宿主系统保持同名，便于对照两侧的评测口径） */
 export type MechanismId =
-  | 'source-whitelist'
-  | 'source-blacklist'
   | 'source-targeted'
   | 'dual-track'
   | 'concretization';

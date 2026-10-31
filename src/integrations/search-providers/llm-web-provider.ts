@@ -17,7 +17,7 @@
  * 绝不把「模型没按格式回答」伪装成「没搜到」——后者会变成一条"世界没有证据"的结论。
  */
 
-import { extractJsonArray, invokeLLM } from '@src/llm';
+import { extractJsonArray, invokeLLM } from '../../llm';
 import { SearchProviderCallError, SearchProviderConfigError, SearchProviderParseError } from './errors';
 import type { SearchProvider, SearchOptions, SearchProviderResult, SearchResultItem } from './types';
 

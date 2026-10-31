@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { findBrowserUnavailableError, isBrowserUnavailableError } from '@src/utils/browser-unavailable-error';
+import { findBrowserUnavailableError, isBrowserUnavailableError } from '../../utils/browser-unavailable-error';
 import { BrowserUnavailableError, PLUGIN_NAME, createRenderer } from '../../../plugins/browser-playwright/src/index';
 import type { BrowserRenderer } from './types';
 

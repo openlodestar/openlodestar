@@ -11,11 +11,11 @@
  * 3. **判定只依据页面正文**，不依据搜索摘要——摘要可能来自别的页面或过期缓存。
  */
 
-import { extractJson, invokeLLM, type ChatMessage } from '@src/llm';
-import { getLodestarLoader } from '@src/prompts';
-import { decodeHtmlEntities } from '@src/utils/html-entities';
-import { createLogger } from '@src/utils/logger';
-import { foldGlyphVariants, stripControlChars } from '@src/utils/text-language';
+import { extractJson, invokeLLM, type ChatMessage } from '../../llm';
+import { getLodestarLoader } from '../../prompts';
+import { decodeHtmlEntities } from '../../utils/html-entities';
+import { createLogger } from '../../utils/logger';
+import { foldGlyphVariants, stripControlChars } from '../../utils/text-language';
 import { stripInvisibleFormat } from '../normalize';
 import { renderClaimCompare } from '../intake/prompts';
 import type { DomainPack } from '../packs/pack';

@@ -14,10 +14,7 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "noEmit": true,
-    "paths": {
-      "@src/*": ["./src/*"]
-    }
+    "noEmit": true
   },
   "include": ["src/**/*.ts", "plugins/*/src/**/*.ts"],
   "exclude": ["node_modules", "dist", "lodestar", ".traces"]

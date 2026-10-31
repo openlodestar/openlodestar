@@ -17,7 +17,7 @@
  * 门禁只读页面的机械读数（详情链接数、是否枢纽、可见文本），不调模型。
  */
 
-import { extractHostname } from '@src/utils/url-utils';
+import { extractHostname } from '../../utils/url-utils';
 import { visibleText } from '../normalize';
 import type { DomainPack, SourceFieldSpec } from '../packs/pack';
 import { buildSourceSearchPhrases } from '../search-phrases';

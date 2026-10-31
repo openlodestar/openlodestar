@@ -17,8 +17,8 @@ const { invokeMock } = vi.hoisted(() => ({
 }));
 
 // 只替换网络调用，保留真实的 JSON 提取（extractJsonArray 的剥围栏行为要一起测）
-vi.mock('@src/llm', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@src/llm')>();
+vi.mock('../../llm', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../llm')>();
   return { ...actual, invokeLLM: invokeMock };
 });
 

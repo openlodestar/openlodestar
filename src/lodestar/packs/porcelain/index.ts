@@ -13,10 +13,7 @@
  */
 
 import type { ClaimTimeScope, RoutingInfo } from '../../types';
-import {
-  getAllWhitelistEntries,
-  type WhitelistEntry,
-} from '@src/integrations/source-whitelist';
+import { blockedReasonOf, WHITELIST_ENTRIES, type WhitelistEntry } from './sources';
 import {
   canonicalHouseName,
   categoryTagsFrom,
@@ -380,7 +377,7 @@ export const porcelainPack: DomainPack = {
       const statusRank = entry.status === 'verified' || entry.status === undefined ? 0 : 1;
       return tierRank * 2 + statusRank;
     };
-    const sorted = getAllWhitelistEntries()
+    const sorted = WHITELIST_ENTRIES
       .filter((e) => e.status !== 'dead' && typeof e.domain === 'string' && e.domain !== '')
       .sort((a, b) => {
         const domainA = registrableDomain(a.domain);
@@ -397,6 +394,10 @@ export const porcelainPack: DomainPack = {
   tierOf,
 
   sourceFamilyOf: familyOf,
+
+  blockedReason(url) {
+    return blockedReasonOf(url);
+  },
 
   isDetailLink({ candidateUrl, pathname, search, hubUrl, anchorText }) {
     const haystack = `${pathname}${search}`.toLowerCase();

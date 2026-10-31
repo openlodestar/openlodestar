@@ -12,13 +12,13 @@
  * **不经过站点适配器**（适配器拼出来的正文不是第三方页面上印着的话）。
  */
 
-import { resolveBrowserPlugin, getBrowserPluginFromEnv } from '@src/integrations/browser-plugins';
+import { resolveBrowserPlugin, getBrowserPluginFromEnv } from '../browser-plugins';
 import {
   assertPublicHostResolves,
   assertPublicUrl,
   isUnsafeUrlError,
   safeFetchText,
-} from '@src/integrations/net/safe-fetch';
+} from '../net/safe-fetch';
 
 /** 现代浏览器请求头（降低反爬拦截） */
 const SINGLE_PAGE_HEADERS: Record<string, string> = {

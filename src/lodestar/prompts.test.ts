@@ -10,8 +10,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getLodestarLoader } from '@src/prompts';
-import type { PromptTemplate, RenderVariables } from '@src/prompts';
+import { getLodestarLoader } from '../prompts';
+import type { PromptTemplate, RenderVariables } from '../prompts';
 import porcelainPack from './packs/porcelain';
 import { renderEnumerationExtract, renderSourceEnumeration, sourcePhrasings } from './intake/prompts';
 

@@ -10,12 +10,12 @@
 
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 
-vi.mock('@src/llm', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@src/llm')>();
+vi.mock('../../llm', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../llm')>();
   return { ...actual, invokeLLM: vi.fn() };
 });
 
-import { invokeLLM } from '@src/llm';
+import { invokeLLM } from '../../llm';
 import porcelainPack from '../packs/porcelain';
 import type { AnswerRecord } from '../types';
 import { elicitSourceEntries, type SourceElicitationOptions } from './source-elicitation';

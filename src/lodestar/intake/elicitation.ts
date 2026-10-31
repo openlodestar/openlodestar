@@ -9,10 +9,10 @@
  * 本模块只做"问"与"拆"，不做任何可信度判断：稳定性高只意味着更值得花预算去查。
  */
 
-import { invokeLLM, type ChatMessage } from '@src/llm';
-import { createSearchProvider, getSearchProviderFromEnv } from '@src/integrations/search-providers';
-import { getLodestarLoader } from '@src/prompts';
-import { createLogger } from '@src/utils/logger';
+import { invokeLLM, type ChatMessage } from '../../llm';
+import { createSearchProvider, getSearchProviderFromEnv } from '../../integrations/search-providers';
+import { getLodestarLoader } from '../../prompts';
+import { createLogger } from '../../utils/logger';
 import { newId } from '../ids';
 import type { DomainPack, FieldSpec } from '../packs/pack';
 import { atomizeFieldToClaim } from './atomize';

@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterAll, type Mock } from 'vitest';
-import { NO_ABLATIONS } from '@src/ablation';
+import { NO_ABLATIONS } from '../../ablation';
 import porcelainPack from '../packs/porcelain';
 import type { ClaimRecord } from '../types';
 import type { LodestarStore } from '../storage/adapter';
@@ -19,8 +19,8 @@ import { PageFetchFailedError } from './page-fetch';
 import { adjudicateClaim, defaultMaxSearchCalls, defaultMaxPages } from './index';
 import type { EvidenceCandidate } from './retrieval';
 
-vi.mock('@src/llm', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@src/llm')>();
+vi.mock('../../llm', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../llm')>();
   return { ...actual, getRoleModelName: vi.fn(() => 'mock-model') };
 });
 

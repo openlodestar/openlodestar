@@ -128,6 +128,25 @@ describe('数据与规则分层', () => {
     expect(prompt.system).toContain('原样复制');
     expect(prompt.system).toContain('不可信数据');
   });
+
+  it('收紧后的"什么算矛盾"要送达模型：讲的是另一场不算反证', () => {
+    const prompt = renderClaimCompare({
+      pack: porcelainPack,
+      claimText: claim().atomicText,
+      fieldKey: 'sessionName',
+      url: 'https://a.test/1',
+      fetchedAt: '2026-11-01T10:00:00+08:00',
+      pageText: '正文',
+      boundary: 'fixed-boundary',
+    });
+    // 瓷器包 sessionName 的新细则（同系列相邻场次只证明那一场办过）
+    expect(prompt.system).toContain('不等于');
+    expect(prompt.system).toContain('证明不了被裁那一场不存在');
+    // 模板通用纪律：反证必须是"直接否认这条断言"
+    expect(prompt.system).toContain('直接否认这条断言');
+    // 旧规则里的"名称指向另一场"正是模型据此否定的依据，收紧后不许再出现在送达的提示里
+    expect(prompt.system).not.toContain('名称指向另一场');
+  });
 });
 
 describe('比对调用的消息顺序', () => {

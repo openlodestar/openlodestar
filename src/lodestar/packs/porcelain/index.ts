@@ -30,7 +30,13 @@ import {
   SOURCE_COLUMN_ALIASES,
   tierOf,
 } from './rules';
-import { pageMentions, querySurfaces, quoteBearsFieldClue, sourceMentions } from './slots';
+import {
+  pageMentions,
+  querySurfaces,
+  quoteBearsFieldClue,
+  sessionRefutationTargetsClaim,
+  sourceMentions,
+} from './slots';
 import { normalizeText } from '../../normalize';
 import {
   fillTemplate,
@@ -190,7 +196,10 @@ const JUDGEMENT_RULES: Record<string, string> = {
     '名称为断言所述专场的子场（如"瓷器（一）"）判 supports 并注明。' +
     '**专场名的标点与编号写法不算差异**：书名号与引号的有无、主副标题之间的破折号被改成空格或整段省略、' +
     '罗马数字与阿拉伯数字互写（"藏瓷II"＝"藏瓷2"）、尾缀"专场/拍卖会"有无，都按同一名处理；' +
-    '但**编号不同属于不同场次**（"藏瓷I"与"藏瓷II"是两场），不能因为名称大部分相同就判同一场。',
+    '但**编号不同属于不同场次**（"藏瓷I"与"藏瓷II"是两场），不能因为名称大部分相同就判同一场。' +
+    '**"页面讲的是另一场"不等于"被裁那一场不存在"**：同一系列的相邻场次（页面写"禹贡Ⅰ"而断言是"禹贡Ⅲ"）' +
+    '只能证明那一场办过，证明不了另一场的有无——这种页面判 irrelevant，并在 pageTopic 里写清它说的是第几场。' +
+    '判 refutes 要页面**直接否认被裁那一场**：写明该机构该季没办过这场、这场取消或延期、或页面自述"本场定名为 X"而 X 与断言冲突。',
   location: '地点须与该场实际拍卖地/预展地一致；同一机构在多地设展时，任一地命中即为 supports 并写明是哪一地。',
   category: '以该场图录的门类划分或拍品构成判断，不以下拉导航判断。',
   totalHammer: '总成交额只在页面明确写出该场总额时判断；把若干单件价格相加得到的数字不算。',
@@ -295,6 +304,10 @@ export const porcelainPack: DomainPack = {
 
   quoteBearsFieldClue(fieldKey, value, quote) {
     return quoteBearsFieldClue(fieldKey, value, quote);
+  },
+
+  refutationTargetsClaim(fieldKey, value, quote) {
+    return sessionRefutationTargetsClaim(fieldKey, value, quote);
   },
 
   enumerationPhrasings(query, runCount) {

@@ -391,6 +391,99 @@ function sessionCoreOf(value: string): string {
   return first.replace(SESSION_CORE_NOISE, '').trim();
 }
 
+/**
+ * 页面对"被裁这一场"的自指写法。
+ *
+ * 只认带指示词的形态（本场/该场/此场/是次/这场），**不含裸"专场"**——专场名本身就常以
+ * "……专场"结尾，放进来自指判据会把每一篇报道都算成自指，护栏当场失效。
+ */
+const SELF_SESSION = /本场|该场|此场|这场|是次|本次拍卖|该次拍卖/;
+
+/** 页面明确否认的写法：说的是"这一场不存在/没办过"，不是"我看到的是另一场" */
+const EXPLICIT_DENIAL =
+  /没有|不存在|并无|并未|从未|未举办|未设|未设场|取消|延期|不是|并非|仅有|只有|唯一|只有三|共设\s*[0-9一二三四五六七八九十]+\s*(?:个|场)/;
+
+/** 罗马编号 → 数字（复用上面那张互转表，别再立一份会漂移的第二清单；NFKC 将 Ⅲ 折成 iii，故按小写查） */
+const ROMAN_VALUES: Array<[string, number]> = Object.entries(ROMAN_TO_ARABIC).map(([roman, arabic]) => [
+  roman.toLowerCase(),
+  Number(arabic),
+]);
+
+/** 编号 token（罗马或阿拉伯）：长写法排在前面，否则 "iii" 会被切成 "i" */
+const ORDINAL_TOKEN = 'x|ix|viii|vii|vi|iv|iii|ii|i|[0-9]{1,2}';
+
+function ordinalNumber(token: string): number | null {
+  if (/^[0-9]{1,2}$/.test(token)) {
+    const n = Number(token);
+    return n >= 1 && n <= 10 ? n : null;
+  }
+  return ROMAN_VALUES.find(([roman]) => roman === token)?.[1] ?? null;
+}
+
+/**
+ * 专场名里的"系列词干 + 编号"：`禹贡Ⅲ—盛清御瓷新风尚` → `{ stem: '禹贡', ordinal: 3 }`。
+ * 认不出编号（没有编号、词干太短）返回 null，调用方必须当"判不了"放行。
+ */
+function sessionOrdinalOf(value: string): { stem: string; ordinal: number } | null {
+  const bare = value.replace(TITLE_MARKS, '').trim();
+  const first = bare.split(DASHES).map((p) => p.trim()).filter((p) => p !== '')[0] ?? bare;
+  const key = matchKey(first);
+  const hit = new RegExp(`(${ORDINAL_TOKEN})$`).exec(key);
+  const token = hit?.[1];
+  if (!token) return null;
+  const ordinal = ordinalNumber(token);
+  if (ordinal === null) return null;
+  const stem = key.slice(0, key.length - token.length);
+  if (stem.length < 2) return null;
+  return { stem, ordinal };
+}
+
+/** 正文里紧跟在词干后面的编号（同一系列出现多场时会有多个）；`禹贡2021` 这类不当编号 */
+function ordinalsAfterStem(hay: string, stem: string): number[] {
+  const out: number[] = [];
+  const pattern = new RegExp(`^(${ORDINAL_TOKEN})`, '');
+  for (let at = hay.indexOf(stem); at >= 0; at = hay.indexOf(stem, at + stem.length)) {
+    const token = pattern.exec(hay.slice(at + stem.length, at + stem.length + 4))?.[1];
+    const ordinal = token ? ordinalNumber(token) : null;
+    if (ordinal !== null && !out.includes(ordinal)) out.push(ordinal);
+  }
+  return out;
+}
+
+/**
+ * 反驳方向的第三道机械断言：这句引文反驳的是**不是被裁的那一场**（纯规则，不调模型）。
+ *
+ * 存在的理由是 2026-10-29 在线实测里的一条假反驳：断言是「禹贡Ⅲ—盛清御瓷新风尚」，
+ * 页面是一篇写「禹贡Ⅰ—盛清御瓷新风尚」的 amma 报道，模型拿"页面写的是禹贡Ⅰ"去否定
+ * "禹贡Ⅲ存在"，判了 refutes，还过了前两道护栏（引文逐字命中、`sessionClueIn` 认那句里
+ * 被引号包住的名称）。离线底稿对同一件事的结论是 not_found，并写明"这是这批证据里没有，
+ * 不是世界上不存在"。方向过头比方向不足更伤可信度：它把"我不知道"写成了"这是错的"。
+ *
+ * 判据只覆盖实测那一种形状（同系列不同编号），其余一律放行：
+ * - `yes`：页面自指"本场/该场定名为 X"、明确否认这一场、或直接写到被裁那场的编号；
+ * - `no`：正文里出现了同一系列的**另一个编号**，且没有任何自指或否认——它说的是那一场；
+ * - `unknown`：断言的专场名没有编号、或页面上找不到这个系列的任何编号——判不了就照常比对。
+ *
+ * 与 `quoteBearsFieldClue` 同一条纪律：本域规则判不了的情况，不许由引擎升级成拒收。
+ */
+export function sessionRefutationTargetsClaim(
+  fieldKey: string | null,
+  value: string | null | undefined,
+  quote: string,
+): PageMention {
+  if (fieldKey !== 'sessionName') return 'unknown';
+  const text = (quote ?? '').trim();
+  const raw = (value ?? '').trim();
+  if (text === '' || raw === '') return 'unknown';
+  if (SELF_SESSION.test(text) || EXPLICIT_DENIAL.test(text)) return 'yes';
+  const identity = sessionOrdinalOf(raw);
+  if (identity === null) return 'unknown';
+  const ordinals = ordinalsAfterStem(matchKey(text), identity.stem);
+  if (ordinals.length === 0) return 'unknown';
+  if (ordinals.includes(identity.ordinal)) return 'yes';
+  return 'no';
+}
+
 /** 把页面正文里的时间线索抽成可比对的槽（预筛与后续"时间窗是否重叠"的机械校验共用） */
 export function pageTimeCues(pageText: string): Array<{ year: number; month: number | null; seasonWord: string | null }> {
   const text = normalizeText(pageText);

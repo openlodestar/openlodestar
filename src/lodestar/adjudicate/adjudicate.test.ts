@@ -553,3 +553,85 @@ describe('引文须含该字段线索（写入侧第二道断言）', () => {
     expect((invokeLLM as Mock).mock.calls).toHaveLength(1);
   });
 });
+
+/**
+ * 写入侧的第三道机械断言（逐字命中、字段线索之外的另一半）：反驳方向的引文必须反驳
+ * **被裁的那个对象**。
+ *
+ * 实测病灶（2026-10-29 在线）：断言是「禹贡Ⅲ—盛清御瓷新风尚」，模型引的却是页面里写
+ * 「禹贡Ⅰ—盛清御瓷新风尚」的那句，判了 refutes——引文逐字命中、也确实写明专场名，
+ * 前两道护栏全放行，但"禹贡Ⅰ办过"证明不了"禹贡Ⅲ不存在"。护栏挡的是"反驳的对象不对"，
+ * 不是"反驳得不对"：后者是模型的判定职责，机械规则判不了，一律放行。
+ */
+describe('反驳须针对被裁对象（写入侧第三道断言）', () => {
+  const claim = (over: Partial<ClaimRecord> = {}): ClaimRecord => ({
+    claimId: 'cl-20261101-ontgt',
+    queryId: 'q-1',
+    recordId: 'rec-1',
+    fieldRole: 'key',
+    rawText: '',
+    atomicText: '北京保利拍卖于2021年12月举办「禹贡Ⅲ—盛清御瓷新风尚」专场',
+    subject: '北京保利拍卖',
+    predicate: '举办',
+    object: '禹贡Ⅲ—盛清御瓷新风尚',
+    timeScope: { from: '2021-12-01', to: '2021-12-31' },
+    channel: 'enumerative',
+    provenance: { stabilityRuns: 3, stabilityHits: 3, promptedDetail: false, selectionReason: null },
+    triage: { passed: true, reason: 'specific-and-decidable' },
+    state: 'verifying',
+    fieldKey: 'sessionName',
+    createdAt: '2026-11-01T10:00:00+08:00',
+    ...over,
+  });
+  /** 真页的形状：一篇写整个"禹贡"系列的报道，相邻场次都在，被裁那场只出现在一句否认里 */
+  const page: CapturedPage = {
+    url: 'https://www.amma-s.com/a/1',
+    text:
+      '2021年12月，北京保利拍卖2021秋季艺术品拍卖会举槌。' +
+      '「禹贡Ⅰ—盛清御瓷新风尚」专场率先开拍，「禹贡Ⅱ—盛清御瓷新风尚」随后。' +
+      '据拍卖公告，「禹贡Ⅲ—盛清御瓷新风尚」专场并未在该季设立。',
+    snapshotRef: 'snapshots/amma-1.html',
+    fetchedAt: '2026-11-01T10:00:00+08:00',
+    strategy: 'fetch',
+  };
+  /** 逐字命中、也写到专场名（前两道都过），但说的是相邻那一场——就是实测那条假反驳的形状 */
+  const MIS_TARGETED = '{"relation":"refutes","quote":"「禹贡Ⅰ—盛清御瓷新风尚」","contentWeight":1}';
+  const ON_TARGET = '{"relation":"refutes","quote":"「禹贡Ⅲ—盛清御瓷新风尚」专场并未在该季设立","contentWeight":1}';
+
+  beforeEach(() => {
+    (invokeLLM as Mock).mockReset();
+  });
+
+  it('引文反驳的是相邻场次 → 拒收，且只重试一次（两次调用）', async () => {
+    (invokeLLM as Mock).mockResolvedValue({ content: MIS_TARGETED });
+    const outcome = await compareClaimToPage({ claim: claim(), page, pack: porcelainPack });
+    expect(outcome).toMatchObject({ rejected: true });
+    expect(String((outcome as { reason: string }).reason)).toContain('对象');
+    expect((invokeLLM as Mock).mock.calls).toHaveLength(2);
+  });
+
+  it('重试给出针对被裁那场的反证 → 照常采信（护栏不挡真反驳）', async () => {
+    (invokeLLM as Mock)
+      .mockResolvedValueOnce({ content: MIS_TARGETED })
+      .mockResolvedValueOnce({ content: ON_TARGET });
+    const outcome = await compareClaimToPage({ claim: claim(), page, pack: porcelainPack });
+    expect(outcome).toMatchObject({ relation: 'refutes', contentWeight: 1 });
+  });
+
+  it('supports 方向不受这条约束（这条只管反驳，误伤确证比漏判更糟）', async () => {
+    (invokeLLM as Mock).mockResolvedValue({
+      content: '{"relation":"supports","quote":"「禹贡Ⅰ—盛清御瓷新风尚」","contentWeight":1}',
+    });
+    const outcome = await compareClaimToPage({ claim: claim(), page, pack: porcelainPack });
+    expect(outcome).toMatchObject({ relation: 'supports' });
+    expect((invokeLLM as Mock).mock.calls).toHaveLength(1);
+  });
+
+  it('策略包没实现这条规则 → 放行（判不了不许由引擎升级成拒收）', async () => {
+    (invokeLLM as Mock).mockResolvedValue({ content: MIS_TARGETED });
+    const barePack = { ...porcelainPack, refutationTargetsClaim: undefined };
+    const outcome = await compareClaimToPage({ claim: claim(), page, pack: barePack });
+    expect(outcome).toMatchObject({ relation: 'refutes' });
+    expect((invokeLLM as Mock).mock.calls).toHaveLength(1);
+  });
+});

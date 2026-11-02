@@ -9,6 +9,9 @@
  * "检索不到"只能导向 not_found，不能导向 refuted。
  *
  * 本模块只写 Lodestar 自己的底稿，不 import 宿主系统的任何写库函数。
+ *
+ * 这里还定义**整场**尺度的时间护栏（`RunTimeGuards` / `defaultRunTimeGuards`）：
+ * 熔断阈值与截止时刻由 `engine.ts` 的记录组循环执行，本模块只提供判据与默认值。
  */
 
 import { createLogger } from '../../utils/logger';
@@ -64,6 +67,72 @@ export const DEFAULT_CAPS: AdjudicationCaps = {
   maxPages: defaultMaxPages(),
   numResultsPerQuery: defaultNumResultsPerQuery(),
 };
+
+/** 护栏收手的原因 */
+export type GuardStopReason = 'breaker' | 'deadline';
+
+/**
+ * 一整场运行的时间护栏（与"每条断言花多少预算"是两件事：预算管一条，护栏管一场）。
+ *
+ * 存在的理由：预算上限只约束单条断言，条数与每层的等待没有上界。2026-11-01 两场在线重放
+ * 里，约一半时间是 infra 空转——搜索接口卡住、页面抓到超时，后面的断言只能陪着等。
+ * 护栏让这种局面在整场尺度上早停：停手时把没跑的断言记成 paused（**不是** not_found、
+ * 也不是 failed），重跑时 `resumeFromLedger` 会再驱动它们。
+ */
+export interface RunTimeGuards {
+  /**
+   * 连续这么多条断言撞上 infra 失败就熔断（`LODESTAR_INFRA_BREAKER`，缺省 3；0 = 关掉熔断）。
+   * "infra 失败"指检索层抛错，或这条断言抓的页全部没读到内容——继续跑下一条只会是同样的等待。
+   */
+  infraBreakerThreshold: number;
+  /**
+   * 整场截止时刻（epoch 毫秒）。到点就在下一条断言开跑前收手；undefined = 不设截止。
+   * 由调用方（CLI 的 `--deadline-minutes` 或 `LODESTAR_DEADLINE_MINUTES`）换算成绝对时刻，
+   * 这样提问环与重试都算在同一个窗口里。
+   */
+  deadlineAtMs?: number;
+}
+
+/** 环境变量 → 非负整数（允许 0；`Number(x) || 默认值` 会把 0 吃掉） */
+function intFromEnv(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : fallback;
+}
+
+/**
+ * 护栏默认值：熔断 3 条（`LODESTAR_INFRA_BREAKER`），整场不设截止（除非设了
+ * `LODESTAR_DEADLINE_MINUTES`）。不设截止是有意的——库调用方不该被本包的时间偏好打断，
+ * 只有真金白银的在线运行需要"这一小时之内给我结果"。
+ */
+export function defaultRunTimeGuards(nowMs: number = Date.now()): RunTimeGuards {
+  const guards: RunTimeGuards = { infraBreakerThreshold: intFromEnv(process.env.LODESTAR_INFRA_BREAKER, 3) };
+  const minutes = intFromEnv(process.env.LODESTAR_DEADLINE_MINUTES, 0);
+  if (minutes > 0) guards.deadlineAtMs = nowMs + minutes * 60_000;
+  return guards;
+}
+
+/** 到点了没有（没设截止就永远不到） */
+export function isRunDeadlineReached(guards: RunTimeGuards, nowMs: number = Date.now()): boolean {
+  return guards.deadlineAtMs !== undefined && nowMs >= guards.deadlineAtMs;
+}
+
+/**
+ * 调用方给的护栏 + 默认值，缺哪个补哪个。
+ *
+ * 写成函数而不是 `{...default, ...partial}`：后者在 partial 里显式带着
+ * `deadlineAtMs: undefined` 时会把默认截止时刻覆盖成 undefined，
+ * 而"没传这个键"与"传了 undefined"本来该是同一个意思。
+ */
+export function resolveRunTimeGuards(partial?: Partial<RunTimeGuards>, nowMs: number = Date.now()): RunTimeGuards {
+  const base = defaultRunTimeGuards(nowMs);
+  const resolved: RunTimeGuards = {
+    infraBreakerThreshold: partial?.infraBreakerThreshold ?? base.infraBreakerThreshold,
+  };
+  const deadline = partial?.deadlineAtMs ?? base.deadlineAtMs;
+  if (deadline !== undefined) resolved.deadlineAtMs = deadline;
+  return resolved;
+}
 
 export interface AdjudicateClaimInput {
   store: LodestarStore;

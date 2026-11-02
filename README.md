@@ -126,7 +126,7 @@ pnpm exec tsx src/cli.ts demo --example poly-2021-autumn --report .openlodestar-
 ```bash
 cp .env.example .env   # 填 LLM_API_KEY；搜索用 llm-web（默认）或 serper
 pnpm exec tsx --env-file=.env src/cli.ts live --mode replay --provider serper \
-  --run-id exp-001 --max-search-calls 3 --max-pages 4 --results 8
+  --run-id exp-001 --max-search-calls 3 --max-pages 4 --results 8 --deadline-minutes 30
 ```
 
 `--mode` 有四档：
@@ -139,6 +139,13 @@ pnpm exec tsx --env-file=.env src/cli.ts live --mode replay --provider serper \
 | `pages` | 只重抓离线底稿里的四个 URL，逐条回查引文是否还在；底稿是节选时不比对整页全文 | 只要浏览器插件 |
 
 输出在 `.openlodestar-demo/live/<runId>/<mode>/`：底稿、trace 和一份 `demo-report.html`。这个 `live/` 子目录**不会被 `pnpm run demo` 清掉**——默认示例的工作目录就是 `.openlodestar-demo` 根，而在线那一份是花真钱换来且不可复现的材料，重置只清 demo 自己写的那些文件。报告会标明这是 live run，并把结果与离线预期逐条对照（记录档位、坐标、引文核查）。先看计划再花钱可以用 `--dry-run`：它只打印案例、查询、提供者、预算上限、密钥是否就位与浏览器探针，不发任何请求。
+
+花钱的实验要能**止损**。`--max-search-calls` / `--max-pages` 管的是单条断言花多少，整场加起来仍然没有上界：2026-11-01 那两场重放里约一半时间是空转——搜索接口不回话、页面抓到超时，后面的断言只能陪着等。两道护栏补在整场尺度上：
+
+- `--deadline-minutes <n>`（或 `LODESTAR_DEADLINE_MINUTES`）给一个墙钟截止时刻，到点就在**下一条断言开跑之前**收手；`--mode both` 时两个模式共用同一个时刻，从这条命令的起点算。
+- 连续 `LODESTAR_INFRA_BREAKER` 条（默认 3）断言撞在 infra 空转上就熔断；`0` 关掉。判据是"检索层抛错"或"这条断言抓回的页面全部没读到正文"，出过裁决就清零，所以零星失败不会累积成熔断。
+
+被护栏跳过的断言记成 `paused`，**不是** `not_found`、也不是 `failed`：它们根本没被跑过。报告的备注、终端的 `timeGuard=` 读数和 trace 里的 `guard` 段都会写明这一点，所以看到"坐标比预期少"先分辨是护栏收手还是确实查不到。这一场不因为收手而判失败（退出码仍是 0），要接着跑就拿同一个底稿目录再驱动一次。
 
 在线结论**不可复现**：搜索排名、页面可达性、反爬与渲染结果随时会变，同一条命令两次跑可能拿到不同页面。因此 live 结果只用于实验与诊断，不是发布物；可发布的是上面 `demo:real` 那份冻结底稿。
 
@@ -328,6 +335,9 @@ process.env.BROWSER_PLUGIN = 'my-renderer';
 | `OPENLODESTAR_LOG` | `debug` / `warn` / `silent`（默认 `warn`） |
 | `OPENLODESTAR_PAGE_TIMEOUT_MS` | 单页抓取超时（默认 25000） |
 | `LODESTAR_MAX_SEARCH_CALLS` / `LODESTAR_MAX_PAGES` | 每条断言的预算（默认 4 / 6） |
+| `LODESTAR_QUICK_CALL_TIMEOUT_MS` / `LODESTAR_QUICK_CALL_RETRIES` | 一问一答那两类调用（逐页比对、查询翻译）的超时与重试（默认 60000 / 1）。角色默认是 180 秒 ×（1+3）次尝试，一次卡死就是约 12 分钟——这类调用要的是一段 JSON 判断，60 秒拿不到就是拿不到，早停早止损 |
+| `LODESTAR_INFRA_BREAKER` | 整场熔断阈值：连续这么多条断言撞在 infra 空转上（检索抛错，或抓回的页全部没读到正文）就收手，剩下的记 `paused`（默认 3；`0` 关掉熔断）。预算管一条断言花多少，护栏管一场最多白等多久——2026-11-01 两场在线重放里约一半时间是这类空转 |
+| `LODESTAR_DEADLINE_MINUTES` | 整场墙钟截止时刻（从开跑算起，默认不设）。到点收手，剩下的断言记 `paused`，不是"查不到"。`live` 命令的 `--deadline-minutes` 是同一件事的一次性开关，且优先于本变量 |
 | `LODESTAR_PAGE_TEXT_BUDGET` | 送去比对的正文上限，单位字符（默认 16000） |
 | `LODESTAR_MAX_QUOTE_CHARS` | 引文长度上限，单位字符（默认 1000；超限整条拒收，不截断） |
 

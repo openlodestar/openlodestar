@@ -17,7 +17,7 @@ import type { LodestarStore } from '../storage/adapter';
 import type { CapturedPage } from './page-fetch';
 import { PageFetchFailedError } from './page-fetch';
 import { adjudicateClaim, defaultMaxSearchCalls, defaultMaxPages } from './index';
-import type { EvidenceCandidate } from './retrieval';
+import { retrieveCandidates, type EvidenceCandidate } from './retrieval';
 
 vi.mock('../../llm', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../llm')>();
@@ -333,5 +333,74 @@ describe('检索足迹：被能力位跳过的查询可审计', () => {
     });
 
     expect(result.footprint?.skippedQueries).toBeUndefined();
+  });
+});
+
+describe('抓取耗时读数（PageFetchLog）', () => {
+  it('每一次抓取尝试都记一行，失败的也记：白等的时间才是这轮最想看的数', async () => {
+    (captureEvidencePage as Mock).mockImplementation(
+      async (_store: LodestarStore, evidenceId: string, url: string) => {
+        if (url.includes('dead')) throw new PageFetchFailedError(url, '抓回空页面');
+        return capturedPage(url, { snapshotRef: `snapshots/${evidenceId}.txt`, strategy: 'browser' });
+      },
+    );
+    const result = await adjudicateClaim({
+      store: memoryStore(),
+      pack: porcelainPack,
+      claim: claim(),
+      values: { auctionHouse: '北京保利' },
+      caps: { maxPages: 1 },
+      ablations: NO_ABLATIONS,
+      runId: 'run-timing-1',
+      traceId: 'tr-timing-1',
+      sharedRetrieval: sharedRetrieval(['https://dead.test/1', 'https://a.test/1']),
+    });
+
+    expect(result.pageFetches.map((log) => log.url)).toEqual(['https://dead.test/1', 'https://a.test/1']);
+    const failed = result.pageFetches[0]!;
+    expect(failed.path).toBe('failed');
+    expect(failed.reason).toBe('抓回空页面');
+    expect(failed.durationMs).toBeGreaterThanOrEqual(0);
+    // 成功那行报的是真走的通路：报告要区分直连与渲染，二者成本和失败模式都不一样
+    expect(result.pageFetches[1]!.path).toBe('browser');
+  });
+
+  it('组内复用记 path=cache 且耗时 0：没花的抓取钱不许混进耗时合计', async () => {
+    const pageCache = new Map<string, CapturedPage>();
+    pageCache.set('https://a.test/1', capturedPage('https://a.test/1', { snapshotRef: 'snapshots/prev.txt' }));
+    const result = await adjudicateClaim({
+      store: memoryStore(),
+      pack: porcelainPack,
+      claim: claim(),
+      values: { auctionHouse: '北京保利' },
+      caps: { maxPages: 1 },
+      ablations: NO_ABLATIONS,
+      runId: 'run-timing-2',
+      traceId: 'tr-timing-2',
+      sharedRetrieval: sharedRetrieval(['https://a.test/1', 'https://b.test/2']),
+      sharedPageCache: pageCache,
+    });
+
+    expect(result.pageFetches.map((log) => [log.url, log.path, log.durationMs])).toEqual([
+      ['https://a.test/1', 'cache', 0],
+      ['https://b.test/2', 'fetch', expect.any(Number)],
+    ]);
+  });
+
+  it('一条断言在抓取之前就止步（检索抛错）时，读数是空数组而不是缺字段', async () => {
+    (retrieveCandidates as Mock).mockRejectedValueOnce(new Error('搜索提供者 503'));
+    const result = await adjudicateClaim({
+      store: memoryStore(),
+      pack: porcelainPack,
+      claim: claim(),
+      values: { auctionHouse: '北京保利' },
+      ablations: NO_ABLATIONS,
+      runId: 'run-timing-3',
+      traceId: 'tr-timing-3',
+    });
+
+    expect(result.failed).toBe('搜索提供者 503');
+    // 上层（熔断、报告）按"有没有这一列"分支写代码会踩空，所以空也要是真的空数组
+    expect(result.pageFetches).toEqual([]);
   });
 });

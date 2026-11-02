@@ -43,6 +43,27 @@
 - 新增四个环境变量：`LODESTAR_QUICK_CALL_TIMEOUT_MS`、`LODESTAR_QUICK_CALL_RETRIES`、`LODESTAR_INFRA_BREAKER`、`LODESTAR_DEADLINE_MINUTES`。
 - 护栏的八条引擎层测试与四条调用层测试都是离线 mock，未跑任何计费命令。
 
+### Added
+
+- **`live --claim <id>[,<id>...]` 只重放点名的断言**。此前一条可疑结论要重验，就得把整场（全部断言 × 检索 × 抓页）再烧一遍。逗号、分号、空白都算分隔符、重复的号只留一次；`--mode replay` 收窄裁决范围，`--mode pages` 按 `claimId` 只重抓对应的证据行，`--mode both` 时只作用于 `replay` 那一半（`full` 的断言是运行时现问出来的，拒绝该参数）。点了底稿里没有的号直接报错——静默跑出一场"0 条断言"会被读成"这条查不出结论"。
+- **每页抓取耗时读数**（`PageFetchLog`，`src/lodestar/adjudicate/index.ts`）：记录每一次抓取尝试走的路（直连 / 浏览器渲染 / 同记录组内复用 / 没抓到）、花了多久、失败理由。`runQuery` 与 `resumeFromLedger` 的返回值新增 `pageFetches`，trace 的 `payload` 同带。
+- **报告的"这一场的时间花在哪"一节**（仅在线运行）：按通路分行报次数、中位耗时、最长与合计，再列最慢的几页；终端 `Summary` 同一行给出浓缩读数。抓取是串行的（并发为 1），所以合计就是这场真正占掉的时间；组内复用不计入耗时合计，"没抓到"的白等时间单列。
+- **逐条失败理由汇总成 `run-error.json`**（`kind: "claim-failures"`）：断言号、记录号、字段键、断言原话与失败理由。此前这些理由只存在于内存和单条 trace 里，跑完就翻不回来了——2026-11-01 那两场重放要靠终端残留的汇总文本反推。整场崩溃的文件同用这个路径，靠 `kind: "run-crash"` 区分；两份都不写密钥。
+
+### Changed
+
+- `AdjudicateClaimResult.pageFetches` 是**必填**字段（不是可选）：新增返回路径时漏记抓取尝试会在编译期失败，而不是让报告少几行。四个 return 站点（裁决 / 暂停 / 失败 / 护栏）都带上自己的读数，检索层抛错这种"一页没抓"的情况返回空数组。
+- 运行目录下的崩溃报告新增 `kind` 字段（`run-crash` / `claim-failures`），并记下当时的 `command`——一份没有上下文的堆栈很难复现。
+
+### Fixed
+
+- 在线报告的备注（含上一节的护栏收手说明）此前只在"与离线底稿的对照"表存在时才渲染，`--mode full` 没有对照表就整段丢掉。现在备注随时间一节一起输出。
+
+### Notes
+
+- 耗时读数**不进底稿**：`verdicts.jsonl` 的格式、`audit` 与 `verify-quotes` 的判据都没变，冻结底稿仍能按原样重放。诊断只走内存、trace 与报告三条路。
+- 本次全部离线可验证（460 项测试 / 38 个文件、`tsc --noEmit` 干净、两个 demo 与 `audit` 复现原读数、`live --dry-run` 零请求），未跑任何计费命令。
+
 ## [0.1.0] - 2026-10-30
 
 首个公开版本：把"模型说的每一条都当候选、逐条拿公开网页取证"做成一条能独立运行的链路。

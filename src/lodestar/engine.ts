@@ -37,6 +37,7 @@ import {
   type AdjudicateClaimResult,
   type AdjudicationCaps,
   type GuardStopReason,
+  type PageFetchLog,
   type RunTimeGuards,
   type SharedRetrieval,
 } from './adjudicate';
@@ -111,7 +112,7 @@ export interface RunQueryResult {
   };
   /** 提问环原始统计（稳定率与弃权率的出数处；外部提交路径为 null） */
   elicitation: ElicitationResult['stats'] | null;
-  /** 需要浏览器而未得手的断言（`--resume` 的入口） */
+  /** 需要浏览器而未得手的断言（重跑走 `resumeFromLedger`；CLI 暂无 `--resume`） */
   pausedClaimIds: string[];
   failedClaimIds: string[];
   /**
@@ -126,6 +127,18 @@ export interface RunQueryResult {
    * 后者是先装浏览器。没收手时是空数组。
    */
   guardSkippedClaimIds: string[];
+  /**
+   * 本场每一次抓取尝试的读数（含失败的尝试与组内复用）。
+   * 只进内存与 trace，不进底稿：在线报告用它算"直连/渲染各多少页、每页多久"，
+   * 而底稿格式一旦变化，已冻结的示例与 `audit` 就得跟着重写。
+   */
+  pageFetches: PageFetchLog[];
+  /**
+   * 逐条 infra 失败的理由原文（与 `failedClaimIds` 同序）。
+   * 底稿里的 `claims.state` 只有状态没有原因，原因是当场从检索层抛上来的那句话——
+   * `live` 把它汇成 `run-error.json`，否则终端让你"去看 run-error.json"而文件里只有整场崩溃。
+   */
+  claimFailures: Array<{ claimId: string; recordId?: string; fieldKey?: string; assertion: string; reason: string }>;
 }
 
 /** 引擎默认用瓷器包；换域 = 传另一个 DomainPack 进来 */
@@ -276,6 +289,8 @@ export async function runQuery(query: string, options: RunQueryOptions = {}): Pr
     failedClaimIds: adjudicated.failedClaimIds,
     guardStopped: adjudicated.guardStopped,
     guardSkippedClaimIds: adjudicated.guardSkippedClaimIds,
+    pageFetches: adjudicated.pageFetches,
+    claimFailures: adjudicated.claimFailures,
   };
 }
 
@@ -337,8 +352,12 @@ interface VerifiedBundle {
   startedAt: Date;
   /** 时间护栏是否让这场提前收手（没收手时为 undefined） */
   guardStopped?: GuardStopReason;
-  /** 因护栏收手而没跑的断言（已记成 paused，等 `--resume`） */
+  /** 因护栏收手而没跑的断言（已记成 paused，重跑走 `resumeFromLedger`） */
   guardSkippedClaimIds: string[];
+  /** 逐次抓取读数（含失败的尝试）：耗时归因的出数处，不进底稿 */
+  pageFetches: PageFetchLog[];
+  /** 逐条 infra 失败的理由原文（`run-error.json` 的出数处，与 failedClaimIds 同序） */
+  claimFailures: Array<{ claimId: string; recordId?: string; fieldKey?: string; assertion: string; reason: string }>;
 }
 
 /**
@@ -387,6 +406,8 @@ async function verifyClaims(input: {
     queryTraceId,
     startedAt,
     guardSkippedClaimIds: [],
+    pageFetches: [],
+    claimFailures: [],
   };
 
   // 还没跑过的断言。护栏收手时按这个集合把剩下的记成 paused——所以每条真正开跑过的
@@ -488,8 +509,19 @@ async function verifyClaims(input: {
     bundle.searchCalls += shared ? 0 : outcome.searchCalls;
     bundle.pagesFetched += outcome.pagesFetched;
     bundle.compareCalls += outcome.compareCalls;
+    bundle.pageFetches.push(...outcome.pageFetches);
     if (outcome.paused) bundle.pausedClaimIds.push(claim.claimId);
-    if (outcome.failed) bundle.failedClaimIds.push(claim.claimId);
+    if (outcome.failed) {
+      bundle.failedClaimIds.push(claim.claimId);
+      // 理由原文只有这里还拿得到：状态进了底稿，原因留在内存与 trace
+      bundle.claimFailures.push({
+        claimId: claim.claimId,
+        ...(claim.recordId ? { recordId: claim.recordId } : {}),
+        ...(claim.fieldKey ? { fieldKey: claim.fieldKey } : {}),
+        assertion: claim.atomicText,
+        reason: outcome.failed,
+      });
+    }
     input.onStage?.('claim', {
       claimId: claim.claimId,
       recordId: claim.recordId,
@@ -565,6 +597,8 @@ async function runOne(input: {
   compareCalls: number;
   /** 抓取失败的页数（熔断判据用：0 页读到 + 有失败页 = 这一条白等了） */
   fetchFailures: number;
+  /** 本条（含拆出的子断言）的逐次抓取读数 */
+  pageFetches: PageFetchLog[];
   paused?: boolean;
   failed?: string;
 }> {
@@ -589,6 +623,7 @@ async function runOne(input: {
     pagesFetched: result.footprint?.budget.pagesFetched ?? 0,
     compareCalls: result.footprint ? result.footprint.fetched.length : 0,
     fetchFailures: result.footprint?.failed.length ?? 0,
+    pageFetches: result.pageFetches,
     paused: Boolean(result.paused),
     failed: result.failed,
   };
@@ -605,6 +640,7 @@ async function runOne(input: {
     acc.pagesFetched += childRun.pagesFetched;
     acc.compareCalls += childRun.compareCalls;
     acc.fetchFailures += childRun.fetchFailures;
+    acc.pageFetches.push(...childRun.pageFetches);
     if (childRun.paused) acc.paused = true;
   }
   return acc;
@@ -1179,6 +1215,8 @@ export async function resumeFromLedger(input: {
     failedClaimIds: adjudicated.failedClaimIds,
     guardStopped: adjudicated.guardStopped,
     guardSkippedClaimIds: adjudicated.guardSkippedClaimIds,
+    pageFetches: adjudicated.pageFetches,
+    claimFailures: adjudicated.claimFailures,
   };
 }
 

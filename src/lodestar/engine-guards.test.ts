@@ -14,7 +14,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { ClaimRecord } from './types';
 import type { LodestarStore } from './storage/adapter';
-import type { AdjudicateClaimResult, RunTimeGuards } from './adjudicate';
+import type { AdjudicateClaimResult, PageFetchLog, RunTimeGuards } from './adjudicate';
 import { adjudicateClaim } from './adjudicate';
 import { retrieveCandidates } from './adjudicate/retrieval';
 import { runQuery } from './engine';
@@ -108,23 +108,43 @@ function footprint(pagesFetched: number, failedPages: number) {
   };
 }
 
+/** 抓取读数桩：与 footprint 同规模，path 用真实取值（直连 / 没抓到） */
+function pageFetches(pagesRead: number, pagesFailed: number): PageFetchLog[] {
+  return [
+    ...Array.from({ length: pagesRead }, (_unused, i) => ({
+      url: `https://a.test/${i}`,
+      path: 'fetch' as const,
+      durationMs: 1200 + i,
+    })),
+    ...Array.from({ length: pagesFailed }, (_unused, i) => ({
+      url: `https://b.test/${i}`,
+      path: 'failed' as const,
+      durationMs: 25_000,
+      reason: 'fetch failed',
+    })),
+  ];
+}
+
 const infraFailed = (index: number): AdjudicateClaimResult => ({
   claim: claim(index),
   evidence: [],
   failed: '搜索提供者 503',
   footprint: footprint(0, 0),
+  pageFetches: [],
 });
 
 const readSomePages = (index: number): AdjudicateClaimResult => ({
   claim: claim(index),
   evidence: [],
   footprint: footprint(2, 0),
+  pageFetches: pageFetches(2, 0),
 });
 
 const allFetchesFailed = (index: number): AdjudicateClaimResult => ({
   claim: claim(index),
   evidence: [],
   footprint: footprint(0, 3),
+  pageFetches: pageFetches(0, 3),
 });
 
 const needsBrowser = (index: number): AdjudicateClaimResult => ({
@@ -132,6 +152,7 @@ const needsBrowser = (index: number): AdjudicateClaimResult => ({
   evidence: [],
   paused: { url: 'https://js.example/1', reason: '需要浏览器' },
   footprint: footprint(0, 0),
+  pageFetches: [{ url: 'https://js.example/1', path: 'failed', durationMs: 300, reason: '需要浏览器' }],
 });
 
 function claims(count: number): ClaimRecord[] {
@@ -239,5 +260,29 @@ describe('时间护栏：整场截止时刻', () => {
     expect(result.guardStopped).toBeUndefined();
     expect(result.guardSkippedClaimIds).toEqual([]);
     expect(adjudicateClaim).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('诊断读数：抓取耗时与逐条失败理由', () => {
+  it('每条断言的抓取读数都并进来，失败的也在内：报告要看得出白等了多久', async () => {
+    (adjudicateClaim as Mock).mockImplementation(async ({ claim: c }) => {
+      const index = Number(c.claimId.split('-').pop());
+      return index === 1 ? readSomePages(1) : allFetchesFailed(2);
+    });
+    const { result } = await run(2, { infraBreakerThreshold: 0 });
+
+    expect(result.pageFetches.filter((log) => log.path === 'fetch')).toHaveLength(2);
+    expect(result.pageFetches.filter((log) => log.path === 'failed')).toHaveLength(3);
+  });
+
+  it('逐条 infra 失败带理由原文：状态进底稿，理由只在这里还留得住', async () => {
+    (adjudicateClaim as Mock).mockImplementation(async ({ claim: c }) => infraFailed(Number(c.claimId.split('-').pop())));
+    const { result } = await run(2, { infraBreakerThreshold: 0 });
+
+    expect(result.claimFailures.map((failure) => failure.claimId)).toEqual(['cl-guard-1', 'cl-guard-2']);
+    expect(result.claimFailures[0]?.reason).toBe('搜索提供者 503');
+    expect(result.claimFailures[0]?.recordId).toBe('rec-guard-1');
+    expect(result.claimFailures[0]?.assertion).toContain('专场 1');
+    expect(result.failedClaimIds).toEqual(['cl-guard-1', 'cl-guard-2']);
   });
 });

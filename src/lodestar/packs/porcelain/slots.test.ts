@@ -11,7 +11,15 @@
 import { describe, it, expect } from 'vitest';
 import { normalizeText } from '../../normalize';
 import porcelainPack from './index';
-import { normalizedSlot, pageMentions, pageTimeCues, querySurfaces, quoteBearsFieldClue, sourceMentions } from './slots';
+import {
+  normalizedSlot,
+  pageMentions,
+  pageTimeCues,
+  querySurfaces,
+  quoteBearsFieldClue,
+  sessionRefutationTargetsClaim,
+  sourceMentions,
+} from './slots';
 
 /** 嘉德那篇真页的正文片段（快照里逐字抄下来，三个关键字段同时出现的就是这段） */
 const GUARDIAN_PAGE =
@@ -188,6 +196,49 @@ describe('引文须含该字段线索形态', () => {
     expect(quoteBearsFieldClue(null, '2024年4月', '本场于4月7日结束')).toBe('unknown');
     expect(quoteBearsFieldClue('dateText', '2024年4月', '')).toBe('unknown');
     expect(quoteBearsFieldClue('dateText', '', '本场于4月7日结束')).toBe('unknown');
+  });
+});
+
+/**
+ * 反驳方向的第三道机械断言：这句引文反驳的是**不是被裁那一场**。
+ *
+ * 钉的是 2026-10-29 在线实测里那条假反驳——断言是「禹贡Ⅲ—盛清御瓷新风尚」，页面是一篇写
+ * 「禹贡Ⅰ—盛清御瓷新风尚」的报道：引文逐字命中、也确实写到了专场名，前两道护栏都放行了，
+ * 但它说的是另一场。方向过头比方向不足更伤可信度（把"我不知道"写成"这是错的"），
+ * 所以两个方向都要有用例：错杀真反驳、放过假反驳，都算失败。
+ */
+describe('反驳引文须针对被裁那一场（写入侧第三道断言）', () => {
+  it('实测形状：断言禹贡Ⅲ、引文说的是禹贡Ⅰ → no；两场都写到 → yes', () => {
+    expect(
+      sessionRefutationTargetsClaim('sessionName', '禹贡Ⅲ—盛清御瓷新风尚', '[北京保利]禹贡Ⅰ—盛清御瓷新风尚专场举槌'),
+    ).toBe('no');
+    expect(sessionRefutationTargetsClaim('sessionName', '禹贡Ⅲ—盛清御瓷新风尚', '禹贡Ⅰ与禹贡Ⅲ两场同期举槌')).toBe('yes');
+  });
+
+  it('编号的两种写法互认：阿拉伯数字与 Unicode 罗马数字算同一场', () => {
+    expect(sessionRefutationTargetsClaim('sessionName', '禹贡3', '禹贡Ⅲ专场以1415万元成交')).toBe('yes');
+    expect(sessionRefutationTargetsClaim('sessionName', '禹贡Ⅲ', '禹贡2专场以1415万元成交')).toBe('no');
+  });
+
+  it('真反驳不许被护栏挡掉：页面自指"本场定名为 X"、或明确否认/取消这场 → yes', () => {
+    expect(sessionRefutationTargetsClaim('sessionName', '中国艺术品', '本场拍卖定名为「中国艺术珍品」专场')).toBe('yes');
+    expect(sessionRefutationTargetsClaim('sessionName', '禹贡Ⅲ—盛清御瓷新风尚', '北京保利2021秋季艺术品拍卖会未设禹贡专场')).toBe('yes');
+    expect(sessionRefutationTargetsClaim('sessionName', '禹贡Ⅲ—盛清御瓷新风尚', '该场因故取消，延期至次年春季')).toBe('yes');
+  });
+
+  it('词干后面跟的是年份不是编号 → unknown（"禹贡2021"不当成第 2021 场）', () => {
+    expect(sessionRefutationTargetsClaim('sessionName', '禹贡Ⅲ—盛清御瓷新风尚', '禹贡2021秋季专场举槌')).toBe('unknown');
+  });
+
+  it('判不了就放行：断言的名称没有编号、页面上找不到这个系列、或不是专场名字段', () => {
+    expect(sessionRefutationTargetsClaim('sessionName', '大巧若拙——竹月堂藏瓷', '「禹贡Ⅰ」专场举槌')).toBe('unknown');
+    expect(sessionRefutationTargetsClaim('sessionName', '禹贡Ⅲ—盛清御瓷新风尚', '中国古董珍玩板块共呈现十二个专场')).toBe('unknown');
+    expect(sessionRefutationTargetsClaim('dateText', '2021年12月', '禹贡Ⅰ专场举槌')).toBe('unknown');
+    expect(sessionRefutationTargetsClaim('sessionName', null, '禹贡Ⅰ专场举槌')).toBe('unknown');
+  });
+
+  it('策略包确实把这条规则接到了接口上（没接上＝护栏形同虚设）', () => {
+    expect(porcelainPack.refutationTargetsClaim?.('sessionName', '禹贡Ⅲ—盛清御瓷新风尚', '禹贡Ⅰ专场举槌')).toBe('no');
   });
 });
 

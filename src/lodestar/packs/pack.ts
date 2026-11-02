@@ -198,6 +198,18 @@ export interface DomainPack {
    */
   quoteBearsFieldClue(fieldKey: string | null, value: string | null, quote: string): PageMention;
 
+  /**
+   * 写入侧的第三道机械断言（可选，只在反驳方向调用）：这串引文反驳的是**不是被裁的那个对象**。
+   *
+   * 前两道管"引文是不是页面上的原话""有没有说到这个字段"，都管不到"说的是哪一件东西"。
+   * 实测病灶——断言「禹贡Ⅲ」，引文来自一篇写「禹贡Ⅰ」的报道：逐字命中、也写到了专场名，
+   * 却把"另一场存在"当成了"这一场不存在"的反证。
+   *
+   * 不实现（或判不了）就是 `unknown` 放行：这条只用来挡本域能机械认出的那一种错，
+   * 不许引擎把"规则覆盖不到"升级成拒收。
+   */
+  refutationTargetsClaim?(fieldKey: string | null, value: string | null, quote: string): PageMention;
+
   /** 枚举式提问的措辞变体（第一条即正式提问，其余为换措辞复问；顺序不可颠倒） */
   enumerationPhrasings(query: string, runCount: number): string[];
 

@@ -35,6 +35,14 @@ export function pageTextCharBudget(): number {
 /** 默认上限（保留常量导出，供文档与测试引用） */
 export const PAGE_TEXT_CHAR_BUDGET = 16_000;
 
+/**
+ * 抓取通路。`fetch` = 直连 HTTP，`browser` = 渲染后取正文，`cache` = 复用已有快照，
+ * `site-adapter` = 站点适配器（证据链里禁用，见 `captureEvidencePage`）；
+ * `failed` 只出现在诊断读数里——一次没成功的尝试也要记下行，最贵的往往就是它。
+ */
+export type FetchStrategy = 'cache' | 'site-adapter' | 'fetch' | 'browser';
+export type PageFetchPath = FetchStrategy | 'failed';
+
 /** 一页已抓回并准备好比对的证据素材 */
 export interface CapturedPage {
   url: string;
@@ -44,7 +52,7 @@ export interface CapturedPage {
   snapshotRef: string;
   /** 抓取时刻（ISO） */
   fetchedAt: string;
-  strategy: 'cache' | 'site-adapter' | 'fetch' | 'browser';
+  strategy: FetchStrategy;
 }
 
 /** 需要浏览器但浏览器不可用：上层据此把断言推进到 paused 状态 */

@@ -52,6 +52,8 @@ Commands:
   live            Run the engine against live search and pages. Modes:
                   pages (re-fetch frozen source pages only), replay (submit the
                   frozen claims again), full (elicit from the query), both.
+                  --claim <id>[,<id>...] narrows replay and pages to the named
+                  claims, so one suspicious claim can be re-driven alone.
                   Output goes to .openlodestar-demo/live/<runId>/<mode>/.
   verify-quotes   Hard guard: every evidence quote must appear verbatim in that
                   row's own snapshot and must mention the field it was cited for.

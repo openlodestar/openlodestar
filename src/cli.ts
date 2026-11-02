@@ -21,6 +21,7 @@ import { findCooccurringUrls } from './lodestar/record-gate/cooccurrence';
 import { isReadableAnchor } from './lodestar/anchor-source';
 import { parseDemoCase, renderDemoReport, type DemoCase } from './demo-report';
 import { inspectEvidence, printEvidenceCheck } from './lodestar/evidence-check';
+import { resetDemoWorkDir } from './demo-workdir';
 import { commandLive, liveUsage } from './live';
 import porcelainPack from './lodestar/packs/porcelain';
 import type {
@@ -171,8 +172,9 @@ async function commandDemo(flags: Map<string, string>): Promise<number> {
     return 1;
   }
 
-  await fs.rm(workDir, { recursive: true, force: true });
-  await fs.mkdir(workDir, { recursive: true });
+  // 重置工作副本，但**跳过 live/**：默认示例的工作目录就是 .openlodestar-demo 根，
+  // 在线实验的产物在它下面，一次免费的 demo 不许把花钱换来的不可复现材料抹掉。
+  await resetDemoWorkDir(workDir);
   for (const file of ['claims.jsonl', 'evidence.jsonl', 'query.txt']) {
     await fs.copyFile(path.join(exampleDir, file), path.join(workDir, file));
   }

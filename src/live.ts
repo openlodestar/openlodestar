@@ -19,6 +19,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getRoleModelName } from './llm';
+import { LIVE_RUNS_DIR_NAME } from './demo-workdir';
 import { createSearchProvider } from './integrations/search-providers';
 import { DEFAULT_CAPS, type AdjudicationCaps } from './lodestar/adjudicate';
 import { captureEvidencePage } from './lodestar/adjudicate/page-fetch';
@@ -711,7 +712,9 @@ export async function commandLive(flags: Map<string, string>): Promise<number> {
     return 1;
   }
   const exampleDir = path.resolve(PACKAGE_ROOT, 'examples', exampleName);
-  const root = path.resolve(flags.get('root') ?? path.join(PACKAGE_ROOT, '.openlodestar-demo', 'live'));
+  // 默认落在 .openlodestar-demo/live/ 下——目录名与 demo 重置时保留的那个条目同源，
+  // 两边各写一个字面量的话，"demo 不许删 live"那条守卫就会悄悄失效。
+  const root = path.resolve(flags.get('root') ?? path.join(PACKAGE_ROOT, '.openlodestar-demo', LIVE_RUNS_DIR_NAME));
   const runId = flags.get('run-id') ?? timestampId();
   if (!/^[A-Za-z0-9._-]+$/.test(runId)) {
     console.error(`Invalid --run-id "${runId}": use letters, digits, dot, underscore or dash.`);

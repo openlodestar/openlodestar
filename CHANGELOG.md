@@ -25,6 +25,24 @@
 - 新增三个环境变量：`SERPER_TIMEOUT_MS`、`SERPER_RETRIES`、`SERPER_RETRY_BACKOFF_MS`（`.env.example` 与 README 的环境变量表都已登记）。
 - 本次全部离线可验证，未跑任何计费命令。
 
+### Added
+
+- **整场时间护栏**（`RunTimeGuards`，`src/lodestar/adjudicate/index.ts` 定义判据、`src/lodestar/engine.ts` 的记录组循环执行）：两道护栏补在"每条断言花多少预算"之外的整场尺度上。
+  - **infra 熔断**：连续 `LODESTAR_INFRA_BREAKER` 条（默认 3）断言撞在基础设施空转上（检索层抛错，或抓回的页面全部没读到正文）就在下一条开跑前收手；出过裁决即清零，所以零星失败不会累积成熔断。`0` 关掉。
+  - **墙钟截止时刻**：`live --deadline-minutes <n>`（或 `LODESTAR_DEADLINE_MINUTES`）到点收手；`--mode both` 时两个模式共用同一个时刻，从这条命令的起点算。检查点放在**组级检索之前**——那一发查询是计费调用，等到断言层才发现晚了就白花了。
+- **`runQuery` / `resumeFromLedger` 新增 `guards` 选项**，返回值新增 `guardStopped`（`'breaker' | 'deadline'`）与 `guardSkippedClaimIds`；整场 trace 的 `payload.guard` 记下阈值、截止时刻与被跳过的断言号。
+- 一问一答的两类调用（逐页比对、查询翻译）改用更短的超时与重试：`LODESTAR_QUICK_CALL_TIMEOUT_MS`（默认 60000）/ `LODESTAR_QUICK_CALL_RETRIES`（默认 1）。角色默认的 180 秒 ×（1+3）次尝试是给长输出留的最坏值，一次卡死就是约 12 分钟。
+
+### Changed
+
+- 被护栏跳过的断言一律记 `paused`，**不记** `not_found`、也不记 `failed`：它们根本没被跑过。护栏只改"这场跑不跑完"，不改任何一条断言的结论，四分类与记录门禁都不动。
+- `live` 的终端汇总新增 `timeGuard=` 读数，报告备注在收手时写明原因与跳过的断言号；一场因护栏提前结束的运行仍按成功返回退出码 0。
+
+### Notes
+
+- 新增四个环境变量：`LODESTAR_QUICK_CALL_TIMEOUT_MS`、`LODESTAR_QUICK_CALL_RETRIES`、`LODESTAR_INFRA_BREAKER`、`LODESTAR_DEADLINE_MINUTES`。
+- 护栏的八条引擎层测试与四条调用层测试都是离线 mock，未跑任何计费命令。
+
 ## [0.1.0] - 2026-10-30
 
 首个公开版本：把"模型说的每一条都当候选、逐条拿公开网页取证"做成一条能独立运行的链路。

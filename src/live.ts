@@ -21,7 +21,12 @@ import { fileURLToPath } from 'node:url';
 import { getRoleModelName } from './llm';
 import { LIVE_RUNS_DIR_NAME } from './demo-workdir';
 import { createSearchProvider } from './integrations/search-providers';
-import { DEFAULT_CAPS, type AdjudicationCaps } from './lodestar/adjudicate';
+import {
+  DEFAULT_CAPS,
+  resolveRunTimeGuards,
+  type AdjudicationCaps,
+  type RunTimeGuards,
+} from './lodestar/adjudicate';
 import { captureEvidencePage } from './lodestar/adjudicate/page-fetch';
 import { quoteMatches } from './lodestar/adjudicate/compare';
 import { isReadableAnchor } from './lodestar/anchor-source';
@@ -361,6 +366,16 @@ function normalizeForCompare(text: string): string {
 // replay / full：跑一次真实裁决
 // ============================================
 
+/**
+ * 护栏读数写成一行，终端与 `--dry-run` 用同一句——两处各写一遍迟早会漂。
+ * 截止时刻打印成 UTC ISO：本地时区在不同机器上不一样，墙钟读数要能互相比。
+ */
+export function formatRunTimeGuards(guards: RunTimeGuards): string {
+  const breaker = guards.infraBreakerThreshold > 0 ? `stop after ${guards.infraBreakerThreshold} consecutive infra-idle claims` : 'breaker off';
+  const deadline = guards.deadlineAtMs === undefined ? 'no deadline' : `deadline ${new Date(guards.deadlineAtMs).toISOString()}`;
+  return `${breaker}, ${deadline}`;
+}
+
 export interface LiveRunOptions {
   mode: LiveRunMode;
   exampleName: string;
@@ -369,6 +384,12 @@ export interface LiveRunOptions {
   query: string;
   claims: ClaimRecord[];
   caps: LiveCaps;
+  /**
+   * 整场时间护栏（缺省见 `defaultRunTimeGuards`：熔断 3 条、不设截止）。
+   * `--deadline-minutes` 传的是**绝对时刻**，所以 `both` 模式下 replay 与 full 共用同一个
+   * 截止点——花钱的窗口由这条命令的起点决定，而不是每个模式各领一份。
+   */
+  guards?: Partial<RunTimeGuards>;
   provider: string;
   reportPath: string;
   command: string;
@@ -408,9 +429,11 @@ export async function runLiveExperiment(input: LiveRunOptions): Promise<LiveRunO
   const store = createStore({ baseDir: input.runDir });
   const startedAt = new Date().toISOString();
   const startedMs = Date.now();
+  const guards = resolveRunTimeGuards(input.guards);
 
   console.log(`\n[live:${input.mode}] run dir: ${path.relative(process.cwd(), input.runDir)}`);
   console.log(`[live:${input.mode}] provider=${input.provider} caps=search ${input.caps.maxSearchCalls}/record, pages ${input.caps.maxPages}/claim${input.mode === 'full' ? `, records ${input.caps.maxRecords}` : ''}`);
+  console.log(`[live:${input.mode}] time guards=${formatRunTimeGuards(guards)}`);
 
   let result: RunQueryResult;
   try {
@@ -421,6 +444,7 @@ export async function runLiveExperiment(input: LiveRunOptions): Promise<LiveRunO
           caps: input.caps,
           externalClaims: input.claims,
           queryLabel: input.query,
+          guards,
           onStage: input.onStage,
         })
       : await runQueryImpl(input.query, {
@@ -428,6 +452,7 @@ export async function runLiveExperiment(input: LiveRunOptions): Promise<LiveRunO
           pack: porcelainPack,
           caps: input.caps,
           intake: { maxRecords: input.caps.maxRecords },
+          guards,
           onStage: input.onStage,
         });
   } catch (error) {
@@ -439,6 +464,7 @@ export async function runLiveExperiment(input: LiveRunOptions): Promise<LiveRunO
           mode: input.mode,
           provider: input.provider,
           caps: input.caps,
+          guards,
           startedAt,
           error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : String(error),
         },
@@ -496,7 +522,7 @@ export async function runLiveExperiment(input: LiveRunOptions): Promise<LiveRunO
     finishedAt,
     command: input.command,
     expectationChecks,
-    notes: buildLiveNotes(input, evidence, expectationChecks),
+    notes: buildLiveNotes(input, evidence, expectationChecks, result),
   };
 
   const html = renderDemoReport({
@@ -603,6 +629,12 @@ function buildLiveLimitations(input: LiveRunOptions, evidence: EvidenceRecord[])
     `本次预算：每条记录检索 ${input.caps.maxSearchCalls} 条、每条断言抓取 ${input.caps.maxPages} 页` +
       `${input.mode === 'full' ? `、记录上限 ${input.caps.maxRecords}` : ''}；not_found 的成因可能是预算耗尽或覆盖缺口，不等于确证无记录。`,
   ];
+  const guards = resolveRunTimeGuards(input.guards);
+  out.push(
+    `本次时间护栏：${formatRunTimeGuards(guards)}（墙钟，从这一场开跑算起）。` +
+      '护栏收手只说明"这场没跑完"，被跳过的断言记 paused，不是查不到；' +
+      '同一层的耗时与重试口径见 README 的环境变量表。',
+  );
   if (input.mode === 'full') {
     out.push('full 模式由模型重新列场次，记录名与冻结示例不同属正常；不要拿记录名对不上当作失败。');
   }
@@ -620,12 +652,19 @@ function buildLiveNotes(
   input: LiveRunOptions,
   evidence: EvidenceRecord[],
   checks: DemoLiveExpectationCheck[],
+  result: RunQueryResult,
 ): string[] {
   const notes = [
     '预期来自 examples/' + input.exampleName + '/case.json；本次结果来自实时证据，不一致不等于系统错误，需逐条看引文。',
   ];
   if (checks.length === 0) {
     notes.push('full 模式不逐条对照冻结记录：模型这次列出的场次可能不同，对照表为空是刻意的。');
+  }
+  if (result.guardStopped !== undefined) {
+    notes.push(
+      `本场被时间护栏收手（原因 ${result.guardStopped}），跳过 ${result.guardSkippedClaimIds.length} 条断言：` +
+        `${result.guardSkippedClaimIds.join('、')}。这些行是"还没跑"，报告里别按"查不到"读。`,
+    );
   }
   const domains = [...new Set(evidence.map((row) => row.domain))].sort();
   if (domains.length > 0) {
@@ -642,7 +681,7 @@ export function liveUsage(): string {
   return `  tsx src/cli.ts live [--mode replay|full|both|pages] [--example <name>] [--query <text>]
                         [--root <dir>] [--run-id <id>] [--report <file>] [--max-records <n>]
                         [--max-search-calls <n>] [--max-pages <n>] [--results <n>]
-                        [--provider <name>] [--dry-run]`;
+                        [--deadline-minutes <n>] [--provider <name>] [--dry-run]`;
 }
 
 interface LiveFlagBag {
@@ -727,6 +766,12 @@ export async function commandLive(flags: Map<string, string>): Promise<number> {
     numResultsPerQuery: numberFlag(flags, 'results', DEFAULT_CAPS.numResultsPerQuery),
     maxRecords: numberFlag(flags, 'max-records', 4),
   };
+  // 整场截止时刻按"这条命令的起点"算：--mode both 时 replay 与 full 共用同一个时刻，
+  // 花钱的窗口由一次命令行决定，而不是每个模式各领一份。0 = 不设截止（照旧跑到完）。
+  const deadlineMinutes = numberFlag(flags, 'deadline-minutes', 0, 0);
+  const guards = resolveRunTimeGuards(
+    deadlineMinutes > 0 ? { deadlineAtMs: Date.now() + deadlineMinutes * 60_000 } : undefined,
+  );
   const limit = numberFlag(flags, 'limit', 20);
   const dryRun = flags.get('dry-run') === 'true';
   const reportBase = flags.get('report');
@@ -740,6 +785,7 @@ export async function commandLive(flags: Map<string, string>): Promise<number> {
     `--max-pages ${caps.maxPages}`,
     `--results ${caps.numResultsPerQuery}`,
     ...(mode === 'full' || mode === 'both' ? [`--max-records ${caps.maxRecords}`] : []),
+    ...(deadlineMinutes > 0 ? [`--deadline-minutes ${deadlineMinutes}`] : []),
     `--provider ${provider}`,
     ...(flags.get('report') ? [`--report ${flags.get('report')}`] : []),
   ].join(' ');
@@ -799,6 +845,7 @@ export async function commandLive(flags: Map<string, string>): Promise<number> {
       `Caps: search ${caps.maxSearchCalls}/record, pages ${caps.maxPages}/claim, results ${caps.numResultsPerQuery}/query` +
         `${mode === 'full' || mode === 'both' ? `, records ${caps.maxRecords}` : ''}`,
     );
+    console.log(`Time guards: ${formatRunTimeGuards(guards)} (wall clock, from the start of this command)`);
     for (const estimate of plan.estimates) {
       console.log(
         `  [${estimate.mode}] upper bound: claims ${estimate.claims}, records ${estimate.records}, ` +
@@ -833,6 +880,7 @@ export async function commandLive(flags: Map<string, string>): Promise<number> {
       query,
       claims,
       caps,
+      guards,
       provider: chosenProvider.name,
       reportPath,
       command: commandLine,
@@ -853,11 +901,21 @@ export async function commandLive(flags: Map<string, string>): Promise<number> {
 
   const guardBad = outcomes.filter((outcome) => !outcome.guardOk);
   const failedClaims = outcomes.reduce((sum, outcome) => sum + outcome.result.stats.claimsFailed, 0);
+  // 时间护栏收手不算失败：结论只是"这场没跑完"，剩下的断言还是 paused，可续跑
+  const stoppedRuns = outcomes.filter((outcome) => outcome.result.guardStopped !== undefined);
   console.log('\nSummary');
   for (const outcome of outcomes) {
     console.log(
       `  ${outcome.mode.padEnd(6)} records=${outcome.ledger.records} evidence=${outcome.ledger.evidence} ` +
-        `anchors=${outcome.ledger.anchors} guard=${outcome.guardOk ? 'ok' : 'VIOLATIONS'} report=${path.relative(process.cwd(), outcome.reportPath)}`,
+        `anchors=${outcome.ledger.anchors} guard=${outcome.guardOk ? 'ok' : 'VIOLATIONS'} ` +
+        `timeGuard=${outcome.result.guardStopped ?? 'none'} report=${path.relative(process.cwd(), outcome.reportPath)}`,
+    );
+  }
+  for (const outcome of stoppedRuns) {
+    console.log(
+      `  ${outcome.mode}: stopped by time guard (${String(outcome.result.guardStopped)}); ` +
+        `skipped by guard=${outcome.result.guardSkippedClaimIds.length} paused total=${outcome.result.pausedClaimIds.length}. ` +
+          `They are "not run", not "not found" — rerun with a larger --deadline-minutes, or drive this run's ledger with resumeFromLedger (no --resume flag yet).`,
     );
   }
   if (guardBad.length > 0) {

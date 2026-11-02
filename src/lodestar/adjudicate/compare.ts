@@ -11,7 +11,7 @@
  * 3. **判定只依据页面正文**，不依据搜索摘要——摘要可能来自别的页面或过期缓存。
  */
 
-import { extractJson, invokeLLM, type ChatMessage } from '../../llm';
+import { extractJson, invokeLLM, quickCallParams, type ChatMessage } from '../../llm';
 import { getLodestarLoader } from '../../prompts';
 import { decodeHtmlEntities } from '../../utils/html-entities';
 import { createLogger } from '../../utils/logger';
@@ -232,6 +232,9 @@ export async function compareClaimToPage(input: {
         temperature: params.temperature ?? 0,
         maxTokens: params.max_tokens ?? 2000,
         enableThinking: false,
+        // 一次比对该拿多久就等多久：角色默认的 180 秒 × 4 次尝试＝最坏 12 分钟，
+        // 在线重放里一条卡死的尾巴能把整场拖没
+        ...quickCallParams(),
       });
       content = result.content;
     } catch (error) {

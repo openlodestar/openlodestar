@@ -138,7 +138,7 @@ pnpm exec tsx --env-file=.env src/cli.ts live --mode replay --provider serper \
 | `both` | 先 `replay` 再 `full`，各占一个子目录 | 模型 + 搜索 |
 | `pages` | 只重抓离线底稿里的四个 URL，逐条回查引文是否还在；底稿是节选时不比对整页全文 | 只要浏览器插件 |
 
-输出在 `.openlodestar-demo/live/<runId>/<mode>/`：底稿、trace 和一份 `demo-report.html`。报告会标明这是 live run，并把结果与离线预期逐条对照（记录档位、坐标、引文核查）。先看计划再花钱可以用 `--dry-run`：它只打印案例、查询、提供者、预算上限、密钥是否就位与浏览器探针，不发任何请求。
+输出在 `.openlodestar-demo/live/<runId>/<mode>/`：底稿、trace 和一份 `demo-report.html`。这个 `live/` 子目录**不会被 `pnpm run demo` 清掉**——默认示例的工作目录就是 `.openlodestar-demo` 根，而在线那一份是花真钱换来且不可复现的材料，重置只清 demo 自己写的那些文件。报告会标明这是 live run，并把结果与离线预期逐条对照（记录档位、坐标、引文核查）。先看计划再花钱可以用 `--dry-run`：它只打印案例、查询、提供者、预算上限、密钥是否就位与浏览器探针，不发任何请求。
 
 在线结论**不可复现**：搜索排名、页面可达性、反爬与渲染结果随时会变，同一条命令两次跑可能拿到不同页面。因此 live 结果只用于实验与诊断，不是发布物；可发布的是上面 `demo:real` 那份冻结底稿。
 
@@ -320,6 +320,7 @@ process.env.BROWSER_PLUGIN = 'my-renderer';
 | `OPENLODESTAR_LLM_SEARCH_BODY` | 合并进模型请求体的 JSON，用于各家联网开关（默认 `{"enable_search":true}`，适配 DashScope 兼容模式；OpenAI 搜索模型用 `{"web_search_options":{}}`） |
 | `BROWSER_PLUGIN` | 浏览器渲染插件名（默认 `playwright`；第三方插件注册后填它的名字） |
 | `SERPER_API_KEY` / `SERPER_BASE_URL` | 选 `serper` 时的搜索凭据与可选的端点覆盖 |
+| `SERPER_TIMEOUT_MS` / `SERPER_RETRIES` / `SERPER_RETRY_BACKOFF_MS` | 单次检索请求的超时与"根本没走到 HTTP"那类失败的瞬时重试（默认 12000 / 1 / 500，退避按 2 的幂递增；`SERPER_RETRIES=0` 关掉重试）。不设超时时只能等运行时的默认值：连不上约 10.7 秒，而连接建立了对面不回数据是 300 秒。HTTP 状态码错误**不重试**——Serper 按请求计费，限流时重试只会再吃一次额度 |
 | `SEARCH_RESULT_COUNT` | 每条查询要几条结果（默认 10） |
 | `OPENLODESTAR_DATA_DIR` | 底稿目录（默认仓库根下的 `lodestar/`） |
 | `OPENLODESTAR_ANCHORS_FILE` | 单独覆盖坐标文件路径 |

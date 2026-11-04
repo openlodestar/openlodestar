@@ -14,7 +14,7 @@
 import { ROLE_REGISTRY, getRoleModelName, shouldSendThinkingFlag, type LLMRole } from './roles';
 import type { ChatMessage, LLMMessages, TokenUsage } from './types';
 
-export { ROLE_REGISTRY, getRoleConfig, getRoleModelName } from './roles';
+export { ROLE_REGISTRY, getRoleConfig, getRoleModelName, quickCallParams } from './roles';
 export type { LLMRole, RoleConfig, SamplingParams } from './roles';
 export { extractJson, extractJsonArray, extractJsonWith, JsonParseError } from './parse';
 export type { ChatMessage, ContentPart, LLMMessages, TokenUsage } from './types';
@@ -28,6 +28,14 @@ export interface InvokeParams {
   /** 见 SamplingParams.enableThinking */
   enableThinking?: boolean;
   responseFormat?: { type: 'json_object' | 'text' };
+  /**
+   * 覆盖该角色的单次请求超时（毫秒）。不给就用 `ROLE_REGISTRY[role].timeout`。
+   * 逐页比对与查询翻译这类一问一答的调用用 `quickCallParams()` 压到 60 秒——
+   * 角色默认的 180 秒 × 4 次尝试意味着一次卡死就是 12 分钟，一条尾巴拖垮整场。
+   */
+  timeoutMs?: number;
+  /** 覆盖该角色的重试次数（不含首次；0 = 不重试） */
+  maxRetries?: number;
   /**
    * 厂商扩展字段：原样合并进 `/chat/completions` 请求体（基础字段优先，不可覆盖）。
    * 用于各家的联网开关等非标准参数，如 `{ enable_search: true }`（DashScope 兼容模式）、
@@ -116,9 +124,13 @@ export async function invokeLLM(
 
   const url = `${baseUrl()}/chat/completions`;
   const key = apiKey();
+  // 超时与重试可按调用覆盖：角色默认值（180 秒 × 4 次尝试）是给长输出留的最坏预算，
+  // 一问一答的比对与翻译用它只会让一次卡死拖垮整场（见 quickCallParams）
+  const timeoutMs = params?.timeoutMs ?? cfg.timeout;
+  const retries = params?.maxRetries ?? cfg.maxRetries;
   let lastError: Error | null = null;
 
-  for (let attempt = 0; attempt <= cfg.maxRetries; attempt += 1) {
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -127,13 +139,13 @@ export async function invokeLLM(
           Authorization: `Bearer ${key}`,
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(cfg.timeout),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       const text = await response.text();
       if (!response.ok) {
         const retryable = RETRYABLE_STATUS.has(response.status);
         lastError = new Error(`LLM HTTP ${response.status}: ${text.slice(0, 500)}`);
-        if (retryable && attempt < cfg.maxRetries) {
+        if (retryable && attempt < retries) {
           await sleep(500 * 2 ** attempt);
           continue;
         }
@@ -161,7 +173,7 @@ export async function invokeLLM(
       lastError = error instanceof Error ? error : new Error(String(error));
       const name = lastError.name;
       const retryable = name === 'TimeoutError' || name === 'AbortError' || /fetch failed|ECONNRESET|ETIMEDOUT/.test(lastError.message);
-      if (retryable && attempt < cfg.maxRetries) {
+      if (retryable && attempt < retries) {
         await sleep(500 * 2 ** attempt);
         continue;
       }

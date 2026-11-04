@@ -81,3 +81,26 @@ function shouldSendThinkingFlag(): boolean {
   return process.env.LLM_SEND_THINKING === '1';
 }
 export { shouldSendThinkingFlag };
+
+/** 环境变量 → 非负整数（允许 0；`Number(x) || 默认值` 会把 0 吃掉） */
+function intFromEnv(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : fallback;
+}
+
+/**
+ * "一问一答"类调用的超时与重试覆盖：逐页比对与查询翻译。
+ *
+ * 角色默认的 180 秒 ×（1 + 3 次重试）是给长输出留的最坏值，但一次卡死的比对因此可以
+ * 吃掉 4 × 180 + 3.5 ≈ 12 分钟——在线重放里这就是一条尾巴拖垮整场。这类调用要的是一
+ * 段 JSON 判断，60 秒拿不到就是拿不到，早停早止损。
+ *
+ * 默认 60 秒 × 2 次尝试（`LODESTAR_QUICK_CALL_TIMEOUT_MS` / `LODESTAR_QUICK_CALL_RETRIES`）。
+ */
+export function quickCallParams(): { timeoutMs: number; maxRetries: number } {
+  return {
+    timeoutMs: intFromEnv(process.env.LODESTAR_QUICK_CALL_TIMEOUT_MS, 60_000),
+    maxRetries: intFromEnv(process.env.LODESTAR_QUICK_CALL_RETRIES, 1),
+  };
+}

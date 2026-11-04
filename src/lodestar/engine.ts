@@ -11,6 +11,10 @@
  *
  * 队列形态的既有约束：并发 1–2（这里取 1，宁慢勿炸，同时控制对外部
  * 搜索与抓取的瞬时压力）；需浏览器而浏览器不可用 → `paused`，不消耗重试预算。
+ *
+ * 整场尺度另有一道时间护栏（`RunTimeGuards`）：连续 infra 失败熔断、到截止时刻收手，
+ * 两种都把手里还没跑的断言记成 `paused` 而不是阴性结论——预算（caps）管一条断言花多少，
+ * 护栏管一场最多等多久，缺了后者时"搜索接口卡住"会拖垮整场。
  */
 
 import { extractJsonArray, getRoleModelName, invokeLLM, type ChatMessage } from '../llm';
@@ -28,8 +32,13 @@ import { renderClaimAtomize } from './intake/prompts';
 import {
   adjudicateClaim,
   DEFAULT_CAPS,
+  resolveRunTimeGuards,
+  isRunDeadlineReached,
   type AdjudicateClaimResult,
   type AdjudicationCaps,
+  type GuardStopReason,
+  type PageFetchLog,
+  type RunTimeGuards,
   type SharedRetrieval,
 } from './adjudicate';
 import { retally } from './adjudicate/voting';
@@ -57,6 +66,11 @@ export interface RunQueryOptions {
   ablations?: AblationState;
   intake?: Partial<ElicitationOptions>;
   caps?: Partial<AdjudicationCaps>;
+  /**
+   * 整场时间护栏（缺省 `defaultRunTimeGuards()`：熔断 3 条、不设截止）。
+   * 在线运行用它把"某一层卡住"的损失控制在一场之内，离线测试与库调用不受影响。
+   */
+  guards?: Partial<RunTimeGuards>;
   /** 外部提交已原子化好的断言（跳过提问环，直接入库裁决） */
   externalClaims?: ClaimRecord[];
   /**
@@ -98,9 +112,33 @@ export interface RunQueryResult {
   };
   /** 提问环原始统计（稳定率与弃权率的出数处；外部提交路径为 null） */
   elicitation: ElicitationResult['stats'] | null;
-  /** 需要浏览器而未得手的断言（`--resume` 的入口） */
+  /** 需要浏览器而未得手的断言（重跑走 `resumeFromLedger`；CLI 暂无 `--resume`） */
   pausedClaimIds: string[];
   failedClaimIds: string[];
+  /**
+   * 本次是否被时间护栏提前收手：`'breaker'` = 连续 infra 失败达到阈值，
+   * `'deadline'` = 整场截止时刻到点。没收手时该字段不存在。
+   * 被跳过与因护栏停手的断言都在 `pausedClaimIds` 里，重跑（`resumeFromLedger`）会再接着驱动。
+   */
+  guardStopped?: GuardStopReason;
+  /**
+   * 因护栏收手而没跑的断言（同一批号也在 `pausedClaimIds` 里）。
+   * 与"需要浏览器而暂停"分开计，是因为两者的下一步不一样：前者是再跑一次，
+   * 后者是先装浏览器。没收手时是空数组。
+   */
+  guardSkippedClaimIds: string[];
+  /**
+   * 本场每一次抓取尝试的读数（含失败的尝试与组内复用）。
+   * 只进内存与 trace，不进底稿：在线报告用它算"直连/渲染各多少页、每页多久"，
+   * 而底稿格式一旦变化，已冻结的示例与 `audit` 就得跟着重写。
+   */
+  pageFetches: PageFetchLog[];
+  /**
+   * 逐条 infra 失败的理由原文（与 `failedClaimIds` 同序）。
+   * 底稿里的 `claims.state` 只有状态没有原因，原因是当场从检索层抛上来的那句话——
+   * `live` 把它汇成 `run-error.json`，否则终端让你"去看 run-error.json"而文件里只有整场崩溃。
+   */
+  claimFailures: Array<{ claimId: string; recordId?: string; fieldKey?: string; assertion: string; reason: string }>;
 }
 
 /** 引擎默认用瓷器包；换域 = 传另一个 DomainPack 进来 */
@@ -119,6 +157,7 @@ export async function runQuery(query: string, options: RunQueryOptions = {}): Pr
   const store = options.store ?? createStore();
   const ablations = options.ablations ?? NO_ABLATIONS;
   const caps: AdjudicationCaps = { ...DEFAULT_CAPS, ...(options.caps ?? {}) };
+  const guards = resolveGuards(options.guards);
 
   // 只有外部提交、没有提问原文时跳过提问环：不为"没问"再花一次调用
   const elicited = query.trim() === '' && (options.externalClaims?.length ?? 0) > 0
@@ -161,6 +200,7 @@ export async function runQuery(query: string, options: RunQueryOptions = {}): Pr
     store,
     ablations,
     caps,
+    guards,
     runId,
     onStage: options.onStage,
   });
@@ -195,6 +235,14 @@ export async function runQuery(query: string, options: RunQueryOptions = {}): Pr
       stats,
       anchors: gateOutcome.anchors,
       elicitation: elicited.stats,
+      // 护栏读数：这场是被什么收手的、跳过了哪几条。
+      // 复盘"为什么这场只跑了 6 条就结束"只看这里，不必去翻终端里那条 warn。
+      guard: {
+        infraBreakerThreshold: guards.infraBreakerThreshold,
+        deadlineAtMs: guards.deadlineAtMs ?? null,
+        stopped: adjudicated.guardStopped ?? null,
+        skippedClaimIds: adjudicated.guardSkippedClaimIds,
+      },
     },
     events: [
       { name: 'intake', attributes: { records: elicited.records.length, claims: elicited.claims.length } },
@@ -239,6 +287,10 @@ export async function runQuery(query: string, options: RunQueryOptions = {}): Pr
     elicitation: elicited.stats,
     pausedClaimIds: adjudicated.pausedClaimIds,
     failedClaimIds: adjudicated.failedClaimIds,
+    guardStopped: adjudicated.guardStopped,
+    guardSkippedClaimIds: adjudicated.guardSkippedClaimIds,
+    pageFetches: adjudicated.pageFetches,
+    claimFailures: adjudicated.claimFailures,
   };
 }
 
@@ -298,6 +350,21 @@ interface VerifiedBundle {
   compareCalls: number;
   queryTraceId: string;
   startedAt: Date;
+  /** 时间护栏是否让这场提前收手（没收手时为 undefined） */
+  guardStopped?: GuardStopReason;
+  /** 因护栏收手而没跑的断言（已记成 paused，重跑走 `resumeFromLedger`） */
+  guardSkippedClaimIds: string[];
+  /** 逐次抓取读数（含失败的尝试）：耗时归因的出数处，不进底稿 */
+  pageFetches: PageFetchLog[];
+  /** 逐条 infra 失败的理由原文（`run-error.json` 的出数处，与 failedClaimIds 同序） */
+  claimFailures: Array<{ claimId: string; recordId?: string; fieldKey?: string; assertion: string; reason: string }>;
+}
+
+/**
+ * 调用方给的护栏 + 默认值（合并规则只有一份实现，在 `adjudicate` 的 `resolveRunTimeGuards`）。
+ */
+function resolveGuards(partial?: Partial<RunTimeGuards>): RunTimeGuards {
+  return resolveRunTimeGuards(partial);
 }
 
 /**
@@ -306,6 +373,10 @@ interface VerifiedBundle {
  *
  * decompose 分支：拆一层重入，子断言仍判 decompose 即按"写不出判定规则"停手——
  * 不递归拆分，否则一条查询可以无限放大成本。
+ *
+ * 时间护栏在这里落地（判据与默认值在 `adjudicate` 里）：每条断言开跑前问一次截止时刻，
+ * 每条跑完问一次"是不是又白等了一轮 infra"。收手时剩下的断言一律记 `paused`——
+ * 护栏改变的是"这场还跑不跑完"，不改变任何一条断言的结论，所以不碰四分类。
  */
 async function verifyClaims(input: {
   claims: ClaimRecord[];
@@ -314,6 +385,7 @@ async function verifyClaims(input: {
   store: LodestarStore;
   ablations: AblationState;
   caps: AdjudicationCaps;
+  guards: RunTimeGuards;
   runId: string;
   onStage?: (stage: string, detail?: Record<string, unknown>) => void;
 }): Promise<VerifiedBundle> {
@@ -333,7 +405,17 @@ async function verifyClaims(input: {
     compareCalls: 0,
     queryTraceId,
     startedAt,
+    guardSkippedClaimIds: [],
+    pageFetches: [],
+    claimFailures: [],
   };
+
+  // 还没跑过的断言。护栏收手时按这个集合把剩下的记成 paused——所以每条真正开跑过的
+  // 断言（无论出裁决、暂停还是失败）都要在这里销账，销过账的不再被护栏改写状态。
+  const pending = new Set(input.claims.map((claim) => claim.claimId));
+  let guardStopped: GuardStopReason | undefined;
+  /** 连续撞上 infra 空转的条数（出裁决即清零） */
+  let infraStreak = 0;
 
   // 按记录分组做一次性检索：同一场的几个字段共用一份候选池（判定仍逐字段独立调用）。
   // 不分组的断言（外部提交里没带 recordId 的那些）退回按断言各自检索。
@@ -346,6 +428,13 @@ async function verifyClaims(input: {
   }
 
   for (const [groupKey, groupClaims] of groups) {
+    // 护栏已经收手：不再为剩下的任何一组发查询（组级检索本身就是一次计费调用）
+    if (guardStopped) break;
+    // 截止时刻到了就在组级检索之前停：那一发查询是真金白银，不能等到断言层才发现晚了
+    if (isRunDeadlineReached(input.guards)) {
+      guardStopped = 'deadline';
+      break;
+    }
     const firstClaim = groupClaims[0]!;
     const record = firstClaim.recordId ? recordByKey.get(firstClaim.recordId) : undefined;
     const groupValues = record ? recordFieldsSnapshot(record) : { self: firstClaim.object };
@@ -391,9 +480,15 @@ async function verifyClaims(input: {
     const pageCache = new Map<string, CapturedPage>();
 
     for (const claim of groupClaims) {
+    // 到点就在开跑前收手：一条断言跑满预算可能是十几分钟，跑到一半被打断反而更难归因
+    if (isRunDeadlineReached(input.guards)) {
+      guardStopped = 'deadline';
+      break;
+    }
     const values = record ? groupValues : { self: claim.object };
     const spec: FieldSpec | undefined = claim.fieldKey ? specByKey.get(claim.fieldKey) : undefined;
 
+    pending.delete(claim.claimId);
     const outcome = await runOne({
       claim,
       values,
@@ -414,8 +509,19 @@ async function verifyClaims(input: {
     bundle.searchCalls += shared ? 0 : outcome.searchCalls;
     bundle.pagesFetched += outcome.pagesFetched;
     bundle.compareCalls += outcome.compareCalls;
+    bundle.pageFetches.push(...outcome.pageFetches);
     if (outcome.paused) bundle.pausedClaimIds.push(claim.claimId);
-    if (outcome.failed) bundle.failedClaimIds.push(claim.claimId);
+    if (outcome.failed) {
+      bundle.failedClaimIds.push(claim.claimId);
+      // 理由原文只有这里还拿得到：状态进了底稿，原因留在内存与 trace
+      bundle.claimFailures.push({
+        claimId: claim.claimId,
+        ...(claim.recordId ? { recordId: claim.recordId } : {}),
+        ...(claim.fieldKey ? { fieldKey: claim.fieldKey } : {}),
+        assertion: claim.atomicText,
+        reason: outcome.failed,
+      });
+    }
     input.onStage?.('claim', {
       claimId: claim.claimId,
       recordId: claim.recordId,
@@ -423,12 +529,47 @@ async function verifyClaims(input: {
       verdict: outcome.verdicts[0]?.verdict ?? (outcome.paused ? 'paused' : outcome.failed ? 'failed' : 'rejected'),
       grade: outcome.verdicts[0]?.evidenceGrade,
     });
+
+    // 熔断计数：这一条到底是"读到了东西"还是"白等一轮 infra"。
+    // 出裁决（含 not_found）说明检索与抓取链路是通的，清零；检索抛错、或抓回来的页
+    // 全部没读到正文，算一次空转。paused（要浏览器）单独一路，不计入也不清零。
+    const infraIdle = Boolean(outcome.failed) || (outcome.pagesFetched === 0 && outcome.fetchFailures > 0);
+    if (!outcome.paused) infraStreak = infraIdle ? infraStreak + 1 : 0;
+    if (input.guards.infraBreakerThreshold > 0 && infraStreak >= input.guards.infraBreakerThreshold) {
+      guardStopped = 'breaker';
+      break;
+    }
     }
     void groupKey;
   }
 
+  // 护栏收手：剩下没跑的断言记 paused（不是 not_found、也不是 failed），
+  // resumeFromLedger 按 paused/pending/failed 重新驱动时它们会自然回到队列。
+  if (guardStopped) {
+    for (const claim of input.claims) {
+      if (!pending.has(claim.claimId)) continue;
+      await input.store.patch('claims', claim.claimId, { state: 'paused' });
+      claim.state = 'paused';
+      bundle.guardSkippedClaimIds.push(claim.claimId);
+      bundle.pausedClaimIds.push(claim.claimId);
+      input.onStage?.('claim', {
+        claimId: claim.claimId,
+        recordId: claim.recordId,
+        fieldKey: claim.fieldKey,
+        verdict: guardStopped === 'breaker' ? 'skipped_by_infra_breaker' : 'skipped_by_deadline',
+      });
+    }
+    log.dev.warn(
+      guardStopped === 'breaker'
+        ? `连续 ${infraStreak} 条断言撞在 infra 空转上，熔断收手：跳过 ${bundle.guardSkippedClaimIds.length} 条，记为 paused`
+        : `到达整场截止时刻，收手：跳过 ${bundle.guardSkippedClaimIds.length} 条，记为 paused`,
+    );
+    bundle.guardStopped = guardStopped;
+  }
+
   log.dev.debug(
-    `裁决完成 ${input.claims.length} 条：出裁决 ${bundle.verdicts.length}，暂停 ${bundle.pausedClaimIds.length}，失败 ${bundle.failedClaimIds.length}`,
+    `裁决完成 ${input.claims.length} 条：出裁决 ${bundle.verdicts.length}，暂停 ${bundle.pausedClaimIds.length}，失败 ${bundle.failedClaimIds.length}` +
+      (bundle.guardStopped ? `（因 ${bundle.guardStopped} 收手，跳过 ${bundle.guardSkippedClaimIds.length} 条）` : ''),
   );
   return bundle;
 }
@@ -454,6 +595,10 @@ async function runOne(input: {
   searchCalls: number;
   pagesFetched: number;
   compareCalls: number;
+  /** 抓取失败的页数（熔断判据用：0 页读到 + 有失败页 = 这一条白等了） */
+  fetchFailures: number;
+  /** 本条（含拆出的子断言）的逐次抓取读数 */
+  pageFetches: PageFetchLog[];
   paused?: boolean;
   failed?: string;
 }> {
@@ -477,6 +622,8 @@ async function runOne(input: {
     searchCalls: result.footprint?.budget.searchCalls ?? 0,
     pagesFetched: result.footprint?.budget.pagesFetched ?? 0,
     compareCalls: result.footprint ? result.footprint.fetched.length : 0,
+    fetchFailures: result.footprint?.failed.length ?? 0,
+    pageFetches: result.pageFetches,
     paused: Boolean(result.paused),
     failed: result.failed,
   };
@@ -492,6 +639,8 @@ async function runOne(input: {
     acc.searchCalls += childRun.searchCalls;
     acc.pagesFetched += childRun.pagesFetched;
     acc.compareCalls += childRun.compareCalls;
+    acc.fetchFailures += childRun.fetchFailures;
+    acc.pageFetches.push(...childRun.pageFetches);
     if (childRun.paused) acc.paused = true;
   }
   return acc;
@@ -1010,6 +1159,8 @@ export async function resumeFromLedger(input: {
   pack?: DomainPack;
   ablations?: AblationState;
   caps?: Partial<AdjudicationCaps>;
+  /** 整场时间护栏（缺省同 `runQuery`：熔断 3 条、不设截止）；续跑同样可能撞上卡死的搜索接口 */
+  guards?: Partial<RunTimeGuards>;
   claimIds?: string[];
   query: string;
 }): Promise<RunQueryResult> {
@@ -1031,6 +1182,7 @@ export async function resumeFromLedger(input: {
     store,
     ablations: input.ablations ?? NO_ABLATIONS,
     caps: { ...DEFAULT_CAPS, ...(input.caps ?? {}) },
+    guards: resolveGuards(input.guards),
     runId,
   });
   const startedAt = adjudicated.startedAt;
@@ -1061,6 +1213,10 @@ export async function resumeFromLedger(input: {
     elicitation: null,
     pausedClaimIds: adjudicated.pausedClaimIds,
     failedClaimIds: adjudicated.failedClaimIds,
+    guardStopped: adjudicated.guardStopped,
+    guardSkippedClaimIds: adjudicated.guardSkippedClaimIds,
+    pageFetches: adjudicated.pageFetches,
+    claimFailures: adjudicated.claimFailures,
   };
 }
 

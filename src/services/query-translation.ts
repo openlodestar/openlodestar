@@ -13,7 +13,7 @@
  */
 
 import { createLogger } from '../utils/logger';
-import { extractJsonArray, invokeLLM, type ChatMessage } from '../llm';
+import { extractJsonArray, invokeLLM, quickCallParams, type ChatMessage } from '../llm';
 import { getSharedLoader } from '../prompts';
 
 /** 目标语言桶（与 text-language 的 LanguageClass 同值域） */
@@ -66,6 +66,9 @@ export async function translateQueries(
       temperature: llmParams.temperature,
       maxTokens: MAX_TRANSLATION_TOKENS,
       enableThinking: false,
+      // 翻译是一次一问一答的短输出调用，套角色默认的 180 秒 ×4 次尝试不划算：
+      // 卡在这里就是整条双语检索轨跟着等。
+      ...quickCallParams(),
     });
     const parsed = extractJsonArray(result.content);
     const translated = source.map((original, index) => {

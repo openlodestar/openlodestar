@@ -9,6 +9,9 @@
  * "检索不到"只能导向 not_found，不能导向 refuted。
  *
  * 本模块只写 Lodestar 自己的底稿，不 import 宿主系统的任何写库函数。
+ *
+ * 这里还定义**整场**尺度的时间护栏（`RunTimeGuards` / `defaultRunTimeGuards`）：
+ * 熔断阈值与截止时刻由 `engine.ts` 的记录组循环执行，本模块只提供判据与默认值。
  */
 
 import { createLogger } from '../../utils/logger';
@@ -26,7 +29,7 @@ import { createHash } from 'node:crypto';
 import { getRoleModelName } from '../../llm';
 import { routeClaim } from './routing';
 import { retrieveCandidates, type EvidenceCandidate } from './retrieval';
-import { captureEvidencePage, PageFetchFailedError, PageNeedsBrowserError, type CapturedPage } from './page-fetch';
+import { captureEvidencePage, PageNeedsBrowserError, type CapturedPage, type PageFetchPath } from './page-fetch';
 import { compareClaimToPage } from './compare';
 import { isDecisive, tally } from './voting';
 import { recordLodestarTrace } from '../trace-log';
@@ -65,6 +68,72 @@ export const DEFAULT_CAPS: AdjudicationCaps = {
   numResultsPerQuery: defaultNumResultsPerQuery(),
 };
 
+/** 护栏收手的原因 */
+export type GuardStopReason = 'breaker' | 'deadline';
+
+/**
+ * 一整场运行的时间护栏（与"每条断言花多少预算"是两件事：预算管一条，护栏管一场）。
+ *
+ * 存在的理由：预算上限只约束单条断言，条数与每层的等待没有上界。2026-11-01 两场在线重放
+ * 里，约一半时间是 infra 空转——搜索接口卡住、页面抓到超时，后面的断言只能陪着等。
+ * 护栏让这种局面在整场尺度上早停：停手时把没跑的断言记成 paused（**不是** not_found、
+ * 也不是 failed），重跑时 `resumeFromLedger` 会再驱动它们。
+ */
+export interface RunTimeGuards {
+  /**
+   * 连续这么多条断言撞上 infra 失败就熔断（`LODESTAR_INFRA_BREAKER`，缺省 3；0 = 关掉熔断）。
+   * "infra 失败"指检索层抛错，或这条断言抓的页全部没读到内容——继续跑下一条只会是同样的等待。
+   */
+  infraBreakerThreshold: number;
+  /**
+   * 整场截止时刻（epoch 毫秒）。到点就在下一条断言开跑前收手；undefined = 不设截止。
+   * 由调用方（CLI 的 `--deadline-minutes` 或 `LODESTAR_DEADLINE_MINUTES`）换算成绝对时刻，
+   * 这样提问环与重试都算在同一个窗口里。
+   */
+  deadlineAtMs?: number;
+}
+
+/** 环境变量 → 非负整数（允许 0；`Number(x) || 默认值` 会把 0 吃掉） */
+function intFromEnv(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : fallback;
+}
+
+/**
+ * 护栏默认值：熔断 3 条（`LODESTAR_INFRA_BREAKER`），整场不设截止（除非设了
+ * `LODESTAR_DEADLINE_MINUTES`）。不设截止是有意的——库调用方不该被本包的时间偏好打断，
+ * 只有真金白银的在线运行需要"这一小时之内给我结果"。
+ */
+export function defaultRunTimeGuards(nowMs: number = Date.now()): RunTimeGuards {
+  const guards: RunTimeGuards = { infraBreakerThreshold: intFromEnv(process.env.LODESTAR_INFRA_BREAKER, 3) };
+  const minutes = intFromEnv(process.env.LODESTAR_DEADLINE_MINUTES, 0);
+  if (minutes > 0) guards.deadlineAtMs = nowMs + minutes * 60_000;
+  return guards;
+}
+
+/** 到点了没有（没设截止就永远不到） */
+export function isRunDeadlineReached(guards: RunTimeGuards, nowMs: number = Date.now()): boolean {
+  return guards.deadlineAtMs !== undefined && nowMs >= guards.deadlineAtMs;
+}
+
+/**
+ * 调用方给的护栏 + 默认值，缺哪个补哪个。
+ *
+ * 写成函数而不是 `{...default, ...partial}`：后者在 partial 里显式带着
+ * `deadlineAtMs: undefined` 时会把默认截止时刻覆盖成 undefined，
+ * 而"没传这个键"与"传了 undefined"本来该是同一个意思。
+ */
+export function resolveRunTimeGuards(partial?: Partial<RunTimeGuards>, nowMs: number = Date.now()): RunTimeGuards {
+  const base = defaultRunTimeGuards(nowMs);
+  const resolved: RunTimeGuards = {
+    infraBreakerThreshold: partial?.infraBreakerThreshold ?? base.infraBreakerThreshold,
+  };
+  const deadline = partial?.deadlineAtMs ?? base.deadlineAtMs;
+  if (deadline !== undefined) resolved.deadlineAtMs = deadline;
+  return resolved;
+}
+
 export interface AdjudicateClaimInput {
   store: LodestarStore;
   pack: DomainPack;
@@ -99,6 +168,26 @@ export interface AdjudicateClaimInput {
   sharedPageCache?: Map<string, CapturedPage>;
 }
 
+/**
+ * 一次抓取尝试的读数（诊断用，**不进底稿**）。
+ *
+ * 为什么不塞进 `footprint.fetched` 那一列：它只收"最后成了证据"的页，而最贵的恰恰是没成的
+ * 那些——渲染超时、抓回空壳、被反爬拦下。耗时归因与熔断都要看**全部尝试**，所以每一次抓取
+ * 记一行，失败的也记。
+ *
+ * 它是内存读数：随 trace 落盘（`payload.pageFetches`）、进在线报告，
+ * 不改 `verdicts.jsonl` 的形状——底稿格式一动，已冻结的示例与 `audit` 的读法就要跟着重写。
+ */
+export interface PageFetchLog {
+  url: string;
+  /** 走的路：`fetch` 直连、`browser` 渲染、`cache` 组内复用（这次没花抓取钱）、`failed` 没抓到 */
+  path: PageFetchPath;
+  /** 从发起抓取到正文与快照就绪的毫秒数（含清洗与落快照）；`cache` 恒为 0 */
+  durationMs: number;
+  /** 抓取失败的原因（只有 `path === 'failed'` 时才有） */
+  reason?: string;
+}
+
 export interface AdjudicateClaimResult {
   /** 状态已推进的断言 */
   claim: ClaimRecord;
@@ -111,6 +200,8 @@ export interface AdjudicateClaimResult {
   /** infra 失败（搜索 API 异常等）：记 failed，不伪装成阴性结论 */
   failed?: string;
   footprint?: SearchFootprint;
+  /** 本条断言的逐次抓取读数（含失败的尝试）：耗时统计与熔断归因的出数处 */
+  pageFetches: PageFetchLog[];
 }
 
 /**
@@ -134,11 +225,11 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
 
   if (routing.route === 'reject') {
     await saveTrace({ input, startedAt, events, payload: { routing, evidence: [], verdict: null }, status: 'success' });
-    return { claim, evidence: [] };
+    return { claim, evidence: [], pageFetches: [] };
   }
   if (routing.route === 'decompose') {
     await saveTrace({ input, startedAt, events, payload: { routing }, status: 'success' });
-    return { claim, evidence: [], needsDecompose: { reason: routing.reason } };
+    return { claim, evidence: [], needsDecompose: { reason: routing.reason }, pageFetches: [] };
   }
 
   // ---- 检索编排（有共用结果时直接复用，不再为本条断言发查询） ----
@@ -201,7 +292,7 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
   if (retrievalFailed) {
     await store.patch('claims', claim.claimId, { state: 'failed' });
     claim.state = 'failed';
-    return { claim, evidence: [], failed: retrievalFailed };
+    return { claim, evidence: [], failed: retrievalFailed, pageFetches: [] };
   }
 
   // ---- 逐源抓取与独立比对（够证据就停） ----
@@ -209,6 +300,7 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
   const failed: Array<{ url: string; reason: string }> = [];
   const rejected: Array<{ url: string; reason: string }> = [];
   const fetched: SearchFootprint['fetched'] = [];
+  const pageFetches: PageFetchLog[] = [];
   const visited = new Set<string>();
   /** 已比对过的正文指纹：同一家站的多个 URL 常返回同一份内容，比对第二次就是白花钱 */
   const seenContent = new Set<string>();
@@ -227,27 +319,29 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
       // A3：同记录前一条断言刚抓过的页面直接复用——快照还是那一份字节，
       // 引文逐字校验不受影响；抓取成本已在首条断言付过，这里不再占本条的 pageCap
       page = cached;
+      pageFetches.push({ url: candidate.url, path: 'cache', durationMs: 0 });
     } else {
+      // 计时覆盖"抓取 + 清洗 + 落快照"整段：那才是这次实验真花掉的墙钟时间
+      const fetchStartedAt = Date.now();
       try {
         // 声明浏览器必备的包：证据页直接渲染。这类站点常用 200 返回一个只有导航的
         // JS 空壳，裸 fetch 不报错也拿不到正文，先试裸抓根本等不到降级。
         page = await captureEvidencePage(store, evidenceId, candidate.url, {
           forceBrowser: pack.requirements?.browser === 'required',
         });
+        pageFetches.push({ url: candidate.url, path: page.strategy, durationMs: Date.now() - fetchStartedAt });
         // 失败/被拦的页不计入 pagesFetched（A2）：pageCap 管的是"我们真读了多少页"，
         // 抓回空的、被反爬挡下的页既没花比对钱也没产出证据，不该消耗抓取名额
         pagesFetched += 1;
         input.sharedPageCache?.set(candidate.url, page);
       } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        pageFetches.push({ url: candidate.url, path: 'failed', durationMs: Date.now() - fetchStartedAt, reason });
         if (error instanceof PageNeedsBrowserError) {
-          paused = { url: candidate.url, reason: error.message };
+          paused = { url: candidate.url, reason };
           break;
         }
-        if (error instanceof PageFetchFailedError) {
-          failed.push({ url: candidate.url, reason: error.message });
-          continue;
-        }
-        failed.push({ url: candidate.url, reason: error instanceof Error ? error.message : String(error) });
+        failed.push({ url: candidate.url, reason });
         continue;
       }
     }
@@ -339,10 +433,10 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
       input,
       startedAt,
       events,
-      payload: { evidence, footprint, paused },
+      payload: { evidence, footprint, paused, pageFetches },
       status: 'success',
     });
-    return { claim, evidence, paused, footprint };
+    return { claim, evidence, paused, footprint, pageFetches };
   }
 
   // 计票读该断言在底稿里的**全部**证据行：只看本轮会把上一轮已拿到的独立来源丢掉
@@ -383,14 +477,14 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
     input,
     startedAt,
     events,
-    payload: { evidence, verdict, footprint, countedEvidenceIds: result.countedEvidenceIds, corroboratingEvidenceIds: result.corroboratingEvidenceIds },
+    payload: { evidence, verdict, footprint, pageFetches, countedEvidenceIds: result.countedEvidenceIds, corroboratingEvidenceIds: result.corroboratingEvidenceIds },
     status: 'success',
   });
   log.dev.debug(
     `[${claim.claimId}] ${verdict.verdict}/${verdict.evidenceGrade}（支持 ${verdict.supportCount} 源，反对 ${verdict.refuteCount} 源，抓 ${pagesFetched} 页）`,
   );
 
-  return { claim, evidence, verdict, footprint };
+  return { claim, evidence, verdict, footprint, pageFetches };
 }
 
 /** 落本条断言的底稿（快照引用与页面正文都已进 trace 目录之外的底稿目录，这里只存结论链） */
@@ -449,6 +543,7 @@ export {
   type TallyResult,
 } from './voting';
 export { captureEvidencePage, PageFetchFailedError, PageNeedsBrowserError, PAGE_TEXT_CHAR_BUDGET } from './page-fetch';
+export type { FetchStrategy, PageFetchPath } from './page-fetch';
 
 /** 正文指纹：折叠空白后取哈希——同一份内容换了 URL 或缩进都算一次，比对第二遍只是白花钱 */
 function pageFingerprint(text: string): string {

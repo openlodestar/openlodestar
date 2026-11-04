@@ -21,7 +21,13 @@ import { fileURLToPath } from 'node:url';
 import { getRoleModelName } from './llm';
 import { LIVE_RUNS_DIR_NAME } from './demo-workdir';
 import { createSearchProvider } from './integrations/search-providers';
-import { DEFAULT_CAPS, type AdjudicationCaps } from './lodestar/adjudicate';
+import {
+  DEFAULT_CAPS,
+  resolveRunTimeGuards,
+  type AdjudicationCaps,
+  type PageFetchLog,
+  type RunTimeGuards,
+} from './lodestar/adjudicate';
 import { captureEvidencePage } from './lodestar/adjudicate/page-fetch';
 import { quoteMatches } from './lodestar/adjudicate/compare';
 import { isReadableAnchor } from './lodestar/anchor-source';
@@ -38,6 +44,8 @@ import {
   type DemoCaseExpectation,
   type DemoLiveExpectationCheck,
   type DemoLiveMeta,
+  type DemoLivePageTiming,
+  type DemoLivePageTimingRow,
 } from './demo-report';
 import type {
   AnchorRecord,
@@ -239,6 +247,16 @@ export interface RefetchOutcome {
 }
 
 /**
+ * 冻结证据行按 claimId 取子集（`--claim` 在 pages 模式里的落点：只重抓这一条断言用过的页）。
+ * 空数组 = 不过滤，原样返回。
+ */
+export function selectEvidenceByClaimIds(rows: EvidenceRecord[], claimIds: string[]): EvidenceRecord[] {
+  if (claimIds.length === 0) return rows;
+  const wanted = new Set(claimIds);
+  return rows.filter((row) => wanted.has(row.claimId));
+}
+
+/**
  * 重抓冻结示例用过的每一页，核对：页面还开不开、当时的引文还在不在；整页快照再加一项"正文变没变"。
  *
  * 节选快照不比全文——节选永远不可能等于重抓的整页，比了只会得出一个恒假的结论。
@@ -248,6 +266,8 @@ export interface RefetchOutcome {
 export async function refetchExamplePages(input: {
   exampleDir: string;
   runDir: string;
+  /** 只重抓这些断言用过的页（`--claim`）；不传 = 全部 */
+  claimIds?: string[];
   onStage?: (stage: string, detail?: Record<string, unknown>) => void;
   captureImpl?: typeof captureEvidencePage;
 }): Promise<RefetchOutcome> {
@@ -257,7 +277,7 @@ export async function refetchExamplePages(input: {
   const freshStore = createStore({ baseDir: input.runDir });
   const frozenStore = createStore({ baseDir: input.exampleDir });
 
-  const evidence = await readEvidenceRows(input.exampleDir);
+  const evidence = selectEvidenceByClaimIds(await readEvidenceRows(input.exampleDir), input.claimIds ?? []);
   const byUrl = new Map<string, EvidenceRecord[]>();
   for (const row of evidence) {
     const bucket = byUrl.get(row.url);
@@ -361,6 +381,187 @@ function normalizeForCompare(text: string): string {
 // replay / full：跑一次真实裁决
 // ============================================
 
+/**
+ * 护栏读数写成一行，终端与 `--dry-run` 用同一句——两处各写一遍迟早会漂。
+ * 截止时刻打印成 UTC ISO：本地时区在不同机器上不一样，墙钟读数要能互相比。
+ */
+export function formatRunTimeGuards(guards: RunTimeGuards): string {
+  const breaker = guards.infraBreakerThreshold > 0 ? `stop after ${guards.infraBreakerThreshold} consecutive infra-idle claims` : 'breaker off';
+  const deadline = guards.deadlineAtMs === undefined ? 'no deadline' : `deadline ${new Date(guards.deadlineAtMs).toISOString()}`;
+  return `${breaker}, ${deadline}`;
+}
+
+/** `--claim` 的取值：逗号与空白都算分隔符，去重保序 */
+export function parseClaimFilter(raw: string): string[] {
+  const ids = new Set<string>();
+  for (const part of raw.split(/[,;\s]+/)) {
+    if (part !== '') ids.add(part);
+  }
+  return [...ids];
+}
+
+/**
+ * 冻结断言按 claimId 取子集。
+ *
+ * `missing` 必须单独返回：命令行点了底稿里没有的号时，若静默跑出 0 条，读起来就像
+ * "这条断言没有结论"——那是最坏的一种失败，它看起来像个结果。
+ */
+export function selectClaimsByIds(
+  claims: ClaimRecord[],
+  claimIds: string[],
+): { selected: ClaimRecord[]; missing: string[] } {
+  if (claimIds.length === 0) return { selected: claims, missing: [] };
+  const wanted = new Set(claimIds);
+  const present = new Set(claims.map((claim) => claim.claimId));
+  return {
+    selected: claims.filter((claim) => wanted.has(claim.claimId)),
+    missing: claimIds.filter((id) => !present.has(id)),
+  };
+}
+
+/** 抓取通路的中文名：终端与报告都说人话，不让读者先查 `fetch` / `browser` 指什么 */
+const PAGE_PATH_LABEL: Record<PageFetchLog['path'], string> = {
+  fetch: '直连抓取',
+  browser: '浏览器渲染',
+  cache: '同记录组内复用',
+  'site-adapter': '站点适配器',
+  failed: '没抓到',
+};
+
+/** 终端用的秒数写法：一位小数够比较，不必写成 25431 ms */
+function formatSeconds(ms: number): string {
+  if (ms < 1000) return `${String(Math.round(ms))}ms`;
+  const seconds = ms / 1000;
+  if (seconds < 120) return `${seconds.toFixed(1)}s`;
+  return `${(seconds / 60).toFixed(1)}min`;
+}
+
+/**
+ * 抓取耗时的一行读数：终端汇总用它与报告同一份数，两处各算一遍迟早会漂。
+ *
+ * `failed` 也报出来，是因为"白等了多久"是这轮实测里最想要的读数——
+ * 检索与渲染花在没抓到正文的页上的时间，一分也不会退回来。
+ */
+export function formatPageTiming(timing: DemoLivePageTiming): string {
+  const attemptsOf = (path: PageFetchLog['path']): number =>
+    timing.byPath.find((row) => row.path === path)?.attempts ?? 0;
+  const slowest = timing.slowest[0];
+  const parts = [
+    `fetch ${String(timing.fetched)} page(s) / ${String(timing.attempts)} attempts`,
+    `direct ${String(attemptsOf('fetch'))}`,
+    `browser ${String(attemptsOf('browser'))}`,
+    `cached ${String(attemptsOf('cache'))}`,
+    `failed ${String(timing.failed)}`,
+    `— ${formatSeconds(timing.fetchedTotalMs)} fetching, ${formatSeconds(timing.failedTotalMs)} spent on attempts that produced nothing`,
+  ];
+  if (slowest) parts.push(`slowest ${formatSeconds(slowest.durationMs)} (${slowest.path})`);
+  return parts.join(' | ');
+}
+
+/** 中位数（偶数取中间两数的平均）；空数组返回 0。页与页的耗时差一个数量级，均值会被最长那几页拖走 */
+function medianMs(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return Math.round(sorted[mid] ?? 0);
+  return Math.round(((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2);
+}
+
+function sumMs(values: number[]): number {
+  return values.reduce((sum, value) => sum + value, 0);
+}
+
+/**
+ * 逐次抓取读数汇成报告里的一块。
+ *
+ * 三条口径要说清，否则这组数会被读反：
+ * - 失败的尝试也计时——渲染 25 秒最后什么也没抓到，那 25 秒是真花掉的时间；
+ * - `cache` 是同记录组内复用同一份快照，没再花抓取钱，因此不进任何耗时合计；
+ * - 裁决链同一时刻只放一个外部请求在飞（并发为 1），所以各行耗时相加就是墙钟占用，
+ *   可以直接与 `wallMs` 对照，看这场有多少时间花在"等网页"上。
+ */
+export function summarizePageFetches(
+  logs: PageFetchLog[],
+  input: { wallMs: number; slowestCount?: number },
+): DemoLivePageTiming {
+  const durationsByPath = new Map<PageFetchLog['path'], number[]>();
+  for (const log of logs) {
+    const bucket = durationsByPath.get(log.path);
+    if (bucket) bucket.push(log.durationMs);
+    else durationsByPath.set(log.path, [log.durationMs]);
+  }
+  const byPath: DemoLivePageTimingRow[] = [...durationsByPath.entries()]
+    .map(([path, durations]) => ({
+      path,
+      label: PAGE_PATH_LABEL[path],
+      attempts: durations.length,
+      medianMs: medianMs(durations),
+      maxMs: durations.length > 0 ? Math.max(...durations) : 0,
+      totalMs: sumMs(durations),
+    }))
+    .sort((a, b) => b.totalMs - a.totalMs);
+  const fetchedDurations = logs.filter((log) => log.path !== 'cache' && log.path !== 'failed').map((log) => log.durationMs);
+  const failedDurations = logs.filter((log) => log.path === 'failed').map((log) => log.durationMs);
+  const slowestCount = input.slowestCount ?? 5;
+  return {
+    attempts: logs.length,
+    fetched: fetchedDurations.length,
+    cached: logs.filter((log) => log.path === 'cache').length,
+    failed: failedDurations.length,
+    fetchedTotalMs: sumMs(fetchedDurations),
+    failedTotalMs: sumMs(failedDurations),
+    wallMs: input.wallMs,
+    byPath,
+    slowest: [...logs]
+      .sort((a, b) => b.durationMs - a.durationMs)
+      .slice(0, slowestCount)
+      .map((log) => ({ url: log.url, path: log.path, label: PAGE_PATH_LABEL[log.path], durationMs: log.durationMs })),
+  };
+}
+
+/**
+ * 逐条 infra 失败汇成 `run-error.json` 的内容（纯函数，便于离线测）。
+ *
+ * 为什么需要这一份：单条断言失败时，裁决链只把状态推进到 `failed`，失败理由留在内存与
+ * trace 里；而终端一直让用户"去看 run-error.json"——那份文件过去只在整场崩溃时才写。
+ * 于是一场 13 条断言里 8 条卡在检索 503 的实验，报告里看不出任何异常，用户翻不到任何理由。
+ * 这里不写任何密钥或请求头：这份东西是给人贴进 issue 的。
+ */
+export function buildClaimFailureReport(input: {
+  mode: LiveRunMode;
+  provider: string;
+  caps: LiveCaps;
+  guards: RunTimeGuards;
+  startedAt: string;
+  finishedAt: string;
+  command: string;
+  failures: RunQueryResult['claimFailures'];
+}): {
+  kind: 'claim-failures';
+  mode: LiveRunMode;
+  provider: string;
+  caps: LiveCaps;
+  guards: RunTimeGuards;
+  startedAt: string;
+  finishedAt: string;
+  command: string;
+  failedClaims: number;
+  claims: RunQueryResult['claimFailures'];
+} {
+  return {
+    kind: 'claim-failures',
+    mode: input.mode,
+    provider: input.provider,
+    caps: input.caps,
+    guards: input.guards,
+    startedAt: input.startedAt,
+    finishedAt: input.finishedAt,
+    command: input.command,
+    failedClaims: input.failures.length,
+    claims: input.failures,
+  };
+}
+
 export interface LiveRunOptions {
   mode: LiveRunMode;
   exampleName: string;
@@ -369,6 +570,12 @@ export interface LiveRunOptions {
   query: string;
   claims: ClaimRecord[];
   caps: LiveCaps;
+  /**
+   * 整场时间护栏（缺省见 `defaultRunTimeGuards`：熔断 3 条、不设截止）。
+   * `--deadline-minutes` 传的是**绝对时刻**，所以 `both` 模式下 replay 与 full 共用同一个
+   * 截止点——花钱的窗口由这条命令的起点决定，而不是每个模式各领一份。
+   */
+  guards?: Partial<RunTimeGuards>;
   provider: string;
   reportPath: string;
   command: string;
@@ -392,6 +599,8 @@ export interface LiveRunOutcome {
     anchors: number;
   };
   guardOk: boolean;
+  /** 本次抓取耗时读数（终端汇总与报告共用同一份） */
+  pageTiming: DemoLivePageTiming;
 }
 
 export async function runLiveExperiment(input: LiveRunOptions): Promise<LiveRunOutcome> {
@@ -408,9 +617,11 @@ export async function runLiveExperiment(input: LiveRunOptions): Promise<LiveRunO
   const store = createStore({ baseDir: input.runDir });
   const startedAt = new Date().toISOString();
   const startedMs = Date.now();
+  const guards = resolveRunTimeGuards(input.guards);
 
   console.log(`\n[live:${input.mode}] run dir: ${path.relative(process.cwd(), input.runDir)}`);
   console.log(`[live:${input.mode}] provider=${input.provider} caps=search ${input.caps.maxSearchCalls}/record, pages ${input.caps.maxPages}/claim${input.mode === 'full' ? `, records ${input.caps.maxRecords}` : ''}`);
+  console.log(`[live:${input.mode}] time guards=${formatRunTimeGuards(guards)}`);
 
   let result: RunQueryResult;
   try {
@@ -421,6 +632,7 @@ export async function runLiveExperiment(input: LiveRunOptions): Promise<LiveRunO
           caps: input.caps,
           externalClaims: input.claims,
           queryLabel: input.query,
+          guards,
           onStage: input.onStage,
         })
       : await runQueryImpl(input.query, {
@@ -428,6 +640,7 @@ export async function runLiveExperiment(input: LiveRunOptions): Promise<LiveRunO
           pack: porcelainPack,
           caps: input.caps,
           intake: { maxRecords: input.caps.maxRecords },
+          guards,
           onStage: input.onStage,
         });
   } catch (error) {
@@ -436,9 +649,13 @@ export async function runLiveExperiment(input: LiveRunOptions): Promise<LiveRunO
       path.join(input.runDir, 'run-error.json'),
       JSON.stringify(
         {
+          // 同一个文件两种内容，靠 kind 分：整场崩溃 vs 逐条断言失败（后者见下）
+          kind: 'run-crash',
           mode: input.mode,
           provider: input.provider,
           caps: input.caps,
+          guards,
+          command: input.command,
           startedAt,
           error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : String(error),
         },
@@ -451,6 +668,30 @@ export async function runLiveExperiment(input: LiveRunOptions): Promise<LiveRunO
   }
 
   const finishedAt = new Date().toISOString();
+  const wallMs = Date.now() - startedMs;
+  const pageTiming = summarizePageFetches(result.pageFetches, { wallMs });
+  // 逐条断言失败也写 run-error.json：整场没崩、但 13 条里 8 条卡在检索 503 的那种实验，
+  // 过去只在终端留一行红字，文件里查不到任何理由——而终端那句提示恰恰让用户去看这个文件
+  if (result.claimFailures.length > 0) {
+    await fs.writeFile(
+      path.join(input.runDir, 'run-error.json'),
+      JSON.stringify(
+        buildClaimFailureReport({
+          mode: input.mode,
+          provider: input.provider,
+          caps: input.caps,
+          guards,
+          startedAt,
+          finishedAt,
+          command: input.command,
+          failures: result.claimFailures,
+        }),
+        null,
+        2,
+      ),
+      'utf8',
+    );
+  }
   const ledgerClaims = await store.query<ClaimRecord>('claims');
   const evidence = await store.allRows<EvidenceRecord>('evidence');
   const verdicts = await store.query<VerdictRecord>('verdicts');
@@ -496,7 +737,8 @@ export async function runLiveExperiment(input: LiveRunOptions): Promise<LiveRunO
     finishedAt,
     command: input.command,
     expectationChecks,
-    notes: buildLiveNotes(input, evidence, expectationChecks),
+    notes: buildLiveNotes(input, evidence, expectationChecks, result),
+    pageTiming,
   };
 
   const html = renderDemoReport({
@@ -572,6 +814,7 @@ export async function runLiveExperiment(input: LiveRunOptions): Promise<LiveRunO
       anchors: anchors.length,
     },
     guardOk: check.violations.length === 0,
+    pageTiming,
   };
 }
 
@@ -603,6 +846,12 @@ function buildLiveLimitations(input: LiveRunOptions, evidence: EvidenceRecord[])
     `本次预算：每条记录检索 ${input.caps.maxSearchCalls} 条、每条断言抓取 ${input.caps.maxPages} 页` +
       `${input.mode === 'full' ? `、记录上限 ${input.caps.maxRecords}` : ''}；not_found 的成因可能是预算耗尽或覆盖缺口，不等于确证无记录。`,
   ];
+  const guards = resolveRunTimeGuards(input.guards);
+  out.push(
+    `本次时间护栏：${formatRunTimeGuards(guards)}（墙钟，从这一场开跑算起）。` +
+      '护栏收手只说明"这场没跑完"，被跳过的断言记 paused，不是查不到；' +
+      '同一层的耗时与重试口径见 README 的环境变量表。',
+  );
   if (input.mode === 'full') {
     out.push('full 模式由模型重新列场次，记录名与冻结示例不同属正常；不要拿记录名对不上当作失败。');
   }
@@ -620,12 +869,19 @@ function buildLiveNotes(
   input: LiveRunOptions,
   evidence: EvidenceRecord[],
   checks: DemoLiveExpectationCheck[],
+  result: RunQueryResult,
 ): string[] {
   const notes = [
     '预期来自 examples/' + input.exampleName + '/case.json；本次结果来自实时证据，不一致不等于系统错误，需逐条看引文。',
   ];
   if (checks.length === 0) {
     notes.push('full 模式不逐条对照冻结记录：模型这次列出的场次可能不同，对照表为空是刻意的。');
+  }
+  if (result.guardStopped !== undefined) {
+    notes.push(
+      `本场被时间护栏收手（原因 ${result.guardStopped}），跳过 ${result.guardSkippedClaimIds.length} 条断言：` +
+        `${result.guardSkippedClaimIds.join('、')}。这些行是"还没跑"，报告里别按"查不到"读。`,
+    );
   }
   const domains = [...new Set(evidence.map((row) => row.domain))].sort();
   if (domains.length > 0) {
@@ -642,7 +898,7 @@ export function liveUsage(): string {
   return `  tsx src/cli.ts live [--mode replay|full|both|pages] [--example <name>] [--query <text>]
                         [--root <dir>] [--run-id <id>] [--report <file>] [--max-records <n>]
                         [--max-search-calls <n>] [--max-pages <n>] [--results <n>]
-                        [--provider <name>] [--dry-run]`;
+                        [--claim <id>[,<id>...]] [--deadline-minutes <n>] [--provider <name>] [--dry-run]`;
 }
 
 interface LiveFlagBag {
@@ -727,19 +983,39 @@ export async function commandLive(flags: Map<string, string>): Promise<number> {
     numResultsPerQuery: numberFlag(flags, 'results', DEFAULT_CAPS.numResultsPerQuery),
     maxRecords: numberFlag(flags, 'max-records', 4),
   };
+  // 整场截止时刻按"这条命令的起点"算：--mode both 时 replay 与 full 共用同一个时刻，
+  // 花钱的窗口由一次命令行决定，而不是每个模式各领一份。0 = 不设截止（照旧跑到完）。
+  const deadlineMinutes = numberFlag(flags, 'deadline-minutes', 0, 0);
+  const guards = resolveRunTimeGuards(
+    deadlineMinutes > 0 ? { deadlineAtMs: Date.now() + deadlineMinutes * 60_000 } : undefined,
+  );
   const limit = numberFlag(flags, 'limit', 20);
   const dryRun = flags.get('dry-run') === 'true';
   const reportBase = flags.get('report');
+  // --claim：只重放冻结底稿里点名的那几条断言。full 模式的断言是模型当场生成的，没有号可点，
+  // 那里直接报错——"参数看着生效其实被忽略"比报错难查得多。
+  const claimFilterRaw = flags.get('claim');
+  if (claimFilterRaw === 'true' || claimFilterRaw === '') {
+    console.error('--claim 需要 claimId，多个用逗号分隔，例如 --claim cl-20261004-aaaaaa,cl-20261004-aaaaab');
+    return 1;
+  }
+  const claimIds = claimFilterRaw ? parseClaimFilter(claimFilterRaw) : [];
+  if (claimIds.length > 0 && mode === 'full') {
+    console.error('--claim 只作用于 replay 与 pages：full 模式的断言由模型当场生成，没有可点名的 claimId。');
+    return 1;
+  }
   const commandLine = [
     'npx tsx --env-file=.env src/cli.ts live',
     `--mode ${mode}`,
     `--example ${exampleName}`,
     ...(flags.get('run-id') ? [`--run-id ${runId}`] : []),
     ...(flags.get('query') ? ['--query <inline>'] : []),
+    ...(claimIds.length > 0 ? [`--claim ${claimIds.join(',')}`] : []),
     `--max-search-calls ${caps.maxSearchCalls}`,
     `--max-pages ${caps.maxPages}`,
     `--results ${caps.numResultsPerQuery}`,
     ...(mode === 'full' || mode === 'both' ? [`--max-records ${caps.maxRecords}`] : []),
+    ...(deadlineMinutes > 0 ? [`--deadline-minutes ${deadlineMinutes}`] : []),
     `--provider ${provider}`,
     ...(flags.get('report') ? [`--report ${flags.get('report')}`] : []),
   ].join(' ');
@@ -751,16 +1027,37 @@ export async function commandLive(flags: Map<string, string>): Promise<number> {
     return 1;
   }
 
-  const claims = await readExampleClaims(exampleDir);
+  const allClaims = await readExampleClaims(exampleDir);
+  const picked = selectClaimsByIds(allClaims, claimIds);
+  if (picked.missing.length > 0) {
+    // 点了不存在的号却跑出 0 条，读起来像"这条断言没结论"——那必须报错，不能静默
+    console.error(
+      `--claim 里有这份底稿不认识的号：${picked.missing.join(', ')}（examples/${exampleName}/claims.jsonl 共 ${allClaims.length} 条断言）`,
+    );
+    return 1;
+  }
+  const claims = picked.selected;
+  if (claimIds.length > 0) {
+    console.log(`Claim filter: ${claims.length} of ${allClaims.length} frozen claim(s)${mode === 'both' ? ' — applies to the replay half only; full generates its own claims' : ''}`);
+  }
   const recordCount = new Set(claims.map((claim) => claim.recordId)).size;
   const query = (flags.get('query') ?? await readExampleQuery(exampleDir)).trim();
   const plan = planLiveRun({ mode, claimCount: claims.length, recordCount, caps });
 
   if (mode === 'pages') {
     const runDir = path.join(root, runId, 'pages');
+    const evidence = selectEvidenceByClaimIds(await readEvidenceRows(exampleDir), claimIds);
+    const urls = [...new Set(evidence.map((row) => row.url))];
+    if (urls.length === 0) {
+      // 空集合必须报错：它会被读成"这些页都不存在"，而实际是过滤器没匹配上任何东西
+      console.error(
+        claimIds.length > 0
+          ? `--claim ${claimIds.join(', ')} 在 examples/${exampleName}/evidence.jsonl 里没有对应的页面可重抓。`
+          : `examples/${exampleName}/evidence.jsonl 里没有证据行，pages 模式无事可做。`,
+      );
+      return 1;
+    }
     if (dryRun) {
-      const evidence = await readEvidenceRows(exampleDir);
-      const urls = [...new Set(evidence.map((row) => row.url))];
       console.log('OpenLodestar live — dry run (pages)');
       console.log(`Fixture: ${path.relative(process.cwd(), exampleDir)}`);
       console.log(`Pages: ${urls.length} unique source URL(s) from ${evidence.length} evidence row(s)`);
@@ -771,7 +1068,7 @@ export async function commandLive(flags: Map<string, string>): Promise<number> {
       console.log('Browser probe: OK');
       return 0;
     }
-    const outcome = await refetchExamplePages({ exampleDir, runDir });
+    const outcome = await refetchExamplePages({ exampleDir, runDir, claimIds });
     const failed = outcome.rows.filter((row) => row.status === 'failed').length;
     console.log(`\nRefetch report: ${path.relative(process.cwd(), outcome.reportPath)}`);
     console.log(`Pages: ${outcome.rows.length} | failed ${failed} | frozen snapshot rows ${outcome.frozenSnapshots}`);
@@ -791,7 +1088,9 @@ export async function commandLive(flags: Map<string, string>): Promise<number> {
     console.log('OpenLodestar live — dry run (no model or network calls)');
     console.log(`Fixture: ${path.relative(process.cwd(), exampleDir)}`);
     console.log(`Query: ${query}`);
-    console.log(`Claims: ${claims.length} | records: ${recordCount}`);
+    console.log(
+      `Claims: ${claims.length}${claimIds.length > 0 ? ` of ${allClaims.length} (filtered by --claim)` : ''} | records: ${recordCount}`,
+    );
     console.log(`Provider: ${chosenProvider.name} (site: ${chosenProvider.siteOperator ? 'supported' : 'skipped, recorded in footprint'})`);
     console.log(`Model: text=${getRoleModelName('text')} web-search=${getRoleModelName('web-search')}`);
     console.log(`Base URL host: ${baseUrlHost()}`);
@@ -799,6 +1098,7 @@ export async function commandLive(flags: Map<string, string>): Promise<number> {
       `Caps: search ${caps.maxSearchCalls}/record, pages ${caps.maxPages}/claim, results ${caps.numResultsPerQuery}/query` +
         `${mode === 'full' || mode === 'both' ? `, records ${caps.maxRecords}` : ''}`,
     );
+    console.log(`Time guards: ${formatRunTimeGuards(guards)} (wall clock, from the start of this command)`);
     for (const estimate of plan.estimates) {
       console.log(
         `  [${estimate.mode}] upper bound: claims ${estimate.claims}, records ${estimate.records}, ` +
@@ -833,6 +1133,7 @@ export async function commandLive(flags: Map<string, string>): Promise<number> {
       query,
       claims,
       caps,
+      guards,
       provider: chosenProvider.name,
       reportPath,
       command: commandLine,
@@ -853,11 +1154,22 @@ export async function commandLive(flags: Map<string, string>): Promise<number> {
 
   const guardBad = outcomes.filter((outcome) => !outcome.guardOk);
   const failedClaims = outcomes.reduce((sum, outcome) => sum + outcome.result.stats.claimsFailed, 0);
+  // 时间护栏收手不算失败：结论只是"这场没跑完"，剩下的断言还是 paused，可续跑
+  const stoppedRuns = outcomes.filter((outcome) => outcome.result.guardStopped !== undefined);
   console.log('\nSummary');
   for (const outcome of outcomes) {
     console.log(
       `  ${outcome.mode.padEnd(6)} records=${outcome.ledger.records} evidence=${outcome.ledger.evidence} ` +
-        `anchors=${outcome.ledger.anchors} guard=${outcome.guardOk ? 'ok' : 'VIOLATIONS'} report=${path.relative(process.cwd(), outcome.reportPath)}`,
+        `anchors=${outcome.ledger.anchors} guard=${outcome.guardOk ? 'ok' : 'VIOLATIONS'} ` +
+        `timeGuard=${outcome.result.guardStopped ?? 'none'} report=${path.relative(process.cwd(), outcome.reportPath)}`,
+    );
+    console.log(`         ${formatPageTiming(outcome.pageTiming)}`);
+  }
+  for (const outcome of stoppedRuns) {
+    console.log(
+      `  ${outcome.mode}: stopped by time guard (${String(outcome.result.guardStopped)}); ` +
+        `skipped by guard=${outcome.result.guardSkippedClaimIds.length} paused total=${outcome.result.pausedClaimIds.length}. ` +
+          `They are "not run", not "not found" — rerun with a larger --deadline-minutes, or drive this run's ledger with resumeFromLedger (no --resume flag yet).`,
     );
   }
   if (guardBad.length > 0) {
@@ -865,7 +1177,15 @@ export async function commandLive(flags: Map<string, string>): Promise<number> {
     return 1;
   }
   if (failedClaims > 0) {
-    console.log(`\n${failedClaims} claim(s) failed on infra errors (search API / parse / fetch). Inspect run-error.json and traces.`);
+    const errorFiles = outcomes
+      .filter((outcome) => outcome.result.claimFailures.length > 0)
+      .map((outcome) => path.relative(process.cwd(), path.join(outcome.runDir, 'run-error.json')));
+    console.log(
+      `\n${failedClaims} claim(s) failed on infra errors (search API / parse / fetch). ` +
+        (errorFiles.length > 0
+          ? `Per-claim reasons are aggregated in ${errorFiles.join(', ')}; page-by-page timings are in each run's report.`
+          : 'Inspect the traces under each run directory.'),
+    );
     return 1;
   }
   return 0;

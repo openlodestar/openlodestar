@@ -15,6 +15,7 @@
 
 import path from 'node:path';
 import { isReadableAnchor } from './lodestar/anchor-source';
+import type { PageFetchPath } from './lodestar/adjudicate/page-fetch';
 import type {
   AnchorRecord,
   ClaimRecord,
@@ -89,6 +90,42 @@ export interface DemoLiveExpectationCheck {
 }
 
 /**
+ * 本次在线实验的抓取耗时读数。
+ *
+ * 为什么单独成一块：一次实验最贵的两段是检索与抓取，而"这场到底卡在哪一路"在终端汇总里
+ * 答不出来——直连与浏览器渲染的成本、失败模式都不一样，白等一轮渲染的时间也是真花掉的。
+ * 裁决链并发为 1（同一时刻只有一个外部请求在飞），所以这些耗时可以直接相加当墙钟占用看。
+ */
+export interface DemoLivePageTimingRow {
+  path: PageFetchPath;
+  /** 通路的人话名字：报告不指望读者知道 fetch / browser 指什么 */
+  label: string;
+  attempts: number;
+  medianMs: number;
+  maxMs: number;
+  totalMs: number;
+}
+
+export interface DemoLivePageTiming {
+  /** 抓取尝试次数（含没抓到的与组内复用） */
+  attempts: number;
+  /** 真读到正文的页数 */
+  fetched: number;
+  /** 同记录组内复用同一份快照的次数（没花抓取钱） */
+  cached: number;
+  /** 没抓到的尝试次数 */
+  failed: number;
+  /** 抓到正文的页合计耗时 */
+  fetchedTotalMs: number;
+  /** 白等的尝试合计耗时——同样是真花掉的时间 */
+  failedTotalMs: number;
+  /** 本次运行的墙钟时长 */
+  wallMs: number;
+  byPath: DemoLivePageTimingRow[];
+  slowest: Array<{ url: string; path: PageFetchPath; label: string; durationMs: number }>;
+}
+
+/**
  * 在线实验的元信息。
  *
  * 有它时报告必须改口径：不能说"全部离线"、不能把冻结底稿的抓取日期当本次日期、
@@ -108,6 +145,8 @@ export interface DemoLiveMeta {
   command: string;
   expectationChecks: DemoLiveExpectationCheck[];
   notes: string[];
+  /** 抓取耗时读数；没有抓取尝试（如 0 页）时可以不给，报告就不出这一节 */
+  pageTiming?: DemoLivePageTiming;
 }
 
 export interface DemoReportInput {
@@ -506,6 +545,17 @@ function recordCard(
   </section>`;
 }
 
+/**
+ * 毫秒写成能一眼比大小的读数：秒级保留一位小数，两分钟以上换成分钟。
+ * 报告里的耗时是拿来比较"哪一路慢"的，不是拿来核账的，所以不写 25431 ms 这种数。
+ */
+function formatDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 1000) return `${String(Math.round(Math.max(0, ms)))} ms`;
+  const seconds = ms / 1000;
+  if (seconds < 120) return `${seconds.toFixed(seconds < 10 ? 1 : 0)} s`;
+  return `${(seconds / 60).toFixed(1)} min`;
+}
+
 export function renderDemoReport(input: DemoReportInput): string {
   const live = input.liveMeta;
   const verdictByClaim = new Map(input.verdicts.map((verdict) => [verdict.claimId, verdict]));
@@ -582,6 +632,19 @@ export function renderDemoReport(input: DemoReportInput): string {
       <td>${check.ok ? '<span class="badge badge-strong badge-small">一致</span>' : '<span class="badge badge-rejected badge-small">不一致</span>'}</td>
     </tr>`).join('');
   const liveNotes = live?.notes ?? [];
+  const pageTiming = live?.pageTiming;
+  const timingPathRows = (pageTiming?.byPath ?? []).map((row) => `<tr>
+      <td>${esc(row.label)} <span class="mono muted">${esc(row.path)}</span></td>
+      <td class="num">${String(row.attempts)}</td>
+      <td class="num">${formatDuration(row.medianMs)}</td>
+      <td class="num">${formatDuration(row.maxMs)}</td>
+      <td class="num">${formatDuration(row.totalMs)}</td>
+    </tr>`).join('');
+  const timingSlowRows = (pageTiming?.slowest ?? []).map((item) => `<tr>
+      <td class="mono">${esc(item.url)}</td>
+      <td>${esc(item.label)}</td>
+      <td class="num">${formatDuration(item.durationMs)}</td>
+    </tr>`).join('');
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -799,6 +862,28 @@ export function renderDemoReport(input: DemoReportInput): string {
       <thead><tr><th>记录</th><th>离线预期</th><th>本次结果</th><th>是否一致</th></tr></thead>
       <tbody>${liveCheckRows}</tbody>
     </table></div>
+  </section>` : ''}
+
+  ${live && (pageTiming !== undefined || liveNotes.length > 0) ? `<section class="section">
+    <div class="section-head"><h2>这一场的时间花在哪</h2><span class="muted">在线实验的耗时是花钱换的读数：直连、渲染、白等要分开看</span></div>
+    ${pageTiming
+      ? `<div class="stats">
+      <div class="stat"><span class="n">${String(pageTiming.fetched)}</span><span class="k">读到正文的页</span></div>
+      <div class="stat"><span class="n">${String(pageTiming.cached)}</span><span class="k">组内复用（不花抓取钱）</span></div>
+      <div class="stat ${pageTiming.failed > 0 ? 'warn' : 'ok'}"><span class="n">${String(pageTiming.failed)}</span><span class="k">没抓到的尝试</span></div>
+      <div class="stat"><span class="n">${formatDuration(pageTiming.fetchedTotalMs)}</span><span class="k">抓页合计</span></div>
+      <div class="stat ${pageTiming.failedTotalMs > pageTiming.fetchedTotalMs ? 'bad' : ''}"><span class="n">${formatDuration(pageTiming.failedTotalMs)}</span><span class="k">白等掉的合计</span></div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>通路</th><th>次数</th><th>中位耗时</th><th>最长</th><th>合计</th></tr></thead>
+      <tbody>${timingPathRows}</tbody>
+    </table></div>
+    ${timingSlowRows !== '' ? `<div class="table-wrap"><table>
+      <thead><tr><th>最慢的几页</th><th>通路</th><th>耗时</th></tr></thead>
+      <tbody>${timingSlowRows}</tbody>
+    </table></div>` : ''}
+    <p class="muted" style="margin-top:10px;font-size:13px">本次墙钟 ${formatDuration(pageTiming.wallMs)}；抓取通路按每一次尝试计（含没抓到的）。裁决链同一时刻只放一个外部请求在飞，所以这些耗时可以直接相加当墙钟占用看；「组内复用」是同一条记录的相邻字段共用同一份快照，没再花抓取钱，也不计入合计。</p>`
+      : '<p class="muted">本次没有抓取记录。</p>'}
     ${liveNotes.length > 0 ? `<div class="callout"><ul>${liveNotes.map((note) => `<li>${esc(note)}</li>`).join('')}</ul></div>` : ''}
   </section>` : ''}
 

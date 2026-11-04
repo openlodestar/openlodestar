@@ -23,6 +23,7 @@ import { parseDemoCase, renderDemoReport, type DemoCase } from './demo-report';
 import { inspectEvidence, printEvidenceCheck } from './lodestar/evidence-check';
 import { resetDemoWorkDir } from './demo-workdir';
 import { commandLive, liveUsage } from './live';
+import { parseArgs, validateOfflineArgs } from './cli-input';
 import porcelainPack from './lodestar/packs/porcelain';
 import type {
   AnchorRecord,
@@ -71,29 +72,6 @@ Options:
 // ============================================
 // 通用
 // ============================================
-
-interface ParsedArgs {
-  command: string;
-  flags: Map<string, string>;
-}
-
-function parseArgs(argv: string[]): ParsedArgs {
-  const [command = '', ...rest] = argv;
-  const flags = new Map<string, string>();
-  for (let i = 0; i < rest.length; i++) {
-    const arg = rest[i] ?? '';
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = rest[i + 1];
-    if (next !== undefined && !next.startsWith('--')) {
-      flags.set(key, next);
-      i += 1;
-    } else {
-      flags.set(key, 'true');
-    }
-  }
-  return { command, flags };
-}
 
 function storeFor(flags: Map<string, string>): LodestarStore {
   const data = flags.get('data');
@@ -527,10 +505,19 @@ function safeHostname(url: string): string | null {
 // ============================================
 
 async function main(argv: string[]): Promise<number> {
-  const { command, flags } = parseArgs(argv);
-  if (command === '' || command === '--help' || command === 'help') {
+  const parsed = parseArgs(argv);
+  const { command, flags } = parsed;
+  if (command === '' || command === '--help' || command === 'help' || flags.has('help')) {
     console.log(USAGE);
     return 0;
+  }
+  // 离线硬校验的输入错了就当场失败：拼错的选项、缺值、点名不存在的底稿目录，
+  // 都不许被当成"核过了"（空底稿本身仍不算失败，见 README）。
+  const inputError = validateOfflineArgs(command, parsed);
+  if (inputError !== null) {
+    console.error(inputError);
+    console.error('\nRun `tsx src/cli.ts --help` for usage.');
+    return 1;
   }
   switch (command) {
     case 'demo':

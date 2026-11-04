@@ -1,0 +1,74 @@
+{
+  "id": "demo-batch-8",
+  "title": "2025 年中国嘉德「递藏之趣专场」（在线采集冻结）",
+  "subtitle": "一次 full 模式的真实采集：日期与专场名拿到单一来源支持，机构在预算内没查到，整条记录仍被拒收",
+  "query": "2024年至2025年，北京保利、中国嘉德的中国古董珍玩拍卖专场：拍卖机构、举办时间、专场名称",
+  "capturedAt": "2026-11-04",
+  "summary": "一次真实在线采集的冻结批次，保留 1 条记录、3 条断言、6 条证据、5 份页面节选。判定由引擎从这批证据重算，不沿用在线运行的结论。",
+  "sources": [
+    {
+      "id": "src-1",
+      "url": "https://www.cguardian.com/",
+      "publisher": "www.cguardian.com",
+      "publishedAt": "",
+      "tier": "official",
+      "family": "cguardian.com",
+      "capture": "snapshots/page-d88a91.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T10:00:28.106Z"
+    },
+    {
+      "id": "src-2",
+      "url": "https://auction.artron.net/org_detail/JG0005",
+      "publisher": "auction.artron.net",
+      "publishedAt": "",
+      "tier": "primary",
+      "family": "artron.net",
+      "capture": "snapshots/page-8ba8fd.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T10:00:52.832Z"
+    },
+    {
+      "id": "src-3",
+      "url": "https://www.artzww.com/art2017art/wap_doc/29663321.html",
+      "publisher": "www.artzww.com",
+      "publishedAt": "",
+      "tier": "unlisted",
+      "family": "artzww.com",
+      "capture": "snapshots/page-91cbce.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T10:01:42.728Z"
+    },
+    {
+      "id": "src-4",
+      "url": "https://wwj.beijing.gov.cn/bjww/362749/362751/cs88/743733485/index.html",
+      "publisher": "wwj.beijing.gov.cn",
+      "publishedAt": "",
+      "tier": "unlisted",
+      "family": "beijing.gov.cn",
+      "capture": "snapshots/page-525b77.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T10:02:07.375Z"
+    },
+    {
+      "id": "src-5",
+      "url": "http://news.cafa.edu.cn/MobileNews/independenWeixinContent?contentId=225454392",
+      "publisher": "news.cafa.edu.cn",
+      "publishedAt": "",
+      "tier": "unlisted",
+      "family": "cafa.edu.cn",
+      "capture": "snapshots/page-ff625a.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T10:02:34.746Z"
+    }
+  ],
+  "expectations": [],
+  "notProven": [
+    "rec-20261104-9863c4：这只是\"这批证据里的结论\"。抓取有预算上限，页面也可能随时间变化；页面上的\"查不到\"说的是这批节选里没有，不是世界上不存在。"
+  ],
+  "limitations": [
+    "这是一次 live 运行的冻结结果：搜索排名、页面可达性与模型输出都不可复现，同一个问题再跑一次可能得到别的记录。",
+    "快照是渲染后正文的节选，不是全文；裁剪规则是\"含引文的段落 + 直接上下文\"，每页不超过 2000 字符。",
+    "只保留关键字段全部裁决完的记录；在提问阶段被稳定性筛掉或没跑完的记录已剔除。"
+  ]
+}

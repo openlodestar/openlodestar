@@ -1,0 +1,85 @@
+{
+  "id": "demo-batch-1",
+  "title": "2022 年「中国古董珍玩」专场（在线采集冻结）",
+  "subtitle": "一次 full 模式的真实采集：机构没查到、日期与专场名各只有一条来源，整条记录不入坐标库",
+  "query": "2020至2022年，中国古董珍玩拍卖专场：拍卖机构、举办时间、专场名称",
+  "capturedAt": "2026-11-04",
+  "summary": "一次真实在线采集的冻结批次，保留 1 条记录、3 条断言、9 条证据、6 份页面节选。判定由引擎从这批证据重算，不沿用在线运行的结论。",
+  "sources": [
+    {
+      "id": "src-1",
+      "url": "https://m-news.artron.net/20201222/n1132545.html",
+      "publisher": "m-news.artron.net",
+      "publishedAt": "",
+      "tier": "primary",
+      "family": "artron.net",
+      "capture": "snapshots/page-704f73.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T09:14:20.974Z"
+    },
+    {
+      "id": "src-2",
+      "url": "https://artpro.com/auction-house/129",
+      "publisher": "artpro.com",
+      "publishedAt": "",
+      "tier": "aggregator",
+      "family": "artpro.com",
+      "capture": "snapshots/page-84e44a.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T09:14:50.697Z"
+    },
+    {
+      "id": "src-3",
+      "url": "http://wx.ttp.51bidlive.com/news/detail?id=4814",
+      "publisher": "wx.ttp.51bidlive.com",
+      "publishedAt": "",
+      "tier": "unlisted",
+      "family": "51bidlive.com",
+      "capture": "snapshots/page-6bfad1.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T09:15:51.383Z"
+    },
+    {
+      "id": "src-4",
+      "url": "https://www.artzww.com/art2017art/wap_doc/24053865.html",
+      "publisher": "www.artzww.com",
+      "publishedAt": "",
+      "tier": "unlisted",
+      "family": "artzww.com",
+      "capture": "snapshots/page-ddbb3b.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T09:16:38.166Z"
+    },
+    {
+      "id": "src-5",
+      "url": "https://auctiondaily.com/auction-house/poly-auction/",
+      "publisher": "auctiondaily.com",
+      "publishedAt": "",
+      "tier": "unlisted",
+      "family": "auctiondaily.com",
+      "capture": "snapshots/page-d00dcc.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T09:17:13.079Z"
+    },
+    {
+      "id": "src-6",
+      "url": "http://www.ikck.com/article-7665",
+      "publisher": "www.ikck.com",
+      "publishedAt": "",
+      "tier": "unlisted",
+      "family": "ikck.com",
+      "capture": "snapshots/page-00903b.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T09:18:55.473Z"
+    }
+  ],
+  "expectations": [],
+  "notProven": [
+    "rec-20261104-f584a0：这只是\"这批证据里的结论\"。抓取有预算上限，页面也可能随时间变化；页面上的\"查不到\"说的是这批节选里没有，不是世界上不存在。"
+  ],
+  "limitations": [
+    "这是一次 live 运行的冻结结果：搜索排名、页面可达性与模型输出都不可复现，同一个问题再跑一次可能得到别的记录。",
+    "快照是渲染后正文的节选，不是全文；裁剪规则是\"含引文的段落 + 直接上下文\"，每页不超过 2000 字符。",
+    "只保留关键字段全部裁决完的记录；在提问阶段被稳定性筛掉或没跑完的记录已剔除。"
+  ]
+}

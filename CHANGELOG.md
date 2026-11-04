@@ -14,6 +14,7 @@
 
 ### Changed
 
+- 站点检查（`scripts/check-site.mjs`）的扫描范围从只读 `docs/index.html` 扩到 `docs/*.html`，并允许**内联或同源 `assets/*.js` 的脚本**——交互页需要脚本，但外链、表单、内联事件、远程 CSS 与 `@import` 照旧禁。为 `file://` 双击打开补了四条禁令：`type="module"`、`import`、`fetch`/XHR 读本地、`localStorage`/`sessionStorage`。体积上限：首页 150 KB，演示页与数据脚本各 300 KB。
 - "什么算矛盾"收紧（提示词 `claim-compare` 1.3.0 → 1.4.0）：`refuted_needs_explicit_conflict` 删掉"名称指向另一场"这条例外——它正是上面那次误判的依据——改成要求页面**直接否认这条断言**，并逐条列明三种不算矛盾的情形（页面没提到 / 讲的是另一件东西 / 名称字面写法不同）。
 - 瓷器包 `sessionName` 领域细则同步补上这条：同系列相邻场次判 `irrelevant` 并在 `pageTopic` 写清讲的是第几场；判 `refutes` 需页面写明该场没办过、取消延期、或自述"本场定名为 X"而 X 与断言互斥。
 - 比对落盘前的机械护栏由两道增至三道：反驳方向的引文必须反驳被裁的那个对象。策略包可选实现 `refutationTargetsClaim`；判不了（`unknown`）或策略包没实现都放行——护栏只挡本域能机械认出的那一种错，不许把"规则覆盖不到"升级成拒收。
@@ -28,6 +29,11 @@
 
 ### Added
 
+- **交互演示页**（`docs/demo.html` + `docs/assets/demo*.js`）：从冻结批次里切换一条记录，现场展示它被拆成哪几个字段、每个字段的引文与出处、判成强/弱/被反驳/查不到、关键字段是否同页共现、最后给不给坐标。页面不需要服务端、不引第三方资源，`file://` 双击与断网都可用。
+  - 判定不由页面重算：`pnpm run demo:data`（`src/demo-page/build-demo-data.ts`）在构建时直接调引擎的 `retallyAndRegate`，把门禁、逐字段裁决、共现页与坐标冻结进 `docs/assets/demo-data.js`。
+  - 证据按「记录号 + 字段名 + 字段值」匹配；字段值对不上就让该字段与整条记录显示"这批证据没覆盖"，不继承旧证据、也不判成被拒收（`src/demo-page/demo-page.test.ts` 守着这条）。
+  - 新增冻结脚本 `src/demo-page/freeze-batch.ts`（`pnpm run demo:freeze`）：把一次 live 运行裁成 `examples/<批次>/`（只留关键字段全部裁决完的记录，快照裁到含引文段落与上下文、每页 ≤ 2000 字符）。
+  - 新增五个冻结批次 `examples/demo-batch-1/3/8/11/14/`（2026-11-04 在线采集，`full` 模式）：连同原有 `poly-2021-autumn` 共 9 组可切换记录——强 2、弱 2、被反驳 2、查不到 3。
 - **整场时间护栏**（`RunTimeGuards`，`src/lodestar/adjudicate/index.ts` 定义判据、`src/lodestar/engine.ts` 的记录组循环执行）：两道护栏补在"每条断言花多少预算"之外的整场尺度上。
   - **infra 熔断**：连续 `LODESTAR_INFRA_BREAKER` 条（默认 3）断言撞在基础设施空转上（检索层抛错，或抓回的页面全部没读到正文）就在下一条开跑前收手；出过裁决即清零，所以零星失败不会累积成熔断。`0` 关掉。
   - **墙钟截止时刻**：`live --deadline-minutes <n>`（或 `LODESTAR_DEADLINE_MINUTES`）到点收手；`--mode both` 时两个模式共用同一个时刻，从这条命令的起点算。检查点放在**组级检索之前**——那一发查询是计费调用，等到断言层才发现晚了就白花了。

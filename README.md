@@ -119,6 +119,16 @@ pnpm exec tsx src/cli.ts demo --example poly-2021-autumn --report .openlodestar-
 
 为什么要这样组织演示、以及一条结论旁边应该摆哪些东西，见 [docs/demo-design-guide.md](docs/demo-design-guide.md)；案例本身的来源、快照与预期结局见 [examples/poly-2021-autumn/README.md](examples/poly-2021-autumn/README.md)。
 
+### 交互演示：在浏览器里换一条记录
+
+`docs/demo.html` 是给站点用的交互版：从冻结批次里挑一条记录，看它被拆成哪几个字段、每个字段的引文与出处、判成强或弱或被反驳或查不到、关键字段有没有在同一页上同时出现，以及最后给不给坐标。
+
+它不需要服务端，也不引任何第三方资源，双击本地文件、断网都能打开。页面只做切换，**判定是构建时由引擎算好并冻结的**——`docs/assets/demo-data.js` 由 `pnpm run demo:data` 从 `examples/` 生成，页面不重算计票、门禁与坐标。改完底稿要重新生成一遍，再跑 `node scripts/check-site.mjs` 校验站点红线（同源脚本、离线可用、体积上限）。
+
+演示数据里的证据按「记录号 + 字段名 + 字段值」匹配：字段值一旦与构建时不一致，页面只显示"这批证据没覆盖"，不会继承旧证据，也不会把值对不上的记录判成被拒收。这条规则有测试守着。
+
+新增一批演示素材时，先用 `pnpm run demo:freeze` 把一次 live 运行裁成 `examples/<批次>/`（只保留关键字段全部裁决完的记录，快照只留含引文的段落与上下文、每页不超过 2000 字符），再跑 `pnpm run demo:data` 重新生成数据文件。
+
 ### 在线实验：把同一批断言放进真实链路
 
 `live` 子命令跑的是**在线**链路：查询翻译、搜索、抓页、逐页比对都调用真实服务，结论落在独立目录，不覆盖冻结示例。它用来回答"把这份离线底稿放回今天的互联网，还能得出同样的结论吗"，而不是一份可重复的演示。
@@ -189,9 +199,12 @@ src/
   prompts/                  提示词模板（YAML，每条规则都带 enabled）
   integrations/             搜索提供者（注册表 + 内置 llm-web/serper）、浏览器插件注册表与约定加载、抓取策略、HTML 清洗
   llm/                      OpenAI 兼容调用与重试
+  demo-page/                交互演示的数据构建与冻结脚本（docs/demo.html 的数据由它们生成）
 plugins/browser-playwright/ playwright 渲染插件（独立包；自带 package.json 与 playwright 依赖）
 examples/porcelain/         最小离线底稿（合成数据，契约测试用）
 examples/poly-2021-autumn/  真实案例底稿（公开报道的正文节选 + 抓取档案 + 四条候选记录 + case.json）
+examples/demo-batch-*/      在线采集补出来的冻结批次（页面节选 + 来源声明，供交互演示切换）
+docs/demo.html              交互演示页：切换记录、看字段引文与判定（断网可开）
 docs/demo-design-guide.md   演示方法论：一条演示该证明什么、怎么挑素材、怎么摆证据
 .env.example                在线链路的环境变量模板（复制为 .env；离线命令不需要）
 .github/                    CI 与 issue 模板

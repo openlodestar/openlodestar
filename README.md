@@ -151,7 +151,7 @@ pnpm exec tsx src/cli.ts verify-quotes --data .openlodestar-demo   # 逐字命�
 pnpm exec tsx src/cli.ts audit         --data .openlodestar-demo   # 主键引用 / 快照 / 强坐标共现页
 ```
 
-空底稿不算失败——它只是没有东西可报。
+空底稿不算失败——它只是没有东西可报。但参数这一层是"失败关闭"的：选项拼错（例如把 `--data` 写成 `--dat`）、只写选项没给值、多出一个位置参数，或 `--data` 点名的目录不存在 / 不是目录，都会打印原因并以退出码 1 结束——这些情况都是"没核到你点名的东西"，不能读成"核过了"。默认底稿不存在仍按空底稿处理。
 
 ## 仓库里有什么
 

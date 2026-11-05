@@ -143,6 +143,15 @@ pnpm exec tsx src/cli.ts demo --example poly-2021-autumn --report .openlodestar-
 
 玩法、组合矩阵与覆盖读数见 [docs/demo-lab.md](docs/demo-lab.md)。同一份文档里还写了一个**只在本机跑、不部署**的实时实验服务（`pnpm run demo:lab-server`，`127.0.0.1:3014`，默认拒绝运行，加 `--allow-spend` 才真的花钱查）。
 
+两页演示都可以直接双击本地文件打开。要在浏览器里用 `http://127.0.0.1:3013/demo-lab.html` 这种地址看，起一个只绑本机的静态预览：
+
+```bash
+pnpm run demo:serve                    # 默认 http://127.0.0.1:3013/demo-lab.html
+pnpm run demo:serve -- --port 3014     # 3013 被占用时换端口
+```
+
+按 `Ctrl+C` 停止。它只监听 `127.0.0.1`、只读 `docs/`，不联网、不读密钥、不计费；终端一关服务就没了，所以它只是预览，不是部署。
+
 ### 在线实验：把同一批断言放进真实链路
 
 `live` 子命令跑的是**在线**链路：查询翻译、搜索、抓页、逐页比对都调用真实服务，结论落在独立目录，不覆盖冻结示例。它用来回答"把这份离线底稿放回今天的互联网，还能得出同样的结论吗"，而不是一份可重复的演示。
@@ -222,6 +231,7 @@ docs/demo.html              交互演示页：切换记录、看字段引文与�
 docs/demo-lab.html          小游戏版演示页：改句子的四个槽位，看证据认不认（断网可开）
 docs/demo-lab.md            小游戏玩法、组合矩阵与覆盖读数；本地实时实验服务的边界
 scripts/demo-live-server.mjs 只在本机跑的实时实验服务（不部署，默认拒绝运行）
+scripts/serve-demo.mjs      两页演示的本地静态预览（只绑 127.0.0.1，默认端口 3013）
 docs/demo-design-guide.md   演示方法论：一条演示该证明什么、怎么挑素材、怎么摆证据
 .env.example                在线链路的环境变量模板（复制为 .env；离线命令不需要）
 .github/                    CI 与 issue 模板

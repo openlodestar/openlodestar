@@ -19,15 +19,14 @@
  */
 
 import { normalizeText } from '../../normalize';
-import { canonicalHouseName, HOUSE_ALIASES, parseTimeScope } from './rules';
+import {
+  canonicalHouseName,
+  HOUSE_ALIASES,
+  parseTimeScope,
+  SEASON_RANGES,
+  seasonRangeOf,
+} from './rules';
 import type { PageMention } from '../pack';
-
-/** 季度档 → 月份区间（春拍 3–6 月、秋拍 9–12 月、跨年档落在 1–2 月；本域常识，别处无意义） */
-const SEASON_RANGES: Array<{ word: string; alias: string[]; from: number; to: number }> = [
-  { word: '春', alias: ['春季', '春天', '春拍'], from: 3, to: 6 },
-  { word: '秋', alias: ['秋季', '金秋', '秋拍'], from: 9, to: 12 },
-  { word: '冬', alias: ['冬季', '冬拍', '跨年'], from: 1, to: 2 },
-];
 
 /** 一个字段值的归一形态 */
 export interface FieldSlot {
@@ -109,17 +108,17 @@ function numeralVariants(text: string): string[] {
 function yearMonthOf(text: string): { year: number; month: number | null } | null {
   const scope = parseTimeScope(text);
   const year = scope.from ? Number(scope.from.slice(0, 4)) : Number.NaN;
-  const month = scope.from && scope.from.length >= 7 ? Number(scope.from.slice(5, 7)) : Number.NaN;
+  let month = scope.from && scope.from.length >= 7 ? Number(scope.from.slice(5, 7)) : Number.NaN;
+  // 解析器对「2021年秋季」会给出季度起点（9 月），但原文并没有点名月份：
+  // 季度档的区间由 SEASON_RANGES 统一推，这里不许再把它当成一个具体月份。
+  if (Number.isInteger(month) && seasonRangeOf(text) !== null && !/月/.test(text)) month = Number.NaN;
   if (!Number.isInteger(year) || year < 1900 || year > 2100) return null;
   return { year, month: Number.isInteger(month) && month >= 1 && month <= 12 ? month : null };
 }
 
 /** 写法里直接出现的季度词（"2021秋季艺术品拍卖会"没有月份，但季度是明确的） */
 function seasonOf(text: string): (typeof SEASON_RANGES)[number] | null {
-  for (const range of SEASON_RANGES) {
-    if (text.includes(range.word) || range.alias.some((a) => text.includes(a))) return range;
-  }
-  return null;
+  return seasonRangeOf(text);
 }
 
 function slotOfHouse(value: string): FieldSlot {

@@ -10,6 +10,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { normalizeText } from '../../normalize';
+import { parseTimeScope, SEASON_RANGES } from './rules';
 import porcelainPack from './index';
 import {
   normalizedSlot,
@@ -55,6 +56,24 @@ describe('时间归一槽（季度 ↔ 月份）', () => {
     expect(slot.window).toEqual({ year: 2024, monthFrom: 4, monthTo: 4 });
     expect(slot.queryForms[0]).toContain('2024');
     expect(slot.queryForms.some((f) => f.includes('春'))).toBe(true);
+  });
+
+  it('同一句「2021年秋季」：解析器与归一槽都走同一份季节表，给出同一区间', () => {
+    for (const season of SEASON_RANGES) {
+      const text = `2021年${season.word}季`;
+      const scope = parseTimeScope(text);
+      expect(scope.from).toBe(`2021-${String(season.from).padStart(2, '0')}-01`);
+      expect(Number(scope.to?.slice(0, 7).replace('-', ''))).toBe(2021 * 100 + season.to);
+      // 归一槽的时间窗是另一条路径：它必须和解析器说同一个区间，不能再各写一份数字
+      expect(normalizedSlot('dateText', text).window).toEqual({
+        year: 2021,
+        monthFrom: season.from,
+        monthTo: season.to,
+      });
+    }
+    expect(parseTimeScope('2021年秋季')).toEqual({ from: '2021-09-01', to: '2021-12-31' });
+    // 季度词不是"用户点名的月份"：不许从季度起点硬造出一个 9 月检索式
+    expect(normalizedSlot('dateText', '2021年秋季').queryForms).not.toContain('2021年9月');
   });
 
   it('断言写"2024年4月"、页面只写"2024春季拍卖会" → 不许判 no（这正是 0/27 那一类）', () => {

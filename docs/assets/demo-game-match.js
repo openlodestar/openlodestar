@@ -58,6 +58,41 @@
     return null;
   }
 
+  function tripleKeyOf(triple) {
+    return [
+      String(triple && triple.auctionHouse !== undefined ? triple.auctionHouse : ''),
+      String(triple && triple.sessionPrefix !== undefined ? triple.sessionPrefix : ''),
+      String(triple && triple.sessionSubtitle !== undefined ? triple.sessionSubtitle : '')
+    ].join('\u0000');
+  }
+
+  /**
+   * 某个槽位此刻能选的候选。
+   *
+   * 机构、专场主名、副题三者必须能构成冻结数据里真实出现过的三元组：换一个词时，
+   * 其余两个词保持不动，候选值只有能和它们拼成一个真实三元组时才列出来。
+   * 时间槽不参与三元组，始终列全部候选。
+   */
+  function slotOptions(data, values, slotKey) {
+    var slot = null;
+    var slots = data && Array.isArray(data.slots) ? data.slots : [];
+    slots.forEach(function (item) {
+      if (item.key === slotKey) slot = item;
+    });
+    if (!slot) return [];
+    if (slotKey === 'dateText') return slot.options.slice();
+    var triples = data && Array.isArray(data.triples) ? data.triples : [];
+    if (triples.length === 0) return slot.options.slice();
+    var probe = copyValues(values);
+    return slot.options.filter(function (option) {
+      probe[slotKey] = option;
+      var key = tripleKeyOf(probe);
+      return triples.some(function (triple) {
+        return tripleKeyOf(triple) === key;
+      });
+    });
+  }
+
   function recordIndex(demoData) {
     var map = {};
     var cases = demoData && Array.isArray(demoData.cases) ? demoData.cases : [];
@@ -205,6 +240,8 @@
     STATUS_SHORT: STATUS_SHORT,
     STATUS_HINTS: STATUS_HINTS,
     comboKey: comboKey,
+    tripleKeyOf: tripleKeyOf,
+    slotOptions: slotOptions,
     findCombo: findCombo,
     recordIndex: recordIndex,
     resolve: resolve,

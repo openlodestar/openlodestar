@@ -157,11 +157,18 @@ interface GameCombo {
   computation: GameComputation | null;
 }
 
+interface GameTriple {
+  auctionHouse: string;
+  sessionPrefix: string;
+  sessionSubtitle: string;
+}
+
 interface GameData {
   generatedAt: string;
   generator: string;
   note: string;
   slots: Array<{ key: SlotKey; label: string; options: string[] }>;
+  triples: GameTriple[];
   combos: GameCombo[];
   stats: {
     total: number;
@@ -188,6 +195,12 @@ interface GameApi {
   STATUS_SHORT: Record<Bucket | 'uncovered', string>;
   STATUS_HINTS: Record<Bucket | 'uncovered', string>;
   comboKey: (values: Record<SlotKey, string>) => string;
+  tripleKeyOf: (triple: GameTriple) => string;
+  slotOptions: (
+    data: GameData,
+    values: Record<SlotKey, string>,
+    slotKey: SlotKey,
+  ) => string[];
   findCombo: (data: GameData, values: Record<SlotKey, string>) => GameCombo | null;
   recordIndex: (data: DemoData) => Record<string, DemoRecord>;
   resolve: (data: GameData, demo: DemoData, values: Record<SlotKey, string>) => GameResolveResult;
@@ -354,18 +367,90 @@ describe('页面装载与离线约束', () => {
 });
 
 describe('槽位与组合矩阵', () => {
-  it('四个槽位、每槽 2–4 个选项，组合数等于选项数的乘积且不超过 100', () => {
+  it('四个槽位，候选按真实三元组收窄；组合数 = 三元组 × 时间，且不超过 100', () => {
     expect(game.slots.map((slot) => slot.key)).toEqual(api.SLOT_KEYS);
     for (const slot of game.slots) {
-      expect(slot.options.length).toBeGreaterThanOrEqual(2);
+      expect(slot.options.length).toBeGreaterThanOrEqual(1);
       expect(slot.options.length).toBeLessThanOrEqual(4);
       expect(new Set(slot.options).size).toBe(slot.options.length);
     }
-    const product = game.slots.reduce((total, slot) => total * slot.options.length, 1);
-    expect(game.combos.length).toBe(product);
+    const dates = game.slots.find((slot) => slot.key === 'dateText')?.options ?? [];
+    expect(game.triples.length).toBe(3);
+    expect(game.combos.length).toBe(game.triples.length * dates.length);
+    expect(game.combos.length).toBe(12);
     expect(game.combos.length).toBeLessThanOrEqual(100);
     expect(game.stats.total).toBe(game.combos.length);
     expect(game.stats.maxCombos).toBe(100);
+  });
+
+  it('每个组合的三元组都真实出现过；嘉德与错配的副题不再进矩阵', () => {
+    const real = new Set(game.triples.map((triple) => api.tripleKeyOf(triple)));
+    for (const combo of game.combos) {
+      expect(real.has(api.tripleKeyOf(combo.values)), `组合 ${combo.id} 的三元组不在真实共现表里`).toBe(
+        true,
+      );
+    }
+    // 三元组本身也必须真的在冻结记录里出现过，不能靠拼接造出来
+    const frozen = allRecords()
+      .map(keyValuesOf)
+      .filter((values): values is Record<SlotKey, string> => values !== null);
+    for (const triple of game.triples) {
+      const seen = frozen.some(
+        (values) =>
+          values.auctionHouse === triple.auctionHouse &&
+          values.sessionPrefix === triple.sessionPrefix &&
+          values.sessionSubtitle === triple.sessionSubtitle,
+      );
+      expect(seen, `三元组 ${api.tripleKeyOf(triple)} 没有在冻结数据里出现过`).toBe(true);
+    }
+    // 机构槽只剩保利：嘉德唯一的真实场次（宸赏—明清御瓷珍玩）时间不在四个时间候选里
+    expect(game.slots.find((slot) => slot.key === 'auctionHouse')?.options).toEqual(['北京保利']);
+    expect(game.combos.some((combo) => combo.values.auctionHouse.includes('嘉德'))).toBe(false);
+    // 禹贡Ⅱ 只能用「郎世宁」、Ⅲ 只能用「盛清」这类错配不许再出现在组合里
+    expect(
+      game.combos.some(
+        (combo) =>
+          combo.values.sessionPrefix === '禹贡Ⅱ' &&
+          combo.values.sessionSubtitle === '盛清御瓷新风尚',
+      ),
+    ).toBe(false);
+    expect(
+      game.combos.some(
+        (combo) =>
+          combo.values.sessionPrefix === '禹贡Ⅲ' &&
+          combo.values.sessionSubtitle.includes('郎世宁'),
+      ),
+    ).toBe(false);
+  });
+
+  it('换某个槽的候选项，必须能和另外两个已选词构成真实三元组', () => {
+    const dates = game.slots.find((slot) => slot.key === 'dateText')?.options ?? [];
+    expect(api.slotOptions(game, INITIAL_VALUES, 'auctionHouse')).toEqual(['北京保利']);
+    expect(api.slotOptions(game, INITIAL_VALUES, 'sessionPrefix')).toEqual(['禹贡Ⅰ', '禹贡Ⅲ']);
+    expect(api.slotOptions(game, INITIAL_VALUES, 'sessionSubtitle')).toEqual(['盛清御瓷新风尚']);
+    expect(api.slotOptions(game, INITIAL_VALUES, 'dateText')).toEqual(dates);
+
+    const weak = comboIn('weak');
+    expect(api.slotOptions(game, weak.values, 'sessionPrefix')).toEqual(['禹贡Ⅱ']);
+    expect(api.slotOptions(game, weak.values, 'sessionSubtitle')).toEqual([
+      weak.values.sessionSubtitle,
+    ]);
+    expect(api.slotOptions(game, weak.values, 'auctionHouse')).toEqual(['北京保利']);
+
+    // 任何状态下给出的候选，拼起来都必须仍是一张真实三元组
+    for (const combo of game.combos) {
+      for (const slot of game.slots) {
+        for (const option of api.slotOptions(game, combo.values, slot.key)) {
+          const probe = { ...combo.values, [slot.key]: option };
+          expect(
+            game.triples.some(
+              (triple) => api.tripleKeyOf(triple) === api.tripleKeyOf(probe),
+            ),
+            `状态 ${combo.id} 的 ${slot.label} 候选「${option}」拼不成真实三元组`,
+          ).toBe(true);
+        }
+      }
+    }
   });
 
   it('每个选项都真的在冻结数据里出现过，没有凭空造值', () => {
@@ -513,8 +598,8 @@ describe('单槽替换：有证据与没覆盖走两条路', () => {
     }
   });
 
-  it('把专场主名从 禹贡Ⅰ 换成 禹贡Ⅱ，显示「这批证据没覆盖」而不是拒收', () => {
-    const values = edited({ sessionPrefix: '禹贡Ⅱ' });
+  it('把时间从 12 月 5 日换成秋季，显示「这批证据没覆盖」而不是拒收', () => {
+    const values = edited({ dateText: '2021年秋季' });
     const combo = api.findCombo(game, values);
     expect(combo, '这组替换应在矩阵里').not.toBeNull();
     expect(combo?.status).toBe('uncovered');
@@ -557,7 +642,7 @@ describe('组合数 × 覆盖数读数', () => {
 
   it('四类结论各有覆盖组合，并被分别断言', () => {
     expect(game.stats.covered).toBe(4);
-    expect(game.stats.uncovered).toBe(68);
+    expect(game.stats.uncovered).toBe(8);
     for (const bucket of ['strong', 'weak', 'refuted', 'not_found'] as const) {
       expect(game.stats.byStatus[bucket], `${bucket} 没有覆盖组合`).toBe(1);
       const combo = comboIn(bucket);
@@ -616,12 +701,14 @@ describe('改词即出结论：新交互的核心路径', () => {
   it('每个可换词的状态小标都等于真实结论，没有一处靠猜', () => {
     const states = [
       INITIAL_VALUES,
-      edited({ sessionPrefix: '禹贡Ⅱ' }),
-      edited({ auctionHouse: '中国嘉德国际拍卖有限公司' }),
+      edited({ dateText: '2021年秋季' }),
+      comboIn('weak').values,
+      comboIn('not_found').values,
     ];
     for (const values of states) {
       for (const slot of game.slots) {
-        for (const option of slot.options) {
+        // 只核对页面真的会列出来的候选：收窄后不在候选里的值玩家点不到
+        for (const option of api.slotOptions(game, values, slot.key)) {
           const next = withValue(values, slot.key, option);
           const expected = api.resolve(game, demo, next).status;
           expect(
@@ -637,7 +724,7 @@ describe('改词即出结论：新交互的核心路径', () => {
     expect(api.substitutionStatus(game, demo, INITIAL_VALUES, 'dateText', '2021年11月15日')).toBe(
       'refuted',
     );
-    expect(api.substitutionStatus(game, demo, INITIAL_VALUES, 'sessionPrefix', '禹贡Ⅱ')).toBe(
+    expect(api.substitutionStatus(game, demo, INITIAL_VALUES, 'dateText', '2021年秋季')).toBe(
       'uncovered',
     );
 
@@ -648,23 +735,29 @@ describe('改词即出结论：新交互的核心路径', () => {
     );
     expect(refuted.status).toBe('refuted');
     expect(refuted.view?.gate).toBe('rejected');
-    expect(refuted.combo?.id).toBe('g-10');
+    expect(refuted.combo?.id).toBe('g-02');
 
     const uncovered = api.resolve(
       game,
       demo,
-      withValue(INITIAL_VALUES, 'sessionPrefix', '禹贡Ⅱ'),
+      withValue(INITIAL_VALUES, 'dateText', '2021年秋季'),
     );
     expect(uncovered.status).toBe('uncovered');
     expect(uncovered.record).toBeNull();
     expect(uncovered.view).toBeNull();
+
+    // 收窄后「禹贡Ⅱ」不再是初始句子的候选（它只能配郎世宁）；「对得弱」仍能从没覆盖一步跳过去
+    expect(api.slotOptions(game, INITIAL_VALUES, 'sessionPrefix')).not.toContain('禹贡Ⅱ');
+    const weak = comboIn('weak');
+    expect(
+      api
+        .nearbyCovered(game, withValue(INITIAL_VALUES, 'dateText', '2021年秋季'), 3)
+        .some((jump) => jump.id === weak.id),
+    ).toBe(true);
   });
 
   it('「没覆盖」时给出的去处都是冻结矩阵里的真组合，且改动数最少', () => {
-    const states = [
-      edited({ sessionPrefix: '禹贡Ⅱ' }),
-      edited({ auctionHouse: '中国嘉德国际拍卖有限公司', sessionPrefix: '禹贡Ⅲ' }),
-    ];
+    const states = [edited({ dateText: '2021年秋季' }), edited({ dateText: '2021年12月' })];
     for (const values of states) {
       expect(api.resolve(game, demo, values).status).toBe('uncovered');
       const jumps = api.nearbyCovered(game, values, 3);
@@ -688,7 +781,7 @@ describe('改词即出结论：新交互的核心路径', () => {
     const seen = new Set<string>();
     for (const combo of game.combos) {
       for (const slot of game.slots) {
-        for (const option of slot.options) {
+        for (const option of api.slotOptions(game, combo.values, slot.key)) {
           seen.add(api.substitutionStatus(game, demo, combo.values, slot.key, option));
         }
       }

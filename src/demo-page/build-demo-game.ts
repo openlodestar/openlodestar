@@ -49,36 +49,27 @@ export interface GameSlot {
   options: string[];
 }
 
-/**
- * 槽位与可选项。每个值都必须在冻结批次的字段值里真实出现过（构建时核对）。
- * 时间取 4 个、机构取 2 个，是为了让 2×4×3×3 = 72 种组合稳稳落在 100 以内。
- */
-export const GAME_SLOTS: GameSlot[] = [
-  {
-    key: 'auctionHouse',
-    label: '拍卖机构',
-    options: ['北京保利', '中国嘉德国际拍卖有限公司'],
-  },
-  {
-    key: 'dateText',
-    label: '举办时间',
-    options: ['2021年12月5日', '2021年11月15日', '2021年秋季', '2021年12月'],
-  },
-  {
-    key: 'sessionPrefix',
-    label: '专场主名',
-    options: ['禹贡Ⅰ', '禹贡Ⅱ', '禹贡Ⅲ'],
-  },
-  {
-    key: 'sessionSubtitle',
-    label: '专场副题',
-    options: [
-      '盛清御瓷新风尚',
-      '郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术',
-      '明清御瓷珍玩',
-    ],
-  },
-];
+/** 时间槽的候选：冻结数据里出现过的日期写法（顺序固定，组合编号稳定） */
+const DATE_OPTIONS = ['2021年12月5日', '2021年11月15日', '2021年秋季', '2021年12月'];
+
+/** 槽位名固定；候选值在构建时从真实三元组里算出来，不在这里手写 */
+const SLOT_LABELS: Record<GameSlotKey, string> = {
+  auctionHouse: '拍卖机构',
+  dateText: '举办时间',
+  sessionPrefix: '专场主名',
+  sessionSubtitle: '专场副题',
+};
+
+/** 机构 + 专场主名 + 副题的真实共现（时间不参与：它是玩家要换的那个变量） */
+export interface GameTriple {
+  auctionHouse: string;
+  sessionPrefix: string;
+  sessionSubtitle: string;
+}
+
+function tripleKeyOf(triple: GameTriple): string {
+  return [triple.auctionHouse, triple.sessionPrefix, triple.sessionSubtitle].join('\u0000');
+}
 
 export interface GameFieldVerdict {
   fieldValue: string;
@@ -142,6 +133,8 @@ export interface GameData {
   generator: string;
   note: string;
   slots: GameSlot[];
+  /** 机构 + 专场主名 + 副题在冻结数据里真实出现过的三元组；换词时候选必须落在这张表里 */
+  triples: GameTriple[];
   combos: GameCombo[];
   stats: GameStats;
 }
@@ -203,39 +196,76 @@ function allRecords(cases: DemoCaseData[]): DemoRecord[] {
   return cases.flatMap((item) => item.records);
 }
 
+/**
+ * 从冻结记录里收「机构 + 主名 + 副题」的真实三元组。
+ *
+ * 只保留至少有一个时间候选能对上记录的：否则这个三元组生成的所有组合永远是「没覆盖」，
+ * 换词规则下也走不到它——例如嘉德的「宸赏—明清御瓷珍玩」举办于 2021年11月26日至12月13日，
+ * 四个时间候选一个都不沾，这种凑不出结论的三元组按"凑不出来就减候选"直接减掉。
+ */
+function collectTriples(records: DemoRecord[], dates: string[]): GameTriple[] {
+  const dateSet = new Set(dates);
+  const seen = new Map<string, { triple: GameTriple; covered: boolean }>();
+  for (const record of records) {
+    const four = tripleOf(record);
+    if (four === null) continue;
+    const triple: GameTriple = {
+      auctionHouse: four.auctionHouse,
+      sessionPrefix: four.sessionPrefix,
+      sessionSubtitle: four.sessionSubtitle,
+    };
+    const key = tripleKeyOf(triple);
+    const entry = seen.get(key) ?? { triple, covered: false };
+    if (dateSet.has(four.dateText)) entry.covered = true;
+    seen.set(key, entry);
+  }
+  return [...seen.values()].filter((entry) => entry.covered).map((entry) => entry.triple);
+}
+
+/** 槽位 = 名称 + 候选；机构/主名/副题的候选只取真实三元组里出现过的值，时间是固定候选 */
+function slotsOf(triples: GameTriple[], dates: string[]): GameSlot[] {
+  return (['auctionHouse', 'dateText', 'sessionPrefix', 'sessionSubtitle'] as const).map((key) => ({
+    key,
+    label: SLOT_LABELS[key],
+    options:
+      key === 'dateText'
+        ? dates.slice()
+        : [...new Set(triples.map((triple) => triple[key]))],
+  }));
+}
+
 /** 选项必须真的在冻结数据里出现过：宁可构建失败，也不许造一个好看的值 */
-function assertOptionsFromFrozen(records: DemoRecord[], slots: GameSlot[]): void {
-  const triples = records.map(tripleOf).filter((triple): triple is Triple => triple !== null);
+function assertOptionsFromFrozen(records: DemoRecord[], triples: GameTriple[], slots: GameSlot[]): void {
+  const recordTriples = records.map(tripleOf).filter((triple): triple is Triple => triple !== null);
   const seen: Record<GameSlotKey, Set<string>> = {
     auctionHouse: new Set(triples.map((triple) => triple.auctionHouse)),
-    dateText: new Set(triples.map((triple) => triple.dateText)),
+    dateText: new Set(recordTriples.map((triple) => triple.dateText)),
     sessionPrefix: new Set(triples.map((triple) => triple.sessionPrefix)),
     sessionSubtitle: new Set(triples.map((triple) => triple.sessionSubtitle)),
   };
   for (const slot of slots) {
-    if (slot.options.length < 2 || slot.options.length > 4) {
-      throw new Error(`槽位「${slot.label}」有 ${slot.options.length} 个选项，应控制在 2–4 个`);
+    if (slot.options.length < 1 || slot.options.length > 4) {
+      throw new Error(`槽位「${slot.label}」有 ${slot.options.length} 个候选，应控制在 1–4 个`);
     }
     for (const option of slot.options) {
       if (!seen[slot.key].has(option)) {
-        throw new Error(`槽位「${slot.label}」的选项「${option}」没有在冻结数据里出现过`);
+        throw new Error(`槽位「${slot.label}」的候选「${option}」没有在冻结数据里出现过`);
       }
     }
   }
 }
 
-/** 四个槽位的笛卡尔积（顺序固定，组合编号稳定） */
-function cartesian(slots: GameSlot[]): Triple[] {
-  const [house, date, prefix, subtitle] = slots;
-  if (!house || !date || !prefix || !subtitle) throw new Error('槽位定义必须恰好是四项');
+/** 组合 = 每个真实三元组 × 每个时间候选（三元组之间不交叉拼接，顺序固定） */
+function combosOf(triples: GameTriple[], dates: string[]): Triple[] {
   const combos: Triple[] = [];
-  for (const auctionHouse of house.options) {
-    for (const dateText of date.options) {
-      for (const sessionPrefix of prefix.options) {
-        for (const sessionSubtitle of subtitle.options) {
-          combos.push({ auctionHouse, dateText, sessionPrefix, sessionSubtitle });
-        }
-      }
+  for (const triple of triples) {
+    for (const dateText of dates) {
+      combos.push({
+        auctionHouse: triple.auctionHouse,
+        dateText,
+        sessionPrefix: triple.sessionPrefix,
+        sessionSubtitle: triple.sessionSubtitle,
+      });
     }
   }
   return combos;
@@ -343,19 +373,26 @@ async function main(): Promise<void> {
   }
 
   const records = allRecords(cases);
-  assertOptionsFromFrozen(records, GAME_SLOTS);
+  const triples = collectTriples(records, DATE_OPTIONS);
+  if (triples.length === 0) {
+    throw new Error('冻结数据里没有任何「机构 + 专场主名 + 副题」的真实三元组，无法建组合矩阵');
+  }
+  const slots = slotsOf(triples, DATE_OPTIONS);
+  assertOptionsFromFrozen(records, triples, slots);
 
-  const combosInOrder = cartesian(GAME_SLOTS);
+  const combosInOrder = combosOf(triples, DATE_OPTIONS);
   if (combosInOrder.length > MAX_COMBOS) {
     throw new Error(`组合总数 ${combosInOrder.length} 超过上限 ${MAX_COMBOS}，请减少每槽选项`);
   }
 
-  // 记录索引：只收四个值都在选项集合里的记录（其余记录不在本小游戏的取值空间内）
+  // 记录索引：只收四个值都在候选集合里的记录（其余记录不在本小游戏的取值空间内）
+  const optionsFor = (key: GameSlotKey): Set<string> =>
+    new Set(slots.find((slot) => slot.key === key)?.options ?? []);
   const optionSets: Record<GameSlotKey, Set<string>> = {
-    auctionHouse: new Set(GAME_SLOTS[0]?.options ?? []),
-    dateText: new Set(GAME_SLOTS[1]?.options ?? []),
-    sessionPrefix: new Set(GAME_SLOTS[2]?.options ?? []),
-    sessionSubtitle: new Set(GAME_SLOTS[3]?.options ?? []),
+    auctionHouse: optionsFor('auctionHouse'),
+    dateText: optionsFor('dateText'),
+    sessionPrefix: optionsFor('sessionPrefix'),
+    sessionSubtitle: optionsFor('sessionSubtitle'),
   };
   const caseOrderByName = new Map(cases.map((item, index) => [item.id, index]));
   const byKey = new Map<string, Candidate[]>();
@@ -436,10 +473,13 @@ async function main(): Promise<void> {
     stats.byStatus[combo.computation.bucket] += 1;
   }
 
-  // 每类都要有覆盖组合，小游戏才凑得齐四种结局（缺了就给出提示，不擅自改槽位）
+  // 每类都要有覆盖组合，小游戏才凑得齐四种结局；缺了就直接停下来，不擅自放宽候选
   for (const bucket of ['strong', 'weak', 'refuted', 'not_found'] as const) {
     if (stats.byStatus[bucket] === 0) {
-      console.warn(`Warning: 覆盖组合里没有 ${bucket}，小游戏演示不全。`);
+      throw new Error(
+        `收窄候选后覆盖组合里没有 ${bucket}，四个结局必须各至少 1 组；` +
+          '不要为了凑数把不可组合的候选放回来，先检查冻结数据或候选规则',
+      );
     }
   }
 
@@ -447,10 +487,11 @@ async function main(): Promise<void> {
     generatedAt: new Date().toISOString(),
     generator: 'src/demo-page/build-demo-game.ts',
     note:
-      '组合矩阵在构建时算好：四个槽位的取值只来自冻结批次里真实出现过的值，' +
-      '按「机构 + 时间 + 专场主名 + 副题」精确匹配冻结记录；匹配不到就是「这批证据没覆盖」，' +
+      '组合矩阵在构建时算好：机构 + 专场主名 + 副题只取冻结记录里真实出现过的三元组，' +
+      '每个三元组再与四个时间候选组合；匹配不到记录就是「这批证据没覆盖」，' +
       '不继承旧证据，也不判成被拒收。裁决、共现、坐标随记录冻结，逐条引文在 demo-data.js。',
-    slots: GAME_SLOTS,
+    slots,
+    triples,
     combos,
     stats,
   };
@@ -468,6 +509,12 @@ async function main(): Promise<void> {
 
   const bytes = (await fs.stat(OUTPUT_PATH)).size;
   console.log(`\nWrote ${path.relative(PACKAGE_ROOT, OUTPUT_PATH)} (${(bytes / 1024).toFixed(1)} KB)`);
+  console.log(`Real triples: ${triples.length}`);
+  console.log(
+    `Slot candidates: ${slots
+      .map((slot) => `${slot.key}=${slot.options.length}`)
+      .join(' ')}`,
+  );
   console.log(
     `Combos: total=${stats.total} covered=${stats.covered} uncovered=${stats.uncovered} — ` +
       ['strong', 'weak', 'refuted', 'not_found']

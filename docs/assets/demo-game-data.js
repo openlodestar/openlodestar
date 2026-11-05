@@ -1,16 +1,15 @@
 // 由 src/demo-page/build-demo-game.ts 从 examples/ 与 demo-data.js 生成，不要手改；改槽位或批次后重跑 pnpm run demo:game。
 // 组合矩阵只冻结"哪组取值命中哪条冻结记录"与引擎摘要；逐条证据、引文与快照在 demo-data.js，页面按记录号引用。
 window.LODESTAR_DEMO_GAME = {
-  "generatedAt": "2026-11-04T12:17:24.280Z",
+  "generatedAt": "2026-11-05T08:45:21.361Z",
   "generator": "src/demo-page/build-demo-game.ts",
-  "note": "组合矩阵在构建时算好：四个槽位的取值只来自冻结批次里真实出现过的值，按「机构 + 时间 + 专场主名 + 副题」精确匹配冻结记录；匹配不到就是「这批证据没覆盖」，不继承旧证据，也不判成被拒收。裁决、共现、坐标随记录冻结，逐条引文在 demo-data.js。",
+  "note": "组合矩阵在构建时算好：机构 + 专场主名 + 副题只取冻结记录里真实出现过的三元组，每个三元组再与四个时间候选组合；匹配不到记录就是「这批证据没覆盖」，不继承旧证据，也不判成被拒收。裁决、共现、坐标随记录冻结，逐条引文在 demo-data.js。",
   "slots": [
     {
       "key": "auctionHouse",
       "label": "拍卖机构",
       "options": [
-        "北京保利",
-        "中国嘉德国际拍卖有限公司"
+        "北京保利"
       ]
     },
     {
@@ -37,9 +36,25 @@ window.LODESTAR_DEMO_GAME = {
       "label": "专场副题",
       "options": [
         "盛清御瓷新风尚",
-        "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-        "明清御瓷珍玩"
+        "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
       ]
+    }
+  ],
+  "triples": [
+    {
+      "auctionHouse": "北京保利",
+      "sessionPrefix": "禹贡Ⅰ",
+      "sessionSubtitle": "盛清御瓷新风尚"
+    },
+    {
+      "auctionHouse": "北京保利",
+      "sessionPrefix": "禹贡Ⅱ",
+      "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
+    },
+    {
+      "auctionHouse": "北京保利",
+      "sessionPrefix": "禹贡Ⅲ",
+      "sessionSubtitle": "盛清御瓷新风尚"
     }
   ],
   "combos": [
@@ -147,134 +162,6 @@ window.LODESTAR_DEMO_GAME = {
     },
     {
       "id": "g-02",
-      "key": "北京保利\u00002021年12月5日\u0000禹贡Ⅰ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "北京保利 在 2021年12月5日 举办了一场名为「禹贡Ⅰ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-03",
-      "key": "北京保利\u00002021年12月5日\u0000禹贡Ⅰ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "北京保利 在 2021年12月5日 举办了一场名为「禹贡Ⅰ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-04",
-      "key": "北京保利\u00002021年12月5日\u0000禹贡Ⅱ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "北京保利 在 2021年12月5日 举办了一场名为「禹贡Ⅱ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-05",
-      "key": "北京保利\u00002021年12月5日\u0000禹贡Ⅱ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "北京保利 在 2021年12月5日 举办了一场名为「禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-06",
-      "key": "北京保利\u00002021年12月5日\u0000禹贡Ⅱ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "北京保利 在 2021年12月5日 举办了一场名为「禹贡Ⅱ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-07",
-      "key": "北京保利\u00002021年12月5日\u0000禹贡Ⅲ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "北京保利 在 2021年12月5日 举办了一场名为「禹贡Ⅲ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-08",
-      "key": "北京保利\u00002021年12月5日\u0000禹贡Ⅲ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "北京保利 在 2021年12月5日 举办了一场名为「禹贡Ⅲ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-09",
-      "key": "北京保利\u00002021年12月5日\u0000禹贡Ⅲ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "北京保利 在 2021年12月5日 举办了一场名为「禹贡Ⅲ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-10",
       "key": "北京保利\u00002021年11月15日\u0000禹贡Ⅰ\u0000盛清御瓷新风尚",
       "values": {
         "auctionHouse": "北京保利",
@@ -340,135 +227,7 @@ window.LODESTAR_DEMO_GAME = {
       }
     },
     {
-      "id": "g-11",
-      "key": "北京保利\u00002021年11月15日\u0000禹贡Ⅰ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "北京保利 在 2021年11月15日 举办了一场名为「禹贡Ⅰ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-12",
-      "key": "北京保利\u00002021年11月15日\u0000禹贡Ⅰ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "北京保利 在 2021年11月15日 举办了一场名为「禹贡Ⅰ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-13",
-      "key": "北京保利\u00002021年11月15日\u0000禹贡Ⅱ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "北京保利 在 2021年11月15日 举办了一场名为「禹贡Ⅱ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-14",
-      "key": "北京保利\u00002021年11月15日\u0000禹贡Ⅱ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "北京保利 在 2021年11月15日 举办了一场名为「禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-15",
-      "key": "北京保利\u00002021年11月15日\u0000禹贡Ⅱ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "北京保利 在 2021年11月15日 举办了一场名为「禹贡Ⅱ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-16",
-      "key": "北京保利\u00002021年11月15日\u0000禹贡Ⅲ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "北京保利 在 2021年11月15日 举办了一场名为「禹贡Ⅲ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-17",
-      "key": "北京保利\u00002021年11月15日\u0000禹贡Ⅲ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "北京保利 在 2021年11月15日 举办了一场名为「禹贡Ⅲ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-18",
-      "key": "北京保利\u00002021年11月15日\u0000禹贡Ⅲ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "北京保利 在 2021年11月15日 举办了一场名为「禹贡Ⅲ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-19",
+      "id": "g-03",
       "key": "北京保利\u00002021年秋季\u0000禹贡Ⅰ\u0000盛清御瓷新风尚",
       "values": {
         "auctionHouse": "北京保利",
@@ -484,47 +243,15 @@ window.LODESTAR_DEMO_GAME = {
       "computation": null
     },
     {
-      "id": "g-20",
-      "key": "北京保利\u00002021年秋季\u0000禹贡Ⅰ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
+      "id": "g-04",
+      "key": "北京保利\u00002021年12月\u0000禹贡Ⅰ\u0000盛清御瓷新风尚",
       "values": {
         "auctionHouse": "北京保利",
-        "dateText": "2021年秋季",
+        "dateText": "2021年12月",
         "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "北京保利 在 2021年秋季 举办了一场名为「禹贡Ⅰ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-21",
-      "key": "北京保利\u00002021年秋季\u0000禹贡Ⅰ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年秋季",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "北京保利 在 2021年秋季 举办了一场名为「禹贡Ⅰ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-22",
-      "key": "北京保利\u00002021年秋季\u0000禹贡Ⅱ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年秋季",
-        "sessionPrefix": "禹贡Ⅱ",
         "sessionSubtitle": "盛清御瓷新风尚"
       },
-      "sentence": "北京保利 在 2021年秋季 举办了一场名为「禹贡Ⅱ—盛清御瓷新风尚」的拍卖会。",
+      "sentence": "北京保利 在 2021年12月 举办了一场名为「禹贡Ⅰ—盛清御瓷新风尚」的拍卖会。",
       "status": "uncovered",
       "recordId": null,
       "caseId": null,
@@ -532,7 +259,39 @@ window.LODESTAR_DEMO_GAME = {
       "computation": null
     },
     {
-      "id": "g-23",
+      "id": "g-05",
+      "key": "北京保利\u00002021年12月5日\u0000禹贡Ⅱ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
+      "values": {
+        "auctionHouse": "北京保利",
+        "dateText": "2021年12月5日",
+        "sessionPrefix": "禹贡Ⅱ",
+        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
+      },
+      "sentence": "北京保利 在 2021年12月5日 举办了一场名为「禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
+      "status": "uncovered",
+      "recordId": null,
+      "caseId": null,
+      "matched": [],
+      "computation": null
+    },
+    {
+      "id": "g-06",
+      "key": "北京保利\u00002021年11月15日\u0000禹贡Ⅱ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
+      "values": {
+        "auctionHouse": "北京保利",
+        "dateText": "2021年11月15日",
+        "sessionPrefix": "禹贡Ⅱ",
+        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
+      },
+      "sentence": "北京保利 在 2021年11月15日 举办了一场名为「禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
+      "status": "uncovered",
+      "recordId": null,
+      "caseId": null,
+      "matched": [],
+      "computation": null
+    },
+    {
+      "id": "g-07",
       "key": "北京保利\u00002021年秋季\u0000禹贡Ⅱ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
       "values": {
         "auctionHouse": "北京保利",
@@ -611,135 +370,7 @@ window.LODESTAR_DEMO_GAME = {
       }
     },
     {
-      "id": "g-24",
-      "key": "北京保利\u00002021年秋季\u0000禹贡Ⅱ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年秋季",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "北京保利 在 2021年秋季 举办了一场名为「禹贡Ⅱ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-25",
-      "key": "北京保利\u00002021年秋季\u0000禹贡Ⅲ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年秋季",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "北京保利 在 2021年秋季 举办了一场名为「禹贡Ⅲ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-26",
-      "key": "北京保利\u00002021年秋季\u0000禹贡Ⅲ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年秋季",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "北京保利 在 2021年秋季 举办了一场名为「禹贡Ⅲ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-27",
-      "key": "北京保利\u00002021年秋季\u0000禹贡Ⅲ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年秋季",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "北京保利 在 2021年秋季 举办了一场名为「禹贡Ⅲ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-28",
-      "key": "北京保利\u00002021年12月\u0000禹贡Ⅰ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年12月",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "北京保利 在 2021年12月 举办了一场名为「禹贡Ⅰ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-29",
-      "key": "北京保利\u00002021年12月\u0000禹贡Ⅰ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年12月",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "北京保利 在 2021年12月 举办了一场名为「禹贡Ⅰ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-30",
-      "key": "北京保利\u00002021年12月\u0000禹贡Ⅰ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年12月",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "北京保利 在 2021年12月 举办了一场名为「禹贡Ⅰ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-31",
-      "key": "北京保利\u00002021年12月\u0000禹贡Ⅱ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年12月",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "北京保利 在 2021年12月 举办了一场名为「禹贡Ⅱ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-32",
+      "id": "g-08",
       "key": "北京保利\u00002021年12月\u0000禹贡Ⅱ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
       "values": {
         "auctionHouse": "北京保利",
@@ -755,15 +386,15 @@ window.LODESTAR_DEMO_GAME = {
       "computation": null
     },
     {
-      "id": "g-33",
-      "key": "北京保利\u00002021年12月\u0000禹贡Ⅱ\u0000明清御瓷珍玩",
+      "id": "g-09",
+      "key": "北京保利\u00002021年12月5日\u0000禹贡Ⅲ\u0000盛清御瓷新风尚",
       "values": {
         "auctionHouse": "北京保利",
-        "dateText": "2021年12月",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "明清御瓷珍玩"
+        "dateText": "2021年12月5日",
+        "sessionPrefix": "禹贡Ⅲ",
+        "sessionSubtitle": "盛清御瓷新风尚"
       },
-      "sentence": "北京保利 在 2021年12月 举办了一场名为「禹贡Ⅱ—明清御瓷珍玩」的拍卖会。",
+      "sentence": "北京保利 在 2021年12月5日 举办了一场名为「禹贡Ⅲ—盛清御瓷新风尚」的拍卖会。",
       "status": "uncovered",
       "recordId": null,
       "caseId": null,
@@ -771,7 +402,39 @@ window.LODESTAR_DEMO_GAME = {
       "computation": null
     },
     {
-      "id": "g-34",
+      "id": "g-10",
+      "key": "北京保利\u00002021年11月15日\u0000禹贡Ⅲ\u0000盛清御瓷新风尚",
+      "values": {
+        "auctionHouse": "北京保利",
+        "dateText": "2021年11月15日",
+        "sessionPrefix": "禹贡Ⅲ",
+        "sessionSubtitle": "盛清御瓷新风尚"
+      },
+      "sentence": "北京保利 在 2021年11月15日 举办了一场名为「禹贡Ⅲ—盛清御瓷新风尚」的拍卖会。",
+      "status": "uncovered",
+      "recordId": null,
+      "caseId": null,
+      "matched": [],
+      "computation": null
+    },
+    {
+      "id": "g-11",
+      "key": "北京保利\u00002021年秋季\u0000禹贡Ⅲ\u0000盛清御瓷新风尚",
+      "values": {
+        "auctionHouse": "北京保利",
+        "dateText": "2021年秋季",
+        "sessionPrefix": "禹贡Ⅲ",
+        "sessionSubtitle": "盛清御瓷新风尚"
+      },
+      "sentence": "北京保利 在 2021年秋季 举办了一场名为「禹贡Ⅲ—盛清御瓷新风尚」的拍卖会。",
+      "status": "uncovered",
+      "recordId": null,
+      "caseId": null,
+      "matched": [],
+      "computation": null
+    },
+    {
+      "id": "g-12",
       "key": "北京保利\u00002021年12月\u0000禹贡Ⅲ\u0000盛清御瓷新风尚",
       "values": {
         "auctionHouse": "北京保利",
@@ -835,620 +498,12 @@ window.LODESTAR_DEMO_GAME = {
         "anchor": null,
         "evidenceCount": 6
       }
-    },
-    {
-      "id": "g-35",
-      "key": "北京保利\u00002021年12月\u0000禹贡Ⅲ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年12月",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "北京保利 在 2021年12月 举办了一场名为「禹贡Ⅲ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-36",
-      "key": "北京保利\u00002021年12月\u0000禹贡Ⅲ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "北京保利",
-        "dateText": "2021年12月",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "北京保利 在 2021年12月 举办了一场名为「禹贡Ⅲ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-37",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月5日\u0000禹贡Ⅰ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月5日 举办了一场名为「禹贡Ⅰ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-38",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月5日\u0000禹贡Ⅰ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月5日 举办了一场名为「禹贡Ⅰ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-39",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月5日\u0000禹贡Ⅰ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月5日 举办了一场名为「禹贡Ⅰ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-40",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月5日\u0000禹贡Ⅱ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月5日 举办了一场名为「禹贡Ⅱ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-41",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月5日\u0000禹贡Ⅱ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月5日 举办了一场名为「禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-42",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月5日\u0000禹贡Ⅱ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月5日 举办了一场名为「禹贡Ⅱ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-43",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月5日\u0000禹贡Ⅲ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月5日 举办了一场名为「禹贡Ⅲ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-44",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月5日\u0000禹贡Ⅲ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月5日 举办了一场名为「禹贡Ⅲ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-45",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月5日\u0000禹贡Ⅲ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月5日",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月5日 举办了一场名为「禹贡Ⅲ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-46",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年11月15日\u0000禹贡Ⅰ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年11月15日 举办了一场名为「禹贡Ⅰ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-47",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年11月15日\u0000禹贡Ⅰ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年11月15日 举办了一场名为「禹贡Ⅰ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-48",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年11月15日\u0000禹贡Ⅰ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年11月15日 举办了一场名为「禹贡Ⅰ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-49",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年11月15日\u0000禹贡Ⅱ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年11月15日 举办了一场名为「禹贡Ⅱ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-50",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年11月15日\u0000禹贡Ⅱ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年11月15日 举办了一场名为「禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-51",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年11月15日\u0000禹贡Ⅱ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年11月15日 举办了一场名为「禹贡Ⅱ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-52",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年11月15日\u0000禹贡Ⅲ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年11月15日 举办了一场名为「禹贡Ⅲ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-53",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年11月15日\u0000禹贡Ⅲ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年11月15日 举办了一场名为「禹贡Ⅲ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-54",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年11月15日\u0000禹贡Ⅲ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年11月15日",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年11月15日 举办了一场名为「禹贡Ⅲ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-55",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年秋季\u0000禹贡Ⅰ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年秋季",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年秋季 举办了一场名为「禹贡Ⅰ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-56",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年秋季\u0000禹贡Ⅰ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年秋季",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年秋季 举办了一场名为「禹贡Ⅰ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-57",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年秋季\u0000禹贡Ⅰ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年秋季",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年秋季 举办了一场名为「禹贡Ⅰ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-58",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年秋季\u0000禹贡Ⅱ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年秋季",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年秋季 举办了一场名为「禹贡Ⅱ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-59",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年秋季\u0000禹贡Ⅱ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年秋季",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年秋季 举办了一场名为「禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-60",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年秋季\u0000禹贡Ⅱ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年秋季",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年秋季 举办了一场名为「禹贡Ⅱ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-61",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年秋季\u0000禹贡Ⅲ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年秋季",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年秋季 举办了一场名为「禹贡Ⅲ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-62",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年秋季\u0000禹贡Ⅲ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年秋季",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年秋季 举办了一场名为「禹贡Ⅲ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-63",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年秋季\u0000禹贡Ⅲ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年秋季",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年秋季 举办了一场名为「禹贡Ⅲ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-64",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月\u0000禹贡Ⅰ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月 举办了一场名为「禹贡Ⅰ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-65",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月\u0000禹贡Ⅰ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月 举办了一场名为「禹贡Ⅰ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-66",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月\u0000禹贡Ⅰ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月",
-        "sessionPrefix": "禹贡Ⅰ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月 举办了一场名为「禹贡Ⅰ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-67",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月\u0000禹贡Ⅱ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月 举办了一场名为「禹贡Ⅱ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-68",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月\u0000禹贡Ⅱ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月 举办了一场名为「禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-69",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月\u0000禹贡Ⅱ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月",
-        "sessionPrefix": "禹贡Ⅱ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月 举办了一场名为「禹贡Ⅱ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-70",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月\u0000禹贡Ⅲ\u0000盛清御瓷新风尚",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "盛清御瓷新风尚"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月 举办了一场名为「禹贡Ⅲ—盛清御瓷新风尚」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-71",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月\u0000禹贡Ⅲ\u0000郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月 举办了一场名为「禹贡Ⅲ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
-    },
-    {
-      "id": "g-72",
-      "key": "中国嘉德国际拍卖有限公司\u00002021年12月\u0000禹贡Ⅲ\u0000明清御瓷珍玩",
-      "values": {
-        "auctionHouse": "中国嘉德国际拍卖有限公司",
-        "dateText": "2021年12月",
-        "sessionPrefix": "禹贡Ⅲ",
-        "sessionSubtitle": "明清御瓷珍玩"
-      },
-      "sentence": "中国嘉德国际拍卖有限公司 在 2021年12月 举办了一场名为「禹贡Ⅲ—明清御瓷珍玩」的拍卖会。",
-      "status": "uncovered",
-      "recordId": null,
-      "caseId": null,
-      "matched": [],
-      "computation": null
     }
   ],
   "stats": {
-    "total": 72,
+    "total": 12,
     "covered": 4,
-    "uncovered": 68,
+    "uncovered": 8,
     "byStatus": {
       "strong": 1,
       "weak": 1,

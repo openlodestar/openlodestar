@@ -150,6 +150,27 @@ function parseSingleDate(
 }
 
 /**
+ * 季节档 → 月份区间（春拍 3–6 月、秋拍 9–12 月、跨年冬档 1–2 月）。
+ *
+ * 本域只有这一份季节表：断言侧的时间范围（本文件的 `parseTimeScope`）与页面侧的
+ * 时间线索（`slots.ts` 的 `normalizedSlot`）都从这里取。历史上两处各写一份数字，
+ * 同一句「2021年秋季」在一处算成 7–12 月、另一处算成 9–12 月；现在只留这一处。
+ */
+export const SEASON_RANGES: ReadonlyArray<{ word: string; alias: string[]; from: number; to: number }> = [
+  { word: '春', alias: ['春季', '春天', '春拍'], from: 3, to: 6 },
+  { word: '秋', alias: ['秋季', '金秋', '秋拍'], from: 9, to: 12 },
+  { word: '冬', alias: ['冬季', '冬拍', '跨年'], from: 1, to: 2 },
+];
+
+/** 文本里点名的季节档（没有就返回 null；"四季"不是单季，不在这里认） */
+export function seasonRangeOf(text: string): (typeof SEASON_RANGES)[number] | null {
+  for (const range of SEASON_RANGES) {
+    if (text.includes(range.word) || range.alias.some((alias) => text.includes(alias))) return range;
+  }
+  return null;
+}
+
+/**
  * 中文拍品日期写法 → 起止日期。
  * 覆盖："2014年5月18日" / "2014-05" / "2014" / "2014春季" / "2014 秋拍" / "2014.5" /
  * "2014年5月18日 - 2014年5月31日" / "2014年5月至6月"。解析不出返回全 null（不猜）。
@@ -169,11 +190,21 @@ export function parseTimeScope(text: string | null | undefined): { from: string 
   const iso = (year: number, month: number, day: number) =>
     `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-  /** 单侧解析结果 → 起止（月份缺失按季度/整年放宽） */
+  /** 单侧解析结果 → 起止（月份缺失时：季节档查唯一季节表，其余按整年/半年放宽） */
   const spanOf = (parsed: { year: number; month: number | null; day: number | null }, hint: string) => {
     if (parsed.month === null) {
-      if (/春|一季|二季度?/.test(hint) && !/秋|冬/.test(hint)) return { y: parsed.year, from: [1, 1], to: [6, 30] };
-      if (/秋|冬|四季|年末/.test(hint)) return { y: parsed.year, from: [7, 1], to: [12, 31] };
+      // "四季"是全年、"年末"是下半年：两者都不含单季节词，先单独判
+      if (/四季/.test(hint)) return { y: parsed.year, from: [1, 1], to: [12, 31] };
+      const season = seasonRangeOf(hint);
+      if (season) {
+        return {
+          y: parsed.year,
+          from: [season.from, 1],
+          to: [season.to, new Date(Date.UTC(parsed.year, season.to, 0)).getUTCDate()],
+        };
+      }
+      if (/一季|二季度?/.test(hint)) return { y: parsed.year, from: [1, 1], to: [6, 30] };
+      if (/年末/.test(hint)) return { y: parsed.year, from: [7, 1], to: [12, 31] };
       return { y: parsed.year, from: [1, 1], to: [12, 31] };
     }
     const lastDay = new Date(Date.UTC(parsed.year, parsed.month, 0)).getUTCDate();

@@ -124,7 +124,9 @@
     optionsTitle.textContent = '换「' + slot.label + '」';
     var currentStatus = game.resolve(data, demoData, state.values).status;
     var parts = [];
-    slot.options.forEach(function (value) {
+    // 候选只给"能和另外两个已选词构成真实三元组"的值；时间槽不参与三元组，始终全列
+    var options = game.slotOptions(data, state.values, slot.key);
+    options.forEach(function (value) {
       var current = state.values[slot.key] === value;
       var status = current
         ? currentStatus
@@ -255,7 +257,9 @@
   }
 
   function selectOption(key, value) {
-    if (!slotByKey[key] || slotByKey[key].options.indexOf(value) === -1) return;
+    if (!slotByKey[key]) return;
+    // 和渲染时用同一份候选表：不在当前可组合候选里的值一律拒绝
+    if (game.slotOptions(data, state.values, key).indexOf(value) === -1) return;
     if (state.values[key] === value) return;
     var next = cloneValues(state.values);
     next[key] = value;

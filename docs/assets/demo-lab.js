@@ -60,16 +60,40 @@
   };
   // 维度严重度与 demo-game-match.js 完全一致：越靠前越差
   var SEVERITY = ['conflict', 'mismatch', 'unknown', 'edge', 'caliber', 'exact'];
+  // 主界面只用两个字以内的关键词：完整说法放在 title / 证据抽屉里
+  var MINI_CODE = {
+    strong: '强坐标',
+    weak: '弱坐标',
+    caliber: '口径',
+    edge: '边缘',
+    conflict: '冲突',
+    mismatch: '没对上',
+    unknown: '无从',
+    uncovered: '没覆盖'
+  };
+  var MINI_STATE = {
+    exact: '对上',
+    caliber: '口径',
+    edge: '边缘',
+    conflict: '冲突',
+    mismatch: '没对上',
+    unknown: '无从'
+  };
+  var MINI_SLOT = {
+    auctionHouse: '机构',
+    dateText: '时间',
+    sessionName: '专场'
+  };
   // 开箱粒子数：档位越高，箱子越华丽
   var SPARK_COUNT = {
-    strong: 9,
-    weak: 6,
-    caliber: 4,
-    edge: 3,
-    conflict: 3,
-    mismatch: 2,
-    unknown: 2,
-    uncovered: 1
+    strong: 14,
+    weak: 10,
+    caliber: 7,
+    edge: 5,
+    conflict: 5,
+    mismatch: 4,
+    unknown: 3,
+    uncovered: 2
   };
 
   var records = game.recordIndex(demoData);
@@ -104,10 +128,11 @@
   var trayList = document.getElementById('tray-list');
   var traySlot = document.getElementById('tray-slot');
   var chestDock = document.getElementById('chest-dock');
+  var chestStage = document.getElementById('chest-stage');
+  var chestCaption = document.getElementById('chest-caption');
   var loopHint = document.getElementById('loop-hint');
   var verdictElement = document.getElementById('verdict');
   var dexElement = document.getElementById('dex');
-  var missionCurrent = document.getElementById('mission-current');
   var fullPanel = document.getElementById('full-panel');
   var fullBody = document.getElementById('full-body');
   var evidenceLead = document.getElementById('evidence-lead');
@@ -132,6 +157,7 @@
   var resetProgressButton = document.getElementById('reset-progress');
   var soundToggle = document.getElementById('sound-toggle');
   var fxLayer = document.getElementById('fx');
+  var gameShell = document.getElementById('game');
 
   function cloneValues(values) {
     return {
@@ -311,7 +337,7 @@
 
     scoreValue.textContent = String(score);
     scoreTarget.textContent = String(target);
-    scoreCount.textContent = '已收 ' + count + ' / ' + CODE_ORDER.length;
+    scoreCount.textContent = count + ' / ' + CODE_ORDER.length;
     scoreFill.style.width = (target > 0 ? Math.min(100, (score / target) * 100) : 0) + '%';
     scoreBar.setAttribute('aria-valuenow', String(score));
     scoreBar.setAttribute('aria-valuemax', String(target));
@@ -319,7 +345,7 @@
 
     dexElement.innerHTML = CODE_ORDER.map(function (code) {
       var collected = !!scored[code];
-      var label = game.CONCLUSION_SHORT[code];
+      var label = MINI_CODE[code] || game.CONCLUSION_SHORT[code];
       var points = '+' + game.pointsFor(data, code);
       var arriving = pendingCode === code && collected;
       var inner =
@@ -336,28 +362,13 @@
           '" data-combo="' +
           escapeHtml(scored[code]) +
           '" title="' +
-          escapeHtml(label) + '：点一下回到收下它的那一组">' +
+          escapeHtml(game.CONCLUSION_LABELS[code]) + '：点一下回到收下它的那一组">' +
           inner +
           '</button></li>'
         );
       }
-      return '<li class="dex-cell" title="还没收过「' + escapeHtml(label) + '」">' + inner + '</li>';
+      return '<li class="dex-cell" title="还没收过「' + escapeHtml(game.CONCLUSION_LABELS[code]) + '」">' + inner + '</li>';
     }).join('');
-
-    var currentMission = game.currentMission(data, state.progress);
-    if (cleared) {
-      missionCurrent.innerHTML = '<strong>已通关</strong> · 八种结论各收一次 · 点开复盘逐组回看';
-    } else if (currentMission) {
-      missionCurrent.innerHTML =
-        '<strong>' +
-        escapeHtml(currentMission.title) +
-        '</strong> · ' +
-        currentMission.done +
-        '/' +
-        currentMission.goals.length;
-    } else {
-      missionCurrent.textContent = '';
-    }
 
     renderMissions();
     scoreTableBody.innerHTML = renderScoreTable();
@@ -818,21 +829,6 @@
     }
   }
 
-  function nextStepText(result) {
-    var hint = game.nextHint(result);
-    if (hint) return hint;
-    var scored = game.scoredCodes(state.progress, data);
-    var missing = CODE_ORDER.filter(function (code) {
-      return !scored[code];
-    });
-    if (missing.length === 0) return '八档已收齐。';
-    return (
-      '三个词都完全对上了：换掉「' +
-      slotLabel(suggestedSlot(result)) +
-      '」，看看会掉到哪一档。'
-    );
-  }
-
   // ---- 宝箱：判定出可领就先摆箱，开箱才结算 ----
 
   function chestMarkup(chest) {
@@ -878,8 +874,8 @@
     setSuggestedSlot(null);
     if (game.isCleared(state.progress, data)) {
       state.chest = null;
-      chestDock.innerHTML = '<span class="chest-medal" aria-hidden="true">✓</span>';
-      updateLoopHint('cleared', null);
+      hideChestStage();
+      updateLoopHint('cleared');
       return;
     }
     var combo = game.findCombo(data, state.values);
@@ -893,59 +889,75 @@
       comboId: combo ? combo.id : ''
     };
     state.chest = chest;
+    if (chest.claimable) {
+      showChestStage(chest);
+      updateLoopHint('judge', chest);
+    } else {
+      hideChestStage();
+      updateLoopHint('judge', chest);
+    }
+  }
+
+  /** 有分可领：箱子立刻居中弹出，暗场压住棋盘，必须玩家亲手点 */
+  function showChestStage(chest) {
     chestDock.innerHTML = chestMarkup(chest);
-    updateLoopHint('judge', chest);
+    chestStage.hidden = false;
+    if (gameShell) gameShell.classList.add('is-chesting');
+    chestCaption.textContent = '点一下开箱';
+    var node = chestDock.querySelector('.chest');
+    if (!node) return;
+    window.setTimeout(function () {
+      if (state.chest !== chest || state.opening) return;
+      try {
+        node.focus({ preventScroll: true });
+      } catch (error) {
+        node.focus();
+      }
+    }, 80);
+  }
+
+  function hideChestStage() {
+    chestStage.hidden = true;
+    chestDock.innerHTML = '';
+    if (gameShell) gameShell.classList.remove('is-chesting');
   }
 
   function updateLoopHint(mode, chest, points) {
+    loopHint.classList.remove('is-warn');
     if (mode === 'cleared') {
+      loopHint.innerHTML = '<strong>通关</strong>八档收齐，不再出箱';
+      return;
+    }
+    if (mode === 'settled') {
       loopHint.innerHTML =
-        '<strong>已通关</strong>' +
-        game.targetOf(data) +
-        ' / ' +
-        game.targetOf(data) +
-        ' 已收齐，不再出箱；点「复盘」逐组回看。';
+        '<strong>+' +
+        points +
+        '</strong>下一步：换「' +
+        escapeHtml(slotLabel(suggestedSlot(chest.result))) +
+        '」';
       return;
     }
     if (!chest) {
       loopHint.textContent = '';
       return;
     }
-    var result = chest.result;
-    var suggested = suggestedSlot(result);
-    if (mode === 'settled') {
-      loopHint.innerHTML =
-        '<strong>+' +
-        points +
-        ' 已入图鉴</strong>' +
-        escapeHtml(nextStepText(result)) +
-        '<span class="hint-sub">下一步：换掉「' +
-        escapeHtml(slotLabel(suggested)) +
-        '」 · 拖卡或按 ← → 都行</span>';
-      return;
-    }
-    if (mode === 'empty') {
+    if (mode === 'empty' || !chest.claimable) {
+      loopHint.classList.add('is-warn');
       loopHint.innerHTML =
         '<strong>0 分</strong>' +
-        escapeHtml(emptyReason(chest)) +
-        '<span class="hint-sub">下一步：换掉「' +
-        escapeHtml(slotLabel(suggested)) +
-        '」</span>';
+        escapeHtml(shortEmptyReason(chest)) +
+        ' · 换「' +
+        escapeHtml(slotLabel(suggestedSlot(chest.result))) +
+        '」';
       return;
     }
-    if (chest.claimable) {
-      loopHint.innerHTML =
-        '<strong>有分可领</strong>开这只「' +
-        escapeHtml(game.CONCLUSION_SHORT[chest.code] || chest.code) +
-        '」箱 · +' +
-        chest.points +
-        '<span class="hint-sub">点箱子或按回车开箱</span>';
-    } else {
-      loopHint.innerHTML =
-        '<strong>箱子是空的</strong>' +
-        escapeHtml(emptyReason(chest)) +
-        '<span class="hint-sub">开箱确认，或直接换一个词</span>';
-    }
+    loopHint.textContent = '';
+  }
+
+  function shortEmptyReason(chest) {
+    if (chest.reason === 'repeated-combo') return '这组收过了';
+    if (chest.reason === 'conclusion-taken') return '这档收过了';
+    return '不在这批里';
   }
 
   function settlePendingNow() {
@@ -955,19 +967,7 @@
     state.chest = null;
     ++state.dockToken;
     renderHud();
-    chestDock.innerHTML = '';
-  }
-
-  function fadeChest() {
-    var node = chestDock.querySelector('.chest');
-    if (!node) return;
-    node.classList.remove('is-ready');
-    node.classList.add('is-gone');
-    var token = ++state.dockToken;
-    window.setTimeout(function () {
-      if (token !== state.dockToken) return;
-      if (chestDock.querySelector('.chest')) chestDock.innerHTML = '';
-    }, 300);
+    hideChestStage();
   }
 
   function dexCellRect(code) {
@@ -975,6 +975,31 @@
     if (index < 0) return null;
     var cell = dexElement.children[index];
     return cell ? cell.getBoundingClientRect() : null;
+  }
+
+  // 点击反馈：光标处一圈扩散的光斑 + 开箱时的一下爆闪
+  function rippleAt(x, y) {
+    if (reducedMotion()) return;
+    var node = document.createElement('span');
+    node.className = 'ripple';
+    node.style.left = x + 'px';
+    node.style.top = y + 'px';
+    fxLayer.appendChild(node);
+    node.addEventListener('animationend', function () {
+      node.remove();
+    });
+  }
+
+  function flashAt(x, y) {
+    if (reducedMotion()) return;
+    var node = document.createElement('div');
+    node.className = 'fx-flash';
+    node.style.setProperty('--x', x + 'px');
+    node.style.setProperty('--y', y + 'px');
+    fxLayer.appendChild(node);
+    node.addEventListener('animationend', function () {
+      node.remove();
+    });
   }
 
   function spawnSparks(chest) {
@@ -1030,14 +1055,14 @@
           { offset: 0.55, transform: 'translate(' + cx + 'px,' + cy + 'px) scale(1.18)', opacity: 1 },
           { transform: 'translate(' + ex + 'px,' + ey + 'px) scale(.9)', opacity: 1 }
         ],
-        { duration: 620, easing: 'cubic-bezier(.25,.6,.3,1)', fill: 'forwards' }
+        { duration: 560, easing: 'cubic-bezier(.25,.6,.3,1)', fill: 'forwards' }
       );
       animation.onfinish = finish;
     } catch (error) {
       window.setTimeout(finish, 0);
       return;
     }
-    window.setTimeout(finish, 1000);
+    window.setTimeout(finish, 900);
   }
 
   function openChest() {
@@ -1045,30 +1070,15 @@
     if (!chest || state.opening) return;
     if (game.isCleared(state.progress, data)) return;
     var node = chestDock.querySelector('.chest');
-    var hadFocus = !!node && document.activeElement === node;
-    var chestRect = node ? node.getBoundingClientRect() : chestDock.getBoundingClientRect();
+    var chestRect = node ? node.getBoundingClientRect() : chestStage.getBoundingClientRect();
     state.opening = true;
     if (node) {
       node.classList.remove('is-ready');
       node.classList.add('is-open');
     }
+    flashAt(chestRect.left + chestRect.width / 2, chestRect.top + chestRect.height * 0.4);
     spawnSparks(chest);
-
-    if (!chest.claimable) {
-      playTone(150, 0.12, 'square');
-      showToast(emptyReason(chest));
-      window.setTimeout(function () {
-        if (!state.opening) return;
-        state.opening = false;
-        state.chest = null;
-        fadeChest();
-        updateLoopHint('empty', chest);
-        var suggested = suggestedSlot(chest.result);
-        setSuggestedSlot(suggested);
-        if (hadFocus) focusSlot(suggested);
-      }, reducedMotion() ? 0 : 520);
-      return;
-    }
+    playTone(520, 0.1, 'square');
 
     var combo = game.findCombo(data, state.values);
     var wasCleared = game.isCleared(state.progress, data);
@@ -1077,7 +1087,7 @@
       // 判定卡与箱子之间状态被改过：按空箱处理，但理由照样说清
       state.opening = false;
       state.chest = null;
-      fadeChest();
+      hideChestStage();
       updateLoopHint('empty', chest);
       showToast(rejectionText(result));
       return;
@@ -1086,10 +1096,10 @@
     saveProgress();
     state.pendingCode = result.code;
     renderHud(null, result.code);
-    playTone(620, 0.12, 'triangle');
+    playTone(760, 0.16, 'triangle');
     window.setTimeout(function () {
-      playTone(880, 0.16, 'triangle');
-    }, 120);
+      playTone(1040, 0.2, 'triangle');
+    }, 110);
 
     var landed = false;
     function finish() {
@@ -1100,77 +1110,97 @@
       state.chest = null;
       renderHud(result.code);
       pulseScore();
-      fadeChest();
       renderReview();
       renderSheetIfOpen();
       var suggested = suggestedSlot(chest.result);
       setSuggestedSlot(suggested);
-      updateLoopHint('settled', chest, result.points);
-      if (hadFocus) focusSlot(suggested);
+      updateLoopHint(result.cleared ? 'cleared' : 'settled', chest, result.points);
+      if (!result.cleared) {
+        setActiveSlot(suggested);
+        focusSlot(suggested);
+      }
       if (result.cleared && !wasCleared) {
         celebrate();
-        showToast(
-          '八档收齐，通关了：' +
-            game.targetOf(data) +
-            ' / ' +
-            game.targetOf(data) +
-            '。打开「复盘」逐组回看。'
-        );
-      } else {
-        showToast('+' + result.points + '：' + game.CONCLUSION_LABELS[result.code] + ' 已收进图鉴。');
       }
     }
-    flyPoints(chestRect, dexCellRect(result.code), result.points, finish);
+    // 箱盖掀开 → 暗场先退 → 分数从原位置飞进图鉴
+    window.setTimeout(function () {
+      hideChestStage();
+      flyPoints(chestRect, dexCellRect(result.code), result.points, finish);
+    }, reducedMotion() ? 0 : 240);
   }
 
   // ---- 判定卡 ----
 
   function statusHead(result) {
     var parts = [];
-    parts.push('<div class="verdict-top">');
+    parts.push('<div class="verdict-head">');
     parts.push(
       '<span class="badge badge-' +
         escapeHtml(result.status) +
-        '">' +
+        '" title="' +
         escapeHtml(result.label) +
-        '</span>'
+        '">' +
+        escapeHtml(MINI_CODE[result.status] || result.label) +
+        '<span class="sr-only">' +
+        escapeHtml(result.label) +
+        '</span></span>'
     );
+    parts.push(renderMiniDims(result));
     if (isChanged()) {
-      parts.push('<button type="button" class="link-button" data-action="reset">回到原句</button>');
+      parts.push(
+        '<button type="button" class="link-button" data-action="reset" title="回到最初那句" aria-label="回到最初那句">↺</button>'
+      );
     }
-    if (result.status !== 'uncovered') {
-      parts.push('<button type="button" class="link-button" data-action="evidence">看证据 · 拆解</button>');
-    }
+    parts.push(
+      '<button type="button" class="link-button" data-action="evidence" title="逐维判据、引文与来源，点开才看">' +
+        (result.status === 'uncovered' ? '看看为什么' : '判据') +
+        '</button>'
+    );
     parts.push('</div>');
+    return parts.join('');
+  }
+
+  /** 主界面只放三个关键词小签：哪一维、什么状态。完整说法在 title 与证据抽屉里 */
+  function renderMiniDims(result) {
+    if (!result.dimensions || result.dimensions.length === 0) return '';
+    var parts = ['<span class="mini-dims">'];
+    result.dimensions.forEach(function (dimension) {
+      parts.push(
+        '<span class="mini-dim mini-' +
+          escapeHtml(dimension.state) +
+          '" title="' +
+          escapeHtml(
+            dimension.label +
+              '：' +
+              game.dimensionLabel(dimension.state) +
+              ' · 你写的是「' +
+              dimension.value +
+              '」'
+          ) +
+          '">' +
+          escapeHtml(MINI_SLOT[dimension.slot] || dimension.label) +
+          ' <b>' +
+          escapeHtml(MINI_STATE[dimension.state]) +
+          '</b></span>'
+      );
+    });
+    parts.push('</span>');
     return parts.join('');
   }
 
   function renderCovered(result) {
     var parts = [];
     parts.push(statusHead(result));
-    parts.push('<p class="verdict-reason">' + escapeHtml(result.reason) + '</p>');
-    var hint = game.nextHint(result);
-    if (hint) {
-      parts.push('<p class="verdict-next"><strong>下一步</strong>' + escapeHtml(hint) + '</p>');
-    }
     if (result.status === 'uncovered') {
-      parts.push(renderUncoveredDimensions(result));
-      return parts.join('');
-    }
-    parts.push(renderDimensions(result));
-
-    if (result.view && result.view.conflictCandidates.length > 0) {
-      parts.push(
-        '<p class="verdict-note">冲突只作候选：' +
-          escapeHtml(
-            result.view.conflictCandidates
-              .map(function (item) {
-                return item.label;
-              })
-              .join('、')
-          ) +
-          ' 的判据是「冲突候选」，页面不会把它压成「反对」。</p>'
-      );
+      var positive = result.dimensions.filter(function (dimension) {
+        return (
+          dimension.state === 'exact' ||
+          dimension.state === 'caliber' ||
+          dimension.state === 'edge'
+        );
+      }).length;
+      parts.push('<p class="verdict-note">不到结论：只有 ' + positive + ' 维沾边</p>');
     }
     return parts.join('');
   }
@@ -1262,6 +1292,27 @@
     var entries = decisiveEntries(result.view, result.status, state.lastChangedKey);
     evidenceLead.innerHTML =
       renderRecordContext(result) +
+      '<p class="verdict-reason">' +
+      escapeHtml(result.reason) +
+      '</p>' +
+      (result.status === 'uncovered'
+        ? renderUncoveredDimensions(result)
+        : renderDimensions(result)) +
+      (function () {
+        var hint = game.nextHint(result);
+        return hint ? '<p class="verdict-next"><strong>下一步</strong>' + escapeHtml(hint) + '</p>' : '';
+      })() +
+      (result.view.conflictCandidates.length > 0
+        ? '<p class="verdict-note">冲突只作候选：' +
+          escapeHtml(
+            result.view.conflictCandidates
+              .map(function (item) {
+                return item.label;
+              })
+              .join('、')
+          ) +
+          ' 的判据是「冲突候选」，页面不会把它压成「反对」。</p>'
+        : '') +
       '<p class="sheet-note">最多三条决定性证据（换过哪个词就先摆那个字段）。全文与逐字段裁决在下面展开。</p>';
     evidenceInline.innerHTML =
       entries.length > 0
@@ -1683,6 +1734,12 @@
     var banner = document.createElement('div');
     banner.className = 'fx-banner';
     banner.textContent = '通关 · 31 / 31';
+    // 横幅落在图鉴与托盘之间的空档，别压住刚点亮的那一排
+    var dex = document.getElementById('dex');
+    if (dex) {
+      var dexRect = dex.getBoundingClientRect();
+      banner.style.top = Math.round(dexRect.bottom + 30) + 'px';
+    }
     fxLayer.appendChild(banner);
     banner.addEventListener('animationend', function () {
       banner.remove();
@@ -1906,7 +1963,7 @@
     cards[(index + step) % cards.length].focus({ preventScroll: true });
   });
 
-  chestDock.addEventListener('click', function (event) {
+  chestStage.addEventListener('click', function (event) {
     if (!event.target.closest) return;
     if (event.target.closest('[data-action="open-chest"]')) openChest();
   });
@@ -1930,12 +1987,7 @@
     applyCombo(cell.getAttribute('data-combo'));
   });
 
-  missionCurrent.addEventListener('click', function () {
-    openSheet('missions', missionCurrent);
-  });
-
   document.querySelectorAll('[data-sheet]').forEach(function (button) {
-    if (button === missionCurrent) return;
     button.addEventListener('click', function () {
       openSheet(button.getAttribute('data-sheet'), button);
     });
@@ -1956,18 +2008,36 @@
 
   document.addEventListener('keydown', function (event) {
     trapSheetTab(event);
+    // 箱子是模态：Tab 不许跑到暗场后面去，Esc 与回车等价，都算亲手开箱
+    if (!chestStage.hidden) {
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        var chestNode = chestDock.querySelector('.chest');
+        if (chestNode) chestNode.focus({ preventScroll: true });
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        openChest();
+        return;
+      }
+    }
     if (event.key !== 'Escape') return;
     if (!sheetElement.hidden) {
       closeSheet();
-      return;
-    }
-    if (state.chest) {
-      fadeChest();
-      state.chest = null;
-      loopHint.textContent = '';
-      chestDock.innerHTML = '';
     }
   });
+
+  // 光标波纹：任何可点的东西按下就在指针处亮一下
+  document.addEventListener(
+    'pointerdown',
+    function (event) {
+      if (!event.target.closest) return;
+      if (!event.target.closest('.slot,.word-card,.chip-btn,.chest,.dex-cell,.link-button')) return;
+      rippleAt(event.clientX, event.clientY);
+    },
+    { passive: true }
+  );
 
   resetProgressButton.addEventListener('click', function () {
     if (!state.confirmReset) {
@@ -1990,7 +2060,7 @@
   soundToggle.addEventListener('click', function () {
     state.soundOn = !state.soundOn;
     soundToggle.setAttribute('aria-pressed', state.soundOn ? 'true' : 'false');
-    soundToggle.textContent = state.soundOn ? '音效·开' : '音效·关';
+    soundToggle.setAttribute('title', state.soundOn ? '音效已开，再点一下静音' : '音效默认关闭，打开后只在操作时响');
     if (state.soundOn) playTone(660, 0.08, 'sine');
   });
 

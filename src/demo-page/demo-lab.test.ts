@@ -1017,23 +1017,27 @@ describe('一屏之内：固定视口、面板翻卡、候选不撑页', () => {
     expect(cssBlock('.stage')).toContain('min-height:0');
   });
 
-  it('判定卡独占绝对定位区域，候选托盘与宝箱坞各占一行，换词不把页面撑高', () => {
+  it('判定卡按内容高低自适应，图鉴棋盘吃掉中段空白，换词不把页面撑高', () => {
     const wrap = cssBlock('.panel-wrap');
     expect(wrap).toContain('position:relative');
-    expect(wrap).toContain('flex:1');
+    expect(wrap).toContain('flex:0 1 auto');
     expect(wrap).toContain('min-height:0');
     const verdict = cssBlock('.verdict');
-    expect(verdict).toContain('position:absolute');
-    expect(verdict).toContain('inset:0');
-    // 托盘与动作坞固定在布局里，靠内部横向滚动收纳候选，不撑高页面
+    expect(verdict).toContain('max-height:100%');
+    expect(verdict).toContain('overflow:auto');
+    // 托盘固定在底部一行，中段留给图鉴棋盘；候选靠内部横向滚动收纳，不撑高页面
     const tray = cssBlock('.tray');
     expect(tray).toContain('flex:0 0 auto');
     const strip = cssBlock('.tray-strip');
     expect(strip).toContain('overflow-x:auto');
     expect(strip).toContain('overscroll-behavior-x:contain');
-    const dock = cssBlock('.dock');
-    expect(dock).toContain('flex:0 0 auto');
-    expect(cssBlock('.chest-dock')).toContain('position:relative');
+    const board = cssBlock('.board');
+    expect(board).toContain('flex:1 1 auto');
+    expect(board).toContain('min-height:0');
+    expect(html).toContain('<ol class="dex" id="dex"');
+    // 图鉴在棋盘里，不再挤在顶栏：已收的格子是 li > button，两层都要撑满格位
+    expect(html.indexOf('class="board"')).toBeLessThan(html.indexOf('class="tray"'));
+    expect(html).toContain('.dex > li > .dex-cell');
     // 宝箱与飞分都在这一屏里：宝箱坞占位固定，飞分用 fixed 覆盖层
     expect(cssBlock('.fx-fly')).toContain('position:fixed');
     const sentence = html.match(/<p class="sentence" id="sentence">[\s\S]*?<\/p>/)?.[0] ?? '';
@@ -1154,7 +1158,6 @@ describe('宝箱领取：判定不直接加分，开箱才结算', () => {
     expect(labSource).toContain('chest-empty is-empty');
     // 通关判断在摆箱之前：已通关就不出箱
     expect(labSource).toContain('if (game.isCleared(state.progress, data)) {');
-    expect(labSource).toContain('chest-medal');
     // 计分只发生在 openChest 里：换词、拖卡都不会偷偷加分
     expect((labSource.match(/game\.submit\(/g) ?? []).length).toBe(1);
     expect(labSource.indexOf('function openChest')).toBeLessThan(
@@ -1174,7 +1177,7 @@ describe('宝箱领取：判定不直接加分，开箱才结算', () => {
     expect(labSource).toContain('dexCellRect');
     // 飞分用轻量 WAAPI，失败也有兜底，不会卡住不结算
     expect(labSource).toContain('node.animate(');
-    expect(labSource).toContain('window.setTimeout(finish, 1000)');
+    expect(labSource).toContain('window.setTimeout(finish, 900)');
     expect(labSource).toContain('landed');
   });
 
@@ -1209,6 +1212,85 @@ describe('宝箱领取：判定不直接加分，开箱才结算', () => {
     );
     expect(moveHandler).not.toContain('paintVerdict');
     expect(moveHandler).not.toContain('flushCommit');
+  });
+});
+
+describe('好玩的层面：居中开箱、减字、点击反馈', () => {
+  const html = fs.readFileSync(path.join(DOCS, 'demo-lab.html'), 'utf8');
+  const labSource = fs.readFileSync(path.join(DOCS, 'assets/demo-lab.js'), 'utf8');
+  const cssBlock = (selector: string): string => {
+    const at = html.indexOf(`\n${selector}{`);
+    expect(at, `找不到 ${selector} 的样式块`).toBeGreaterThan(-1);
+    const end = html.indexOf('}', at);
+    return html.slice(at, end);
+  };
+
+  it('有分可领立刻居中弹出：暗场压住棋盘，箱子是屏幕上唯一的焦点', () => {
+    const stage = cssBlock('.chest-stage');
+    expect(stage).toContain('position:absolute');
+    expect(stage).toContain('inset:0');
+    expect(stage).toContain('align-items:center');
+    expect(stage).toContain('justify-content:center');
+    expect(cssBlock('.chest-stage-scrim')).toContain('radial-gradient');
+    // 出箱时底下的棋盘虚化，避免两个视觉重心
+    expect(html).toContain('.game.is-chesting .board');
+    expect(labSource).toContain("gameShell.classList.add('is-chesting')");
+    expect(labSource).toContain("gameShell.classList.remove('is-chesting')");
+    // 只有「能领分」才摆箱：空箱不拦路，只在提示行写 0 分理由
+    expect(labSource).toContain('if (chest.claimable) {');
+    expect(labSource).toContain('showChestStage(chest)');
+    expect(labSource).toContain('hideChestStage()');
+    expect(labSource).toContain('shortEmptyReason');
+    // 必须亲手点：箱子按钮、暗场、Esc 都走同一个 openChest，没有自动结算
+    expect(labSource).toContain("chestStage.addEventListener('click'");
+    expect(labSource).toContain("chestNode.focus({ preventScroll: true })");
+    expect(labSource).toContain('openChest();');
+    expect(labSource).not.toMatch(/setTimeout\(\s*openChest/);
+  });
+
+  it('主界面减字：逐维判据与解释默认折叠，点开判据才展开', () => {
+    // 判定卡主视图只剩徽标 + 三维小签 + 判据入口
+    expect(labSource).toContain('function renderMiniDims');
+    expect(labSource).toContain('MINI_SLOT');
+    const statusHead = labSource.slice(
+      labSource.indexOf('function statusHead'),
+      labSource.indexOf('function renderMiniDims'),
+    );
+    expect(statusHead).not.toContain('verdict-reason');
+    expect(statusHead).not.toContain('verdict-next');
+    const covered = labSource.slice(
+      labSource.indexOf('function renderCovered'),
+      labSource.indexOf('function renderDimensions'),
+    );
+    expect(covered).not.toContain('renderDimensions');
+    expect(covered).not.toContain('verdict-reason');
+    // 折起来的正文在证据抽屉里照旧完整：理由、逐维、下一步一条不少
+    const evidence = labSource.slice(labSource.indexOf('function renderEvidence'));
+    expect(evidence).toContain('renderDimensions');
+    expect(evidence).toContain('verdict-reason');
+    expect(evidence).toContain('game.nextHint');
+    // 顶栏不再有图鉴标题与当前章那一行
+    expect(html).not.toContain('id="hud-title"');
+    expect(html).not.toContain('id="mission-current"');
+    expect(labSource).not.toContain('missionCurrent');
+  });
+
+  it('点击反馈：光标波纹、爆闪、按压压缩，减少动效时全部让路', () => {
+    expect(html).toContain('.ripple{');
+    expect(html).toContain('.fx-flash{');
+    expect(html).toContain('@keyframes ripple');
+    expect(html).toContain('@keyframes flash');
+    expect(html).toContain('.word-card:active');
+    expect(html).toContain('animation:chest-pop');
+    expect(html).toContain('@keyframes rays-spin');
+    expect(labSource).toContain('function rippleAt');
+    expect(labSource).toContain('function flashAt');
+    const ripple = labSource.slice(
+      labSource.indexOf('function rippleAt'),
+      labSource.indexOf('function spawnSparks'),
+    );
+    expect(ripple.match(/if \(reducedMotion\(\)\) return;/g)?.length).toBe(2);
+    expect(labSource).toContain("document.addEventListener(\n    'pointerdown'");
   });
 });
 

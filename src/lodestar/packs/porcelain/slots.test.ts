@@ -10,7 +10,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { normalizeText } from '../../normalize';
-import { parseTimeScope, SEASON_RANGES } from './rules';
+import { assertionTimeWindow, evidenceTimeWindow, parseTimeScope, SEASON_RANGES } from './rules';
 import porcelainPack from './index';
 import {
   normalizedSlot,
@@ -59,19 +59,19 @@ describe('时间归一槽（季度 ↔ 月份）', () => {
   });
 
   it('同一句「2021年秋季」：解析器与归一槽都走同一份季节表，给出同一区间', () => {
+    // 春、秋的核心月就在命名年份内；冬拍在 12 月开场，核心月跨到次年（「2021年冬」的核心是 2022 年 1–2 月）
+    expect(parseTimeScope('2021年春季')).toEqual({ from: '2021-03-01', to: '2021-06-30' });
+    expect(parseTimeScope('2021年秋季')).toEqual({ from: '2021-09-01', to: '2021-12-31' });
+    expect(parseTimeScope('2021年冬季')).toEqual({ from: '2022-01-01', to: '2022-02-28' });
+    // 归一槽的时间窗仍按基准表落在命名年份下：冬的核心月跨年，但"2021年冬"点名的年份是 2021
     for (const season of SEASON_RANGES) {
       const text = `2021年${season.word}季`;
-      const scope = parseTimeScope(text);
-      expect(scope.from).toBe(`2021-${String(season.from).padStart(2, '0')}-01`);
-      expect(Number(scope.to?.slice(0, 7).replace('-', ''))).toBe(2021 * 100 + season.to);
-      // 归一槽的时间窗是另一条路径：它必须和解析器说同一个区间，不能再各写一份数字
       expect(normalizedSlot('dateText', text).window).toEqual({
         year: 2021,
         monthFrom: season.from,
         monthTo: season.to,
       });
     }
-    expect(parseTimeScope('2021年秋季')).toEqual({ from: '2021-09-01', to: '2021-12-31' });
     // 季度词不是"用户点名的月份"：不许从季度起点硬造出一个 9 月检索式
     expect(normalizedSlot('dateText', '2021年秋季').queryForms).not.toContain('2021年9月');
   });
@@ -97,6 +97,62 @@ describe('时间归一槽（季度 ↔ 月份）', () => {
     expect(cues).toEqual(expect.arrayContaining([{ year: 2026, month: 9, seasonWord: null }]));
   });
 });
+
+describe('时间窗口：断言侧不扩、证据侧上下各放宽一个月', () => {
+  const SEASON_WINDOWS = [
+    {
+      text: '2021年春',
+      strict: { from: '2021-03-01', to: '2021-06-30' },
+      evidence: { from: '2021-02-01', to: '2021-07-31' },
+    },
+    {
+      text: '2021年秋',
+      strict: { from: '2021-09-01', to: '2021-12-31' },
+      evidence: { from: '2021-08-01', to: '2022-01-31' },
+    },
+    {
+      // 冬拍在 12 月开场：核心是次年 1–2 月，放宽后从命名年份的 12 月到次年 3 月
+      text: '2021年冬',
+      strict: { from: '2022-01-01', to: '2022-02-28' },
+      evidence: { from: '2021-12-01', to: '2022-03-31' },
+    },
+  ];
+
+  it('同一句季节词：断言侧取基准表，证据侧两端各多一个月（跨年照算）', () => {
+    for (const row of SEASON_WINDOWS) {
+      expect(assertionTimeWindow(row.text)).toEqual(row.strict);
+      expect(evidenceTimeWindow(row.text)).toEqual(row.evidence);
+      // 放宽只发生在两端：证据窗口严格包住断言窗口
+      expect(row.evidence.from < row.strict.from).toBe(true);
+      expect(row.evidence.to > row.strict.to).toBe(true);
+    }
+  });
+
+  it('月份与日期一律不扩：说 2021年12月 就只主张 12 月，不会被秋季的边界撑大', () => {
+    expect(assertionTimeWindow('2021年12月')).toEqual({ from: '2021-12-01', to: '2021-12-31' });
+    expect(evidenceTimeWindow('2021年12月')).toEqual({ from: '2021-12-01', to: '2021-12-31' });
+    expect(evidenceTimeWindow('2021年12月5日')).toEqual({ from: '2021-12-05', to: '2021-12-05' });
+    // 12 月按基准表落"秋"，检索词仍是秋季，但窗口不跟着扩
+    expect(querySurfaces('dateText', '2021年12月').some((f) => f.includes('秋'))).toBe(true);
+  });
+
+  it('"四季/全年/年末"没有可漂的边界：两侧给同一区间，不下上扩', () => {
+    for (const text of ['2021年四季', '2021全年', '2021年末']) {
+      const strict = assertionTimeWindow(text);
+      expect(strict).not.toBeNull();
+      expect(evidenceTimeWindow(text)).toEqual(strict);
+    }
+    expect(assertionTimeWindow('2021年四季')).toEqual({ from: '2021-01-01', to: '2021-12-31' });
+    expect(assertionTimeWindow('2021年末')).toEqual({ from: '2021-07-01', to: '2021-12-31' });
+  });
+
+  it('解析不出时间就返回 null，不猜一个窗口出来', () => {
+    expect(assertionTimeWindow('近年')).toBeNull();
+    expect(evidenceTimeWindow('近年')).toBeNull();
+    expect(evidenceTimeWindow(null)).toBeNull();
+  });
+});
+
 
 describe('专场名归一槽', () => {
   it('书名号与引号不算差异：断言"「禹贡」系列专场"，页面写“禹贡”系列专场 → yes', () => {

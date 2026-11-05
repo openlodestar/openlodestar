@@ -149,12 +149,43 @@ function parseSingleDate(
   return null;
 }
 
+function isoDate(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/** 某年某月的最后一天（按 UTC 算，不依赖运行机器时区） */
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** 年/月拍平成"第几个月"，做跨年加减月时不必自己处理借位（1900 年以后都为正数） */
+function monthIndex(year: number, month: number): number {
+  return year * 12 + (month - 1);
+}
+
+function yearMonthAt(index: number): { year: number; month: number } {
+  return { year: Math.floor(index / 12), month: (index % 12) + 1 };
+}
+
+/**
+ * 写法里点名的年份（4 位，取第一个）；没有返回 null。
+ *
+ * 不能从时间窗起点取年份：冬的窗口跨年（「2021年冬」的核心在 2022 年 1 月），
+ * 但这条记录点名的年份仍是 2021——拿窗口起点当年份会让同一条记录在两次作答里
+ * 被认成两个年份。
+ */
+export function namedYearOf(text: string | null | undefined): number | null {
+  const hit = /(1[89]\d{2}|20\d{2})/.exec(String(text ?? ''));
+  return hit ? Number(hit[0]) : null;
+}
+
 /**
  * 季节档 → 月份区间（春拍 3–6 月、秋拍 9–12 月、跨年冬档 1–2 月）。
  *
- * 本域只有这一份季节表：断言侧的时间范围（本文件的 `parseTimeScope`）与页面侧的
- * 时间线索（`slots.ts` 的 `normalizedSlot`）都从这里取。历史上两处各写一份数字，
+ * 本域只有这一份季节表：断言侧的时间范围（本文件的 `parseTimeScope`、`assertionTimeWindow`）
+ * 与页面侧的时间线索（`slots.ts` 的 `normalizedSlot`）都从这里取。历史上两处各写一份数字，
  * 同一句「2021年秋季」在一处算成 7–12 月、另一处算成 9–12 月；现在只留这一处。
+ * 证据侧那份"上下各放宽一个月"的窗口（`evidenceTimeWindow`）也由这张表推出来。
  */
 export const SEASON_RANGES: ReadonlyArray<{ word: string; alias: string[]; from: number; to: number }> = [
   { word: '春', alias: ['春季', '春天', '春拍'], from: 3, to: 6 },
@@ -171,9 +202,31 @@ export function seasonRangeOf(text: string): (typeof SEASON_RANGES)[number] | nu
 }
 
 /**
- * 中文拍品日期写法 → 起止日期。
+ * 季节的核心窗口：断言侧与证据侧都拿它当基准，月份数字只来自 `SEASON_RANGES`。
+ *
+ * 年份按**开场月**归属。春、秋的核心月就在命名年份内；冬拍在 12 月开场，
+ * 基准月 1–2 落在次年，所以「2021年冬」指的是 2021 年 12 月开场的那个冬，
+ * 核心是 2022-01-01 至 2022-02-28。这不是笔误：冬拍按开场年份命名，
+ * 而它的核心月份天然跨年，只按"命名年内"切会把 12 月的冬拍切出这个季节之外。
+ */
+function seasonCoreWindow(
+  year: number,
+  season: (typeof SEASON_RANGES)[number],
+): { from: string; to: string } {
+  const startYear = season.word === '冬' ? year + 1 : year;
+  return {
+    from: isoDate(startYear, season.from, 1),
+    to: isoDate(startYear, season.to, daysInMonth(startYear, season.to)),
+  };
+}
+
+/**
+ * 中文拍品日期写法 → 起止日期（**断言侧**的窗口：这句话说到哪天，窗口就是哪天）。
  * 覆盖："2014年5月18日" / "2014-05" / "2014" / "2014春季" / "2014 秋拍" / "2014.5" /
  * "2014年5月18日 - 2014年5月31日" / "2014年5月至6月"。解析不出返回全 null（不猜）。
+ *
+ * 季节词只取基准表、**不上下放宽**——放宽只发生在证据侧（`evidenceTimeWindow`），
+ * 理由见那个函数。
  */
 export function parseTimeScope(text: string | null | undefined): { from: string | null; to: string | null } {
   const empty = { from: null, to: null };
@@ -187,44 +240,85 @@ export function parseTimeScope(text: string | null | undefined): { from: string 
   if (!first) return empty;
   const last = rangeSplit.length > 1 ? parseSingleDate(rangeSplit[rangeSplit.length - 1] ?? '', first.year) : null;
 
-  const iso = (year: number, month: number, day: number) =>
-    `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
   /** 单侧解析结果 → 起止（月份缺失时：季节档查唯一季节表，其余按整年/半年放宽） */
   const spanOf = (parsed: { year: number; month: number | null; day: number | null }, hint: string) => {
     if (parsed.month === null) {
-      // "四季"是全年、"年末"是下半年：两者都不含单季节词，先单独判
-      if (/四季/.test(hint)) return { y: parsed.year, from: [1, 1], to: [12, 31] };
-      const season = seasonRangeOf(hint);
-      if (season) {
-        return {
-          y: parsed.year,
-          from: [season.from, 1],
-          to: [season.to, new Date(Date.UTC(parsed.year, season.to, 0)).getUTCDate()],
-        };
+      // "四季/全年"是全年、"年末/下半年"是下半年：两者都不含单季节词，先单独判
+      if (/四季|全年/.test(hint)) {
+        return { from: isoDate(parsed.year, 1, 1), to: isoDate(parsed.year, 12, 31) };
       }
-      if (/一季|二季度?/.test(hint)) return { y: parsed.year, from: [1, 1], to: [6, 30] };
-      if (/年末/.test(hint)) return { y: parsed.year, from: [7, 1], to: [12, 31] };
-      return { y: parsed.year, from: [1, 1], to: [12, 31] };
+      const season = seasonRangeOf(hint);
+      if (season) return seasonCoreWindow(parsed.year, season);
+      if (/一季|二季度?/.test(hint)) {
+        return { from: isoDate(parsed.year, 1, 1), to: isoDate(parsed.year, 6, 30) };
+      }
+      if (/年末|下半年/.test(hint)) {
+        return { from: isoDate(parsed.year, 7, 1), to: isoDate(parsed.year, 12, 31) };
+      }
+      return { from: isoDate(parsed.year, 1, 1), to: isoDate(parsed.year, 12, 31) };
     }
-    const lastDay = new Date(Date.UTC(parsed.year, parsed.month, 0)).getUTCDate();
     const day = parsed.day ?? null;
     return {
-      y: parsed.year,
-      from: [parsed.month, day ?? 1],
-      to: [parsed.month, day ?? lastDay],
+      from: isoDate(parsed.year, parsed.month, day ?? 1),
+      to: isoDate(parsed.year, parsed.month, day ?? daysInMonth(parsed.year, parsed.month)),
     };
   };
 
   const start = spanOf(first, rangeSplit[0] ?? '');
   if (last) {
     const end = spanOf(last, rangeSplit[rangeSplit.length - 1] ?? '');
-    return {
-      from: iso(start.y, start.from[0], start.from[1]),
-      to: iso(end.y, end.to[0], end.to[1]),
-    };
+    return { from: start.from, to: end.to };
   }
-  return { from: iso(start.y, start.from[0], start.from[1]), to: iso(start.y, start.to[0], start.to[1]) };
+  return { from: start.from, to: start.to };
+}
+
+/**
+ * 断言侧的窗口：一句话在断言里能主张到哪一段。月份就是那个月、日期就是那一天，
+ * 季节词取基准表——**一律不扩**。
+ *
+ * 收紧的理由：断言是"待核的命题"，窗口就是它声称的时间。把「秋季」放宽成 8 月到次年 1 月，
+ * 等于允许一条说「秋季」的断言拿 12 月 5 日的页面来支持它——那是把弱说法偷换成强说法。
+ * 月份更不能被所在季度反过来撑大：说「2021年12月」就只主张 12 月。
+ */
+export function assertionTimeWindow(text: string | null | undefined): { from: string; to: string } | null {
+  const scope = parseTimeScope(text);
+  if (!scope.from || !scope.to) return null;
+  return { from: scope.from, to: scope.to };
+}
+
+/**
+ * 证据侧的窗口：真实语料说季节词时，把基准区间**上下各放宽一个月**（跨年照算）。
+ *
+ * 放宽的理由：语料里的季节边界会漂。冬拍常从 12 月办到次年 2 月，秋拍也有拖到年初、
+ * 或提前到 8 月末的。如果证据只认 1–2 月，一份写着「2021 年冬拍」、正文日期在 12 月 20 日
+ * 的报道就永远对不上这条断言的时间窗，而它明明说的就是同一场。
+ *
+ * **硬约束：放宽出来的那一圈只能产生「相容、不冲突」，绝不能变成「直接支持」。**
+ * 证据落在扩出来的月份里，说明"这条断言没被这段时间排除"，不说明"这段时间印证了断言"；
+ * 要记 supports，仍需页面正文本身支持被裁的命题。把兼容当支持，等于用相邻季节替断言作证。
+ *
+ * 只对季节词生效：写明月份/日期的写法不受此影响（「2021年12月」仍是 12 月本身），
+ * 因为那是语料自己点名的精度，没有边界漂移需要吸收。
+ * 「四季/全年/年末」不是单季、也没有可漂的边界：四季/全年已是整年，再扩就是 13 个月；
+ * 年末本就是个粗档（下半年），再往外扩会吞掉次年上半年的证据。这两类两侧给同一区间。
+ *
+ * 现阶段**没有生产消费者**：证据行上还没有窗口字段，裁决链不读本函数；接入要另行裁决。
+ */
+export function evidenceTimeWindow(text: string | null | undefined): { from: string; to: string } | null {
+  const scope = parseTimeScope(text);
+  if (!scope.from || !scope.to) return null;
+  const raw = String(text ?? '');
+  // 语料自己点名了月份，就按它的精度来，不拿季节的边界去包它
+  if (/月/.test(raw) || seasonRangeOf(raw) === null) return { from: scope.from, to: scope.to };
+
+  const fromAt = monthIndex(Number(scope.from.slice(0, 4)), Number(scope.from.slice(5, 7))) - 1;
+  const toAt = monthIndex(Number(scope.to.slice(0, 4)), Number(scope.to.slice(5, 7))) + 1;
+  const start = yearMonthAt(fromAt);
+  const end = yearMonthAt(toAt);
+  return {
+    from: isoDate(start.year, start.month, 1),
+    to: isoDate(end.year, end.month, daysInMonth(end.year, end.month)),
+  };
 }
 
 /** 模型返回列名各次提问都可能不同，这里把别名归一到本包字段键 */

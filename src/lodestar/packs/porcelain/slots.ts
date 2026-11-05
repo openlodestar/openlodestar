@@ -22,6 +22,7 @@ import { normalizeText } from '../../normalize';
 import {
   canonicalHouseName,
   HOUSE_ALIASES,
+  namedYearOf,
   parseTimeScope,
   SEASON_RANGES,
   seasonRangeOf,
@@ -107,7 +108,9 @@ function numeralVariants(text: string): string[] {
 /** 从写法里认年份与月份（先给"YYYY年M月"这类规整形态，再退到裸年份） */
 function yearMonthOf(text: string): { year: number; month: number | null } | null {
   const scope = parseTimeScope(text);
-  const year = scope.from ? Number(scope.from.slice(0, 4)) : Number.NaN;
+  // 年份取**写法里点名的那个**，不取窗口起点：冬的窗口跨到次年（「2021年冬」的核心在 2022-01），
+  // 而 pageMentions 拿这个年份去问"页面上有没有出现这一年"，用 2022 会把写着 2021 的页面误杀。
+  const year = namedYearOf(text) ?? Number.NaN;
   let month = scope.from && scope.from.length >= 7 ? Number(scope.from.slice(5, 7)) : Number.NaN;
   // 解析器对「2021年秋季」会给出季度起点（9 月），但原文并没有点名月份：
   // 季度档的区间由 SEASON_RANGES 统一推，这里不许再把它当成一个具体月份。

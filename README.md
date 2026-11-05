@@ -235,6 +235,7 @@ docs/demo-lab.md            小游戏玩法、组合矩阵与覆盖读数；站�
 scripts/demo-live-server.mjs 只在本机跑的实时实验服务（不部署，默认拒绝运行）
 scripts/serve-demo.mjs      两页演示的本地静态预览（只绑 127.0.0.1，默认端口 3013）
 docs/demo-design-guide.md   演示方法论：一条演示该证明什么、怎么挑素材、怎么摆证据
+docs/time-window-rules.md   时间窗口的两条口径：断言侧不扩、证据侧上下各放宽一个月
 .env.example                在线链路的环境变量模板（复制为 .env；离线命令不需要）
 .github/                    CI 与 issue 模板
 CONTRIBUTING.md             参与方式、硬规矩与 PR 检查单

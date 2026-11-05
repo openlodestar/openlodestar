@@ -435,9 +435,8 @@
     result.dimensions.forEach(function (dimension) {
       parts.push('<div class="dim-row">');
       parts.push('<span class="dim-slot">' + escapeHtml(dimension.label) + '</span>');
-      parts.push('<span class="dim-value">' + escapeHtml(dimension.value));
+      parts.push('<span class="dim-value">' + escapeHtml(dimension.value) + '</span>');
       if (dimension.demoOnly) parts.push(demoTag());
-      parts.push('</span>');
       parts.push(
         '<span class="dim-evidence">' +
           (dimension.evidenceValue

@@ -168,29 +168,21 @@ function yearMonthAt(index: number): { year: number; month: number } {
 }
 
 /**
- * 写法里点名的年份（4 位，取第一个）；没有返回 null。
+ * 季节档 → 月份区间，按气象常识划齐：春 3–6、夏 7–8、秋 9–11、冬 12–2。
  *
- * 不能从时间窗起点取年份：冬的窗口跨年（「2021年冬」的核心在 2022 年 1 月），
- * 但这条记录点名的年份仍是 2021——拿窗口起点当年份会让同一条记录在两次作答里
- * 被认成两个年份。
- */
-export function namedYearOf(text: string | null | undefined): number | null {
-  const hit = /(1[89]\d{2}|20\d{2})/.exec(String(text ?? ''));
-  return hit ? Number(hit[0]) : null;
-}
-
-/**
- * 季节档 → 月份区间（春拍 3–6 月、秋拍 9–12 月、跨年冬档 1–2 月）。
+ * 冬季跨年，用 `from > to` 表示（12 月开场、2 月收尾），年份按**开场那年**命名：
+ * 「2021年冬」= 2021-12-01 至 2022-02-28。12 月属于冬季，不属秋季（这条曾被写反过，
+ * 连带把检索词拼成"2021秋季拍卖会"，现在以本表为准）。
  *
- * 本域只有这一份季节表：断言侧的时间范围（本文件的 `parseTimeScope`、`assertionTimeWindow`）
- * 与页面侧的时间线索（`slots.ts` 的 `normalizedSlot`）都从这里取。历史上两处各写一份数字，
- * 同一句「2021年秋季」在一处算成 7–12 月、另一处算成 9–12 月；现在只留这一处。
- * 证据侧那份"上下各放宽一个月"的窗口（`evidenceTimeWindow`）也由这张表推出来。
+ * 本域只有这一份季节表：断言侧的时间范围（本文件的 `parseTimeScope`、`assertionTimeWindow`）、
+ * 月份落季（`seasonOfMonth`）、页面侧的时间线索与检索词（`slots.ts` 的 `normalizedSlot`）
+ * 都从这里取。证据侧那份"上下各放宽一个月"的窗口（`evidenceTimeWindow`）也由这张表推出来。
  */
 export const SEASON_RANGES: ReadonlyArray<{ word: string; alias: string[]; from: number; to: number }> = [
   { word: '春', alias: ['春季', '春天', '春拍'], from: 3, to: 6 },
-  { word: '秋', alias: ['秋季', '金秋', '秋拍'], from: 9, to: 12 },
-  { word: '冬', alias: ['冬季', '冬拍', '跨年'], from: 1, to: 2 },
+  { word: '夏', alias: ['夏季', '夏天', '夏拍'], from: 7, to: 8 },
+  { word: '秋', alias: ['秋季', '金秋', '秋拍'], from: 9, to: 11 },
+  { word: '冬', alias: ['冬季', '冬拍', '跨年'], from: 12, to: 2 },
 ];
 
 /** 文本里点名的季节档（没有就返回 null；"四季"不是单季，不在这里认） */
@@ -201,22 +193,41 @@ export function seasonRangeOf(text: string): (typeof SEASON_RANGES)[number] | nu
   return null;
 }
 
+/** 月份 → 季节档（冬季跨年：12、1、2 都归冬） */
+export function seasonOfMonth(month: number): (typeof SEASON_RANGES)[number] | null {
+  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
+  return (
+    SEASON_RANGES.find((range) =>
+      range.from <= range.to
+        ? month >= range.from && month <= range.to
+        : month >= range.from || month <= range.to,
+    ) ?? null
+  );
+}
+
+/** 一个季节覆盖的自然月，按月份顺序展开；跨年季的 1、2 月带 `yearOffset: 1` */
+export function seasonMonthsOf(
+  season: (typeof SEASON_RANGES)[number],
+): Array<{ month: number; yearOffset: number }> {
+  const count = season.from <= season.to ? season.to - season.from + 1 : 12 - season.from + 1 + season.to;
+  return Array.from({ length: count }, (_, step) => {
+    const flat = season.from - 1 + step;
+    return { month: (flat % 12) + 1, yearOffset: flat >= 12 ? 1 : 0 };
+  });
+}
+
 /**
  * 季节的核心窗口：断言侧与证据侧都拿它当基准，月份数字只来自 `SEASON_RANGES`。
- *
- * 年份按**开场月**归属。春、秋的核心月就在命名年份内；冬拍在 12 月开场，
- * 基准月 1–2 落在次年，所以「2021年冬」指的是 2021 年 12 月开场的那个冬，
- * 核心是 2022-01-01 至 2022-02-28。这不是笔误：冬拍按开场年份命名，
- * 而它的核心月份天然跨年，只按"命名年内"切会把 12 月的冬拍切出这个季节之外。
+ * 冬季跨年（12 月开场），起止年份由 `from > to` 自动推出：2021年冬 = 2021-12-01 至 2022-02-28。
  */
 function seasonCoreWindow(
   year: number,
   season: (typeof SEASON_RANGES)[number],
 ): { from: string; to: string } {
-  const startYear = season.word === '冬' ? year + 1 : year;
+  const endYear = season.from <= season.to ? year : year + 1;
   return {
-    from: isoDate(startYear, season.from, 1),
-    to: isoDate(startYear, season.to, daysInMonth(startYear, season.to)),
+    from: isoDate(year, season.from, 1),
+    to: isoDate(endYear, season.to, daysInMonth(endYear, season.to)),
   };
 }
 

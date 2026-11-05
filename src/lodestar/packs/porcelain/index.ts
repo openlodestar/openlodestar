@@ -24,7 +24,6 @@ import {
   knownHostsOf,
   normalizeSessionName,
   officialHostsOfHouse,
-  namedYearOf,
   parseTimeScope,
   registrableDomain,
   SOURCE_CHANNELS,
@@ -272,8 +271,9 @@ export const porcelainPack: DomainPack = {
 
   recordMatchKey(record: ParsedRecord): string {
     const house = canonicalHouseName(record.fields.auctionHouse ?? null);
-    // 年份取点名的年份，不取窗口起点：冬的窗口跨年，起点年份会把同一条记录认成两年
-    const year = namedYearOf(record.fields.dateText ?? null) ?? '';
+    // 冬季窗口从命名年份的 12 月开始，窗口起点年份就是命名年份
+    const scope = parseTimeScope(record.fields.dateText ?? null);
+    const year = scope.from ? scope.from.slice(0, 4) : '';
     // 专场名先剥掉"专场/拍卖会"这类每次都可能多写少写的尾词，再截断（模型两次作答用词长短不同）
     const session = normalizeSessionName(record.fields.sessionName ?? null);
     return `${house}\u0000${year}\u0000${session}`;
@@ -284,8 +284,8 @@ export const porcelainPack: DomainPack = {
       case 'auctionHouse':
         return canonicalHouseName(value);
       case 'dateText': {
-        const year = namedYearOf(value);
-        return year !== null ? String(year) : normalizeText(value);
+        const scope = parseTimeScope(value);
+        return scope.from ? scope.from.slice(0, 4) : normalizeText(value);
       }
       case 'sessionName':
         // 模型两次给"珍瓷雅玩"与"珍瓷雅玩专场"是同一样东西，不该被算成两个变体刷低稳定率

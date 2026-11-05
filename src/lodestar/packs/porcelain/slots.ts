@@ -22,9 +22,10 @@ import { normalizeText } from '../../normalize';
 import {
   canonicalHouseName,
   HOUSE_ALIASES,
-  namedYearOf,
   parseTimeScope,
   SEASON_RANGES,
+  seasonMonthsOf,
+  seasonOfMonth,
   seasonRangeOf,
 } from './rules';
 import type { PageMention } from '../pack';
@@ -108,9 +109,9 @@ function numeralVariants(text: string): string[] {
 /** 从写法里认年份与月份（先给"YYYY年M月"这类规整形态，再退到裸年份） */
 function yearMonthOf(text: string): { year: number; month: number | null } | null {
   const scope = parseTimeScope(text);
-  // 年份取**写法里点名的那个**，不取窗口起点：冬的窗口跨到次年（「2021年冬」的核心在 2022-01），
-  // 而 pageMentions 拿这个年份去问"页面上有没有出现这一年"，用 2022 会把写着 2021 的页面误杀。
-  const year = namedYearOf(text) ?? Number.NaN;
+  // 冬季窗口从命名年份的 12 月开始（「2021年冬」= 2021-12-01 至 2022-02-28），
+  // 所以窗口起点年份就是写法的命名年份，不需要另取原文年份。
+  const year = scope.from ? Number(scope.from.slice(0, 4)) : Number.NaN;
   let month = scope.from && scope.from.length >= 7 ? Number(scope.from.slice(5, 7)) : Number.NaN;
   // 解析器对「2021年秋季」会给出季度起点（9 月），但原文并没有点名月份：
   // 季度档的区间由 SEASON_RANGES 统一推，这里不许再把它当成一个具体月份。
@@ -157,7 +158,8 @@ function slotOfDate(value: string): FieldSlot {
     if (!queryForms.includes(t)) queryForms.push(t);
   };
   const month = ym?.month ?? null;
-  const effectiveSeason = season ?? (ym && month ? SEASON_RANGES.find((r) => month >= r.from && month <= r.to) ?? null : null);
+  // 月份落季与季节词落季走同一张表：12 月归冬（不是秋），1、2 月同样归冬
+  const effectiveSeason = season ?? (month ? seasonOfMonth(month) : null);
   if (ym) {
     // 页面上真正常见的写法：季度式（"2024春季拍卖会"）优先于月份式
     if (effectiveSeason) {
@@ -501,8 +503,12 @@ export function pageTimeCues(pageText: string): Array<{ year: number; month: num
     for (const m of text.matchAll(new RegExp(`(19\\d{2}|20\\d{2})年?${range.word}`, 'g'))) {
       const year = Number(m[1]);
       if (!Number.isInteger(year)) continue;
-      for (let month = range.from; month <= range.to; month += 1) {
-        if (!out.some((c) => c.year === year && c.month === month)) out.push({ year, month, seasonWord: range.word });
+      // 冬季跨年：12 月属命名年，1、2 月属次年（seasonMonthsOf 给出 yearOffset）
+      for (const { month, yearOffset } of seasonMonthsOf(range)) {
+        const cueYear = year + yearOffset;
+        if (!out.some((c) => c.year === cueYear && c.month === month)) {
+          out.push({ year: cueYear, month, seasonWord: range.word });
+        }
       }
     }
   }

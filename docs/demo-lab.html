@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>小游戏 · OpenLodestar — 换掉一个词，看证据认不认</title>
-<meta name="description" content="一屏之内换词、读逐维判据、把这一组收进图鉴。每种结论只在第一次收录时给分，八种结论各收一次、满 31 分通关。判定是构建时用真引擎对冻结证据算好的，断网也能打开。">
+<meta name="description" content="一屏之内拖卡换词、读逐维判据、开宝箱把这一档收进图鉴。每种结论只在第一次收录时给分，八种结论各收一次、满 31 分通关。判定是构建时用真引擎对冻结证据算好的，断网也能打开。">
 <link rel="canonical" href="https://openlodestar.github.io/openlodestar/demo-lab.html">
 <link rel="icon" href="assets/favicon.ico" sizes="any">
 <link rel="stylesheet" href="assets/site-nav.css">
@@ -70,7 +70,7 @@ a{color:var(--gold)}
 .topbar .site-nav nav a{font-size:.84rem;padding:3px 1px}
 
 /* ---- 游戏外壳：一屏之内，只有面板内部可以滚 ---- */
-.game{flex:1;min-height:0;width:100%;max-width:var(--max);margin:0 auto;padding:8px 14px 10px;display:flex;flex-direction:column;gap:8px;position:relative}
+.game{flex:1;min-height:0;width:100%;max-width:var(--max);margin:0 auto;padding:8px 14px 10px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:clip}
 
 /* ---- 顶部进度 ---- */
 .hud{
@@ -114,6 +114,10 @@ a{color:var(--gold)}
 .dex-cell.is-scored .dex-points{opacity:.8}
 .dex-cell.is-scored:hover{filter:brightness(1.06)}
 .dex-cell.is-pop{animation:dex-pop .5s cubic-bezier(.2,1.6,.4,1)}
+.dex-cell.is-arriving{
+  border-style:dashed;border-color:var(--gold);color:var(--gold);
+  background:rgba(233,196,106,.16);animation:arrive-pulse .55s ease-in-out infinite alternate;
+}
 .mission-line{
   grid-column:1/-1;margin:0;padding:0;text-align:left;background:none;border:0;cursor:pointer;
   font:inherit;font-size:.7rem;color:rgba(244,238,226,.62);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
@@ -137,11 +141,16 @@ a{color:var(--gold)}
   padding:0 6px;margin:0;vertical-align:baseline;
 }
 .slot:hover{background:var(--ok-bg)}
+.slot.is-active{background:#FFF6DA;border-bottom-style:solid}
 .slot.is-open{background:var(--navy);color:var(--cream);border-bottom-color:var(--cream)}
 .slot.is-demo{border-bottom-style:dotted;border-bottom-color:var(--conf)}
+.slot.is-drop-target{background:var(--gold);color:#141B2A;border-bottom-color:#141B2A;border-radius:6px;box-shadow:0 0 0 3px rgba(233,196,106,.45)}
+.slot.is-receiving{animation:slot-receive .5s ease-out}
+.slot.is-suggested{animation:slot-suggest 1.7s ease-in-out 2}
+.slot.is-drop-muted{opacity:.4}
 .dash{white-space:pre}
 
-/* 判定卡与选词卡共用同一块区域：绝对定位，绝不把页面撑高 */
+/* 判定卡占据整块面板：绝对定位，翻面与长内容都不把页面撑高 */
 .panel-wrap{position:relative;flex:1;min-height:0}
 .verdict{
   position:absolute;inset:0;overflow:auto;overscroll-behavior:contain;
@@ -156,7 +165,7 @@ a{color:var(--gold)}
 .verdict-conflict{border-left-color:var(--conf);background:linear-gradient(180deg,var(--conf-bg),var(--paper) 62%)}
 .verdict-mismatch{border-left-color:var(--mis);background:linear-gradient(180deg,var(--mis-bg),var(--paper) 62%)}
 .verdict-uncovered,.verdict-unknown{border-left-color:var(--skip);background:linear-gradient(180deg,var(--skip-bg),var(--paper) 62%)}
-.verdict.is-flash{animation:card-flash .42s ease-out}
+.verdict.is-flipping{animation:card-flip .3s cubic-bezier(.4,0,.2,1)}
 .verdict-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .badge{display:inline-block;border-radius:999px;padding:1px 11px;font-size:.84rem;font-weight:700;line-height:1.7}
 .badge-strong{background:var(--ok);color:#fff}
@@ -204,41 +213,113 @@ a{color:var(--gold)}
 .chip-mismatch{background:var(--mis-bg);color:var(--mis)}
 .chip-unknown,.chip-uncovered{background:var(--skip-bg);color:var(--skip)}
 
-/* ---- 选词卡：盖住判定卡，选完自动收起 ---- */
-.chooser{
-  position:absolute;inset:0;overflow:auto;overscroll-behavior:contain;
-  border-radius:14px;padding:10px 13px;box-shadow:0 12px 28px rgba(0,0,0,.34);
-  background:#101E3C;color:var(--cream);border:1px solid rgba(233,196,106,.45);
-  display:flex;flex-direction:column;gap:6px;animation:card-in .16s ease-out;
+/* ---- 候选卡托盘：横向卡牌，拖到词上松手、或点一下 ---- */
+.tray{flex:0 0 auto;display:flex;align-items:stretch;gap:8px;min-height:0}
+.tray-label{
+  flex:0 0 auto;display:flex;flex-direction:column;justify-content:center;gap:2px;
+  width:58px;padding-right:7px;border-right:1px dashed rgba(244,238,226,.18);line-height:1.15;
 }
-.chooser-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:.82rem;color:rgba(244,238,226,.72)}
-.chooser-head .link-button{color:var(--gold)}
-.option-list{display:flex;flex-direction:column;gap:5px;min-height:0;overflow:auto;overscroll-behavior:contain}
-.option{
-  font:inherit;font-size:.84rem;cursor:pointer;text-align:left;width:100%;
-  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-  background:rgba(255,255,255,.07);color:var(--cream);
-  border:1px solid rgba(244,238,226,.18);border-radius:10px;padding:6px 10px;line-height:1.5;
+.tray-label span{font-size:.56rem;letter-spacing:.12em;color:rgba(244,238,226,.48)}
+.tray-label strong{font-size:.72rem;font-weight:700;color:var(--gold);word-break:break-all}
+.tray-strip{
+  flex:1 1 auto;min-width:0;display:flex;gap:7px;
+  overflow-x:auto;overflow-y:hidden;padding:1px 1px 5px;
+  overscroll-behavior-x:contain;scroll-snap-type:x proximity;scrollbar-width:thin;
 }
-.option:hover,.option:focus-visible{background:rgba(233,196,106,.16);border-color:rgba(233,196,106,.6)}
-.option.is-current{border-color:var(--gold);background:rgba(233,196,106,.22)}
-.option-value{flex:1 1 auto;min-width:0;word-break:break-all}
-.option .chip{margin-left:auto}
-.option-legend{margin:2px 0 0;font-size:.68rem;line-height:1.5;color:rgba(244,238,226,.6)}
+.word-card{
+  flex:0 0 auto;width:148px;scroll-snap-align:start;
+  display:flex;flex-direction:column;justify-content:space-between;gap:4px;
+  padding:6px 9px;border-radius:11px;text-align:left;cursor:grab;
+  background:linear-gradient(180deg,#FFFDF8,#F1E9DB);color:var(--ink);
+  border:1px solid rgba(233,196,106,.32);box-shadow:0 4px 12px rgba(0,0,0,.3);
+  line-height:1.3;touch-action:pan-x;user-select:none;-webkit-user-select:none;
+}
+.word-card:active{cursor:grabbing}
+.word-card:hover{border-color:rgba(233,196,106,.75)}
+.word-card.is-current{
+  border-color:var(--gold);background:linear-gradient(180deg,#FFF6DA,var(--gold));
+  box-shadow:0 0 0 2px rgba(233,196,106,.35),0 4px 12px rgba(0,0,0,.3);
+}
+.word-card.is-lifted{opacity:.26}
+.word-card-value{font-size:.8rem;font-weight:650;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.word-card-foot{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.word-card-ghost{position:fixed;z-index:95;pointer-events:none;cursor:grabbing;opacity:.97;box-shadow:0 16px 34px rgba(0,0,0,.5);will-change:transform}
+body.is-dragging{user-select:none;cursor:grabbing}
 
-/* ---- 计分口 ---- */
-.claim-row{flex:0 0 auto;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap}
-.claim-button{
-  font:inherit;font-size:.92rem;font-weight:750;cursor:pointer;border:0;border-radius:999px;
-  padding:9px 20px;color:#141B2A;background:linear-gradient(180deg,#F5DA96,var(--gold));
-  box-shadow:0 6px 18px rgba(233,196,106,.30);white-space:nowrap;
+/* ---- 动作坞：宝箱与下一步提示 ---- */
+.dock{flex:0 0 auto;display:flex;align-items:center;gap:10px;min-height:58px}
+.chest-dock{flex:0 0 auto;position:relative;width:76px;height:56px;display:flex;align-items:flex-end;justify-content:center}
+.chest-dock::after{
+  content:"";position:absolute;left:50%;bottom:0;width:62px;height:10px;margin-left:-31px;border-radius:50%;
+  background:radial-gradient(ellipse at center,rgba(0,0,0,.5),rgba(0,0,0,0) 72%);pointer-events:none;
 }
-.claim-button:hover:not(:disabled){filter:brightness(1.05);transform:translateY(-1px)}
-.claim-button:active:not(:disabled){transform:translateY(1px)}
-.claim-button:disabled{background:rgba(244,238,226,.12);color:rgba(244,238,226,.55);box-shadow:none;cursor:not-allowed}
-.claim-button.is-ready{animation:claim-pulse 2.6s ease-in-out infinite}
-.claim-button.is-nope{animation:shake .32s ease-in-out}
-.claim-note{margin:0;font-size:.74rem;line-height:1.5;color:rgba(244,238,226,.66);flex:1 1 180px}
+.chest{position:relative;width:58px;height:48px;padding:0;border:0;background:none;cursor:pointer;z-index:1;transform-origin:bottom center}
+.chest-inner{position:absolute;inset:0;display:block}
+.chest:hover{filter:brightness(1.07)}
+.chest:focus-visible{outline:2px solid var(--gold);outline-offset:4px;border-radius:8px}
+.chest.is-ready .chest-inner{animation:chest-bob 2.4s ease-in-out infinite}
+.chest.is-gone{opacity:0;transform:translateY(6px) scale(.82);transition:opacity .24s ease,transform .24s ease}
+.chest-glow{
+  position:absolute;inset:-14px;border-radius:50%;pointer-events:none;opacity:.4;
+  background:radial-gradient(circle at 50% 62%,var(--glow),rgba(0,0,0,0) 68%);
+  transition:opacity .3s ease;
+}
+.chest.is-ready .chest-glow{animation:chest-glow 1.6s ease-in-out infinite}
+.chest.is-open .chest-glow{opacity:1}
+.chest-beam{
+  position:absolute;left:50%;bottom:50%;width:38px;height:0;margin-left:-19px;pointer-events:none;opacity:0;
+  background:linear-gradient(180deg,var(--glow),rgba(255,255,255,0));
+  transition:opacity .2s ease,height .3s ease;
+}
+.chest.is-open .chest-beam{opacity:.9;height:44px}
+.chest-lid{
+  position:absolute;left:0;right:0;top:16.6%;height:39.6%;z-index:3;
+  border-radius:9px 9px 2px 2px;border:1px solid rgba(0,0,0,.38);
+  background:linear-gradient(180deg,var(--lid-a),var(--lid-b));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35);
+  transform-origin:bottom center;transition:transform .38s cubic-bezier(.2,1.05,.3,1);
+}
+.chest.is-open .chest-lid{transform:perspective(520px) rotateX(-112deg) translateY(-2px)}
+.chest-body{
+  position:absolute;left:0;right:0;bottom:4.2%;height:52%;z-index:2;overflow:hidden;
+  border-radius:3px 3px 8px 8px;border:1px solid rgba(0,0,0,.4);
+  background:linear-gradient(180deg,var(--body-a),var(--body-b));
+}
+.chest-band{position:absolute;left:50%;top:0;bottom:0;width:9px;margin-left:-4.5px;opacity:.95;
+  background:linear-gradient(180deg,var(--band),rgba(0,0,0,.3))}
+.chest-lock{
+  position:absolute;left:50%;top:44%;width:13px;height:13px;margin-left:-6.5px;z-index:4;border-radius:3px;
+  border:1px solid rgba(0,0,0,.4);background:var(--lock);box-shadow:inset 0 1px 0 rgba(255,255,255,.4);
+}
+.chest-points{
+  position:absolute;right:-12px;top:-13px;z-index:5;white-space:nowrap;
+  font-size:.7rem;font-weight:800;line-height:1.7;padding:0 7px;border-radius:999px;
+  color:#141B2A;border:1px solid rgba(0,0,0,.22);
+  background:linear-gradient(180deg,#FFF6DA,var(--gold));box-shadow:0 3px 10px rgba(0,0,0,.35);
+}
+.chest.is-open .chest-points{opacity:0;transition:opacity .12s ease}
+.chest-spark{
+  position:absolute;left:50%;top:40%;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;border-radius:50%;
+  background:var(--spark,#FFF6DA);box-shadow:0 0 8px var(--spark,#FFF6DA);pointer-events:none;
+  animation:spark-out .72s ease-out forwards;
+}
+.chest-medal{
+  display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;
+  border:1px solid rgba(233,196,106,.5);color:var(--gold);font-size:1.2rem;font-weight:800;background:rgba(233,196,106,.1);
+}
+/* 档位配色：稀有一眼可辨（颜色 + 光晕 + 粒子数） */
+.chest-strong{--lid-a:#FFF3C4;--lid-b:#D9A83F;--body-a:#F0CF7B;--body-b:#A9761C;--band:#FFF8E2;--glow:rgba(255,214,110,.92);--lock:#FFF8E2;--spark:#FFE9A8}
+.chest-weak{--lid-a:#F0DFC0;--lid-b:#B98A2E;--body-a:#DDBE84;--body-b:#8A6420;--band:#FFF3D6;--glow:rgba(233,196,106,.62);--lock:#FFF3D6;--spark:#F3D792}
+.chest-caliber{--lid-a:#BBD6F0;--lid-b:#2A5A8C;--body-a:#8FB6D9;--body-b:#1F456E;--band:#E8F0F8;--glow:rgba(91,155,224,.6);--lock:#E8F0F8;--spark:#BBD6F0}
+.chest-edge{--lid-a:#BFD6DA;--lid-b:#4A6572;--body-a:#94AFB6;--body-b:#38505B;--band:#EEF2F4;--glow:rgba(120,170,180,.5);--lock:#EEF2F4;--spark:#C9DEE2}
+.chest-conflict{--lid-a:#F3D6A8;--lid-b:#8A5A00;--body-a:#D6A85C;--body-b:#6E4700;--band:#FBF3E3;--glow:rgba(233,160,60,.58);--lock:#FBF3E3;--spark:#F3D6A8}
+.chest-mismatch{--lid-a:#E2B0A8;--lid-b:#7A3030;--body-a:#C08578;--body-b:#5E2626;--band:#F6ECEA;--glow:rgba(200,100,90,.5);--lock:#F6ECEA;--spark:#E2B0A8}
+.chest-unknown{--lid-a:#C3CBD8;--lid-b:#3E4A5E;--body-a:#98A4B5;--body-b:#333D4E;--band:#EDEFF3;--glow:rgba(150,165,190,.42);--lock:#EDEFF3;--spark:#C3CBD8}
+.chest-uncovered{--lid-a:#B9AB90;--lid-b:#6A5C46;--body-a:#94866C;--body-b:#544836;--band:#DED6C6;--glow:rgba(180,165,140,.34);--lock:#DED6C6;--spark:#CFC2A8}
+.chest-empty{--lid-a:#9A9A9A;--lid-b:#5C5C5C;--body-a:#7E7E7E;--body-b:#474747;--band:#A8A8A8;--glow:rgba(150,150,150,.16);--lock:#9A9A9A;--spark:#B0B0B0;filter:grayscale(.35)}
+.loop-hint{margin:0;font-size:.76rem;line-height:1.5;color:rgba(244,238,226,.8);min-width:0}
+.loop-hint strong{color:var(--gold);margin-right:6px}
+.loop-hint .hint-sub{display:block;font-size:.68rem;color:rgba(244,238,226,.55)}
 
 /* ---- 浮层：提示、飘分、礼花 ---- */
 .toast{
@@ -250,10 +331,10 @@ a{color:var(--gold)}
 }
 .toast.is-visible{opacity:1;transform:translate(-50%,0)}
 .fx{position:fixed;inset:0;pointer-events:none;z-index:90;overflow:hidden}
-.fx-points{
-  position:fixed;transform:translate(-50%,-50%);font-size:1.6rem;font-weight:800;
-  color:var(--gold);text-shadow:0 0 18px rgba(233,196,106,.8),0 2px 0 rgba(0,0,0,.35);
-  animation:float-up .95s cubic-bezier(.2,.8,.3,1) forwards;
+.fx-fly{
+  position:fixed;left:0;top:0;font-size:1.5rem;font-weight:800;line-height:1;
+  color:var(--gold);text-shadow:0 0 18px rgba(233,196,106,.85),0 2px 0 rgba(0,0,0,.35);
+  pointer-events:none;will-change:transform;
 }
 .fx-confetti{position:fixed;top:-14px;width:7px;height:12px;border-radius:2px;display:block;
   animation:confetti-fall 1.4s linear forwards}
@@ -263,13 +344,17 @@ a{color:var(--gold)}
   color:#141B2A;background:linear-gradient(180deg,#F7E3AC,var(--gold));
   box-shadow:0 18px 50px rgba(0,0,0,.5);animation:banner-in 1.9s cubic-bezier(.2,1.3,.4,1) forwards;
 }
-@keyframes card-flash{0%{transform:scale(.995);box-shadow:0 0 0 0 rgba(233,196,106,.7),0 12px 28px rgba(0,0,0,.34)}100%{transform:scale(1);box-shadow:0 0 0 14px rgba(233,196,106,0),0 12px 28px rgba(0,0,0,.34)}}
+@keyframes card-flip{0%{transform:perspective(1000px) rotateX(0)}45%{transform:perspective(1000px) rotateX(-86deg)}46%{transform:perspective(1000px) rotateX(86deg)}100%{transform:perspective(1000px) rotateX(0)}}
 @keyframes row-ping{0%{background:rgba(233,196,106,.55)}100%{background:transparent}}
 @keyframes card-in{from{opacity:0;transform:translateY(6px) scale(.99)}to{opacity:1;transform:none}}
 @keyframes dex-pop{0%{transform:scale(.6);box-shadow:0 0 0 0 rgba(233,196,106,.8)}55%{transform:scale(1.16)}100%{transform:scale(1);box-shadow:0 0 0 12px rgba(233,196,106,0)}}
-@keyframes claim-pulse{0%,100%{box-shadow:0 6px 18px rgba(233,196,106,.28)}50%{box-shadow:0 6px 26px rgba(233,196,106,.62)}}
+@keyframes arrive-pulse{from{box-shadow:0 0 0 0 rgba(233,196,106,.1)}to{box-shadow:0 0 12px 2px rgba(233,196,106,.6)}}
+@keyframes chest-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes chest-glow{0%,100%{opacity:.35}50%{opacity:.85}}
+@keyframes spark-out{0%{opacity:0;transform:translate(0,0) scale(.5)}25%{opacity:1}100%{opacity:0;transform:translate(var(--sx,0),var(--sy,-40px)) scale(1.1)}}
+@keyframes slot-receive{0%{box-shadow:0 0 0 7px rgba(233,196,106,.6)}100%{box-shadow:0 0 0 0 rgba(233,196,106,0)}}
+@keyframes slot-suggest{0%,100%{box-shadow:0 0 0 0 rgba(233,196,106,0)}50%{box-shadow:0 0 0 4px rgba(233,196,106,.45)}}
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
-@keyframes float-up{0%{opacity:0;transform:translate(-50%,-30%) scale(.7)}25%{opacity:1}100%{opacity:0;transform:translate(-50%,-260%) scale(1.15)}}
 @keyframes confetti-fall{0%{opacity:1;transform:translate3d(0,0,0) rotate(0)}100%{opacity:0;transform:translate3d(var(--drift,0),105vh,0) rotate(var(--spin,360deg))}}
 @keyframes banner-in{0%{opacity:0;transform:translate(-50%,-50%) scale(.7)}18%{opacity:1;transform:translate(-50%,-50%) scale(1.04)}30%{transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-56%) scale(1)}}
 
@@ -396,17 +481,24 @@ code{font-size:.82em;background:var(--paper);border:1px solid var(--line);border
   .dex-cell .dex-points{font-size:.54rem}
   .mission-line{display:none}
   .sentence{padding:6px 11px}
-  .verdict,.chooser{padding:9px 11px}
-  .verdict{gap:4px}
+  .verdict{padding:9px 11px;gap:4px}
   .verdict-reason{font-size:.84rem;line-height:1.55}
   .verdict-next{font-size:.74rem}
   .dim-row{grid-template-columns:auto minmax(0,1fr) auto;gap:0 6px;font-size:.76rem;line-height:1.45}
   .dim-body{flex-wrap:nowrap}
   .dim-value{flex:0 0 auto;max-width:52%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .dim-ev{flex:1 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .claim-row{flex-wrap:nowrap;gap:8px}
-  .claim-button{flex:0 0 auto;padding:9px 13px;font-size:.88rem}
-  .claim-note{flex:1 1 auto;font-size:.68rem;line-height:1.4}
+  .tray-label{width:50px;padding-right:5px}
+  .tray-label span{font-size:.52rem}
+  .tray-label strong{font-size:.68rem}
+  .word-card{width:126px;padding:5px 8px}
+  .word-card-value{font-size:.76rem}
+  .dock{gap:8px;min-height:50px}
+  .chest-dock{width:66px;height:50px}
+  .chest{width:50px;height:42px}
+  .chest-points{right:-9px;top:-11px;font-size:.64rem}
+  .loop-hint{font-size:.68rem;line-height:1.45}
+  .loop-hint .hint-sub{font-size:.62rem}
   .sheet-panel{max-height:88dvh;border-radius:16px 16px 0 0}
 }
 @media (max-width:380px){
@@ -457,26 +549,27 @@ code{font-size:.82em;background:var(--paper);border:1px solid var(--line);border
   <section class="stage" aria-labelledby="stage-title">
     <p class="sentence" id="sentence">
       <span class="sr-only" id="stage-title">待识别的一句话，三个词都能换</span>
-      <span class="slot" role="button" tabindex="0" data-slot="auctionHouse" aria-haspopup="dialog" aria-expanded="false" aria-controls="slot-options">北京保利</span>
+      <span class="slot" role="button" tabindex="0" data-slot="auctionHouse">北京保利</span>
       <span class="plain">在</span>
-      <span class="slot" role="button" tabindex="0" data-slot="dateText" aria-haspopup="dialog" aria-expanded="false" aria-controls="slot-options">2021年12月5日</span>
+      <span class="slot" role="button" tabindex="0" data-slot="dateText">2021年12月5日</span>
       <span class="plain">举办了一场名为「</span>
-      <span class="slot" role="button" tabindex="0" data-slot="sessionName" aria-haspopup="dialog" aria-expanded="false" aria-controls="slot-options">禹贡Ⅰ—盛清御瓷新风尚</span>
+      <span class="slot" role="button" tabindex="0" data-slot="sessionName">禹贡Ⅰ—盛清御瓷新风尚</span>
       <span class="plain">」的拍卖会。</span>
     </p>
 
     <div class="panel-wrap">
       <article class="verdict" id="verdict" aria-live="polite"></article>
-      <section class="chooser" id="slot-options" role="dialog" aria-labelledby="slot-options-title" hidden>
-        <div class="chooser-head">
-          <span id="slot-options-title">换一个词</span>
-          <button type="button" class="link-button" data-action="close-options">收起</button>
-        </div>
-        <div class="option-list" id="option-list" role="group" aria-label="可换的词"></div>
-      </section>
     </div>
 
-    <div class="claim-row" id="claim-row"></div>
+    <section class="tray" aria-label="候选词卡">
+      <div class="tray-label"><span>候选卡</span><strong id="tray-slot">举办时间</strong></div>
+      <div class="tray-strip" id="tray-list" role="group" aria-label="可拖到句子里的词卡"></div>
+    </section>
+
+    <div class="dock">
+      <div class="chest-dock" id="chest-dock"></div>
+      <p class="loop-hint" id="loop-hint" role="status"></p>
+    </div>
   </section>
 </main>
 
@@ -534,6 +627,7 @@ code{font-size:.82em;background:var(--paper);border:1px solid var(--line);border
           <p>数据是冻结的：页面只切换构建时算好的组合，不重新检索、不重新抓取、不调用模型。原始页面链接仍然可点，快照是正文节选，不是完整网页。</p>
           <p>每个词都是拿你写的值与这批证据里逐字摘到的原文值逐维比对，结论取三个词里最差的那一维。所以组合级写着强坐标，也不等于每个词都「完全对上」。</p>
           <p>口径相容（很可能是同一场，只是说法不同）、边缘相容（没有矛盾，但这不能证明）、冲突候选（只作候选，不压成反对）三者都不等于「对上」。没有任何一条冻结记录同时在两个词上对上或相容时，显示「这批证据没覆盖」——没查过不等于被反驳，也不等于世界上不存在。</p>
+          <p>一回合是一条线：把候选卡拖到句子里的词上（或点一下卡），判定卡翻面更新判据，能领的分数就变成场上一只宝箱；亲手开箱后分数才飞进图鉴。重复的组合与该档已收会出空箱，开箱会明确告诉你为什么是 0 分。已通关后不再出箱。</p>
           <p>分数是给学习用的，不是证据评级：它只奖励「这一档判据第一次被看到」，不衡量这批证据本身够不够硬。八档收齐只说明六种维度状态你都亲眼看过了，不说明任何一件器物的来源被确认。</p>
           <p>存档只写在你自己的浏览器里（只存组合号，不上传），换台机器就从 0 开始。音效默认关闭，打开后也只在你操作时响，不会自动播放。</p>
         </div>

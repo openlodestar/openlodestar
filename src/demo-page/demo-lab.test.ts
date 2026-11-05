@@ -367,11 +367,13 @@ describe('页面装载与离线约束', () => {
     expect(html).not.toContain('id="identify"');
     expect(html).not.toContain('word-bank');
     const labSource = fs.readFileSync(path.join(DOCS, 'assets/demo-lab.js'), 'utf8');
-    expect(labSource).not.toContain('pointermove');
-    expect(labSource).not.toContain('drag');
+    // 换词是拖卡（零依赖指针事件），结算在开箱那一刻
+    expect(labSource).toContain("addEventListener('pointermove'");
+    expect(labSource).toContain("addEventListener('pointerup'");
+    expect(labSource).toContain("data-action=\"open-chest\"");
+    expect(labSource).not.toContain('data-action="submit"');
     // 候选小标读"这一维"的判据，不是整句结论——所以要调 substitutionDimension
     expect(labSource).toContain('substitutionDimension');
-    expect(labSource).toContain('data-action="submit"');
     // 存档只在页面层写；规则层是纯函数，拿得到 progress 就能算，不碰浏览器存储
     expect(labSource).toContain('localStorage');
     expect(labSource).toContain('game.STORAGE_KEY');
@@ -681,13 +683,20 @@ describe('六种维度状态与八种结论都真实可达', () => {
 });
 
 describe('改词即出结论：候选小标与真实结论一致', () => {
-  it('三个槽位改成一个词的可聚焦元素，选词卡是卡片翻面', () => {
+  it('三个槽位是可聚焦的换词出口，候选词做成托盘里的可拖卡牌', () => {
     const html = fs.readFileSync(path.join(DOCS, 'demo-lab.html'), 'utf8');
     expect((html.match(/class="slot"/g) ?? []).length).toBe(3);
-    expect((html.match(/aria-controls="slot-options"/g) ?? []).length).toBe(3);
     expect((html.match(/role="button" tabindex="0" data-slot=/g) ?? []).length).toBe(3);
-    expect(html).toContain('data-action="close-options"');
+    // 旧的下拉/一排按钮/浮层选词卡都不在页面里
+    expect(html).not.toContain('id="slot-options"');
+    expect(html).not.toContain('<select');
+    expect(html).not.toContain('<datalist');
     expect(html).not.toContain('<button type="button" class="slot"');
+    // 新的三块：候选卡托盘、宝箱坞、下一步提示
+    expect(html).toContain('id="tray-list"');
+    expect(html).toContain('id="tray-slot"');
+    expect(html).toContain('id="chest-dock"');
+    expect(html).toContain('id="loop-hint"');
   });
 
   it('每个候选的小标读的是「这一维」的判据，不是整句结论', () => {
@@ -1003,25 +1012,34 @@ describe('一屏之内：固定视口、面板翻卡、候选不撑页', () => {
     const gameBlock = cssBlock('.game');
     expect(gameBlock).toContain('flex:1');
     expect(gameBlock).toContain('min-height:0');
+    // 宝箱光晕会溢出动作坞：裁在游戏区里，别让装饰把文档撑出滚动条
+    expect(gameBlock).toContain('overflow:clip');
     expect(cssBlock('.stage')).toContain('min-height:0');
   });
 
-  it('判定卡与选词卡共用一块绝对定位的区域，换词不把页面撑高', () => {
+  it('判定卡独占绝对定位区域，候选托盘与宝箱坞各占一行，换词不把页面撑高', () => {
     const wrap = cssBlock('.panel-wrap');
     expect(wrap).toContain('position:relative');
     expect(wrap).toContain('flex:1');
     expect(wrap).toContain('min-height:0');
-    const chooser = cssBlock('.chooser');
-    expect(chooser).toContain('position:absolute');
-    expect(chooser).toContain('inset:0');
-    expect(chooser).toContain('overflow:auto');
     const verdict = cssBlock('.verdict');
     expect(verdict).toContain('position:absolute');
     expect(verdict).toContain('inset:0');
+    // 托盘与动作坞固定在布局里，靠内部横向滚动收纳候选，不撑高页面
+    const tray = cssBlock('.tray');
+    expect(tray).toContain('flex:0 0 auto');
+    const strip = cssBlock('.tray-strip');
+    expect(strip).toContain('overflow-x:auto');
+    expect(strip).toContain('overscroll-behavior-x:contain');
+    const dock = cssBlock('.dock');
+    expect(dock).toContain('flex:0 0 auto');
+    expect(cssBlock('.chest-dock')).toContain('position:relative');
+    // 宝箱与飞分都在这一屏里：宝箱坞占位固定，飞分用 fixed 覆盖层
+    expect(cssBlock('.fx-fly')).toContain('position:fixed');
     const sentence = html.match(/<p class="sentence" id="sentence">[\s\S]*?<\/p>/)?.[0] ?? '';
     expect(sentence).toContain('class="slot"');
     expect(sentence).not.toContain('id="slot-options"');
-    // 选词卡不再靠量位置来浮在句子旁边
+    // 托盘不再靠量位置来浮在句子旁边
     expect(labSource).not.toContain('anchorRect');
     expect(labSource).not.toContain("addEventListener('scroll'");
     expect(labSource).not.toContain("addEventListener('resize'");
@@ -1066,15 +1084,24 @@ describe('一屏之内：固定视口、面板翻卡、候选不撑页', () => {
     expect(slot).not.toMatch(/padding:\s*1px/);
   });
 
-  it('动效走 CSS：得分飘字、入册、进度条、通关礼花，并且尊重「减少动效」', () => {
-    for (const keyframe of ['float-up', 'dex-pop', 'confetti-fall', 'banner-in', 'claim-pulse']) {
+  it('动效走 CSS：判定翻面、开箱、粒子、入册、通关礼花，并且尊重「减少动效」', () => {
+    for (const keyframe of [
+      'card-flip',
+      'chest-bob',
+      'chest-glow',
+      'spark-out',
+      'dex-pop',
+      'confetti-fall',
+      'banner-in',
+    ]) {
       expect(html, `缺少 ${keyframe} 动效`).toContain(`@keyframes ${keyframe}`);
     }
     expect(html).toContain('@media (prefers-reduced-motion:reduce)');
     expect(html).toContain('.fx{display:none}');
     expect(labSource).toContain("matchMedia('(prefers-reduced-motion: reduce)')");
     expect(labSource).toContain('function celebrate');
-    expect(labSource).toContain('function showPoints');
+    expect(labSource).toContain('function openChest');
+    expect(labSource).toContain('function flyPoints');
   });
 
   it('音效默认关闭，只在玩家操作时响，不自动播放', () => {
@@ -1090,17 +1117,98 @@ describe('一屏之内：固定视口、面板翻卡、候选不撑页', () => {
     );
   });
 
-  it('键盘路径：回车打开并进面板、方向键选、Esc 收起并还焦点', () => {
+  it('键盘等价路径：聚焦槽位 → 左右方向键切词 → 回车开箱，候选卡也能键盘操作', () => {
     expect(labSource).toContain("element.addEventListener('keydown'");
-    expect(labSource).toContain("event.key !== 'Enter'");
-    expect(labSource).toContain("event.key !== ' '");
-    expect(labSource).toContain('focusOptionByValue(state.values[key])');
-    expect(labSource).toContain("event.key === 'ArrowRight'");
+    expect(labSource).toContain("event.key === 'ArrowLeft' || event.key === 'ArrowRight'");
     expect(labSource).toContain('cycleOption');
+    // 回车在槽位上有宝箱就开箱，没有宝箱才把焦点交给当前卡
+    expect(labSource).toContain('if (state.chest)');
+    expect(labSource).toContain('openChest()');
+    expect(labSource).toContain("trayList.addEventListener('keydown'");
     expect(labSource).toContain("event.key === 'Escape'");
-    expect(labSource).toContain('closeOptions(true)');
-    expect(labSource).toContain("event.target.closest('#slot-options')");
-    expect(labSource).toContain('event.stopPropagation()');
+    expect(labSource).toContain('focusSlot(state.activeSlot)');
+    // 拖拽不是唯一路径：槽位与卡都是可聚焦元素
+    expect(html).toContain('role="button" tabindex="0" data-slot=');
+  });
+});
+
+describe('宝箱领取：判定不直接加分，开箱才结算', () => {
+  const html = fs.readFileSync(path.join(DOCS, 'demo-lab.html'), 'utf8');
+  const labSource = fs.readFileSync(path.join(DOCS, 'assets/demo-lab.js'), 'utf8');
+
+  it('八档各有自己的箱子配色，重复与该档已收给空箱，通关后不再出箱', () => {
+    for (const code of [
+      'strong',
+      'weak',
+      'caliber',
+      'edge',
+      'conflict',
+      'mismatch',
+      'unknown',
+      'uncovered',
+    ]) {
+      expect(html, `缺少 ${code} 档宝箱配色`).toContain(`.chest-${code}{`);
+    }
+    expect(html).toContain('.chest-empty{');
+    expect(labSource).toContain("'chest chest-' + chest.code");
+    expect(labSource).toContain('chest-empty is-empty');
+    // 通关判断在摆箱之前：已通关就不出箱
+    expect(labSource).toContain('if (game.isCleared(state.progress, data)) {');
+    expect(labSource).toContain('chest-medal');
+    // 计分只发生在 openChest 里：换词、拖卡都不会偷偷加分
+    expect((labSource.match(/game\.submit\(/g) ?? []).length).toBe(1);
+    expect(labSource.indexOf('function openChest')).toBeLessThan(
+      labSource.indexOf('game.submit('),
+    );
+  });
+
+  it('开箱有实感：箱盖开启、光溢出、粒子、分数飞进图鉴格', () => {
+    expect(html).toContain('.chest.is-open .chest-lid');
+    expect(html).toContain('.chest.is-open .chest-beam');
+    expect(html).toContain('.chest.is-open .chest-glow');
+    expect(html).toContain('.chest-spark');
+    expect(html).toContain('.chest-points');
+    expect(html).toContain('.dex-cell.is-arriving');
+    expect(labSource).toContain('function spawnSparks');
+    expect(labSource).toContain('function flyPoints');
+    expect(labSource).toContain('dexCellRect');
+    // 飞分用轻量 WAAPI，失败也有兜底，不会卡住不结算
+    expect(labSource).toContain('node.animate(');
+    expect(labSource).toContain('window.setTimeout(finish, 1000)');
+    expect(labSource).toContain('landed');
+  });
+
+  it('减少动效时开箱与结算照走：特效降级、状态不等动画', () => {
+    expect(labSource).toContain('if (reducedMotion() || !fromRect || !toRect)');
+    expect(labSource).toContain('if (reducedMotion()) return;');
+    // 分数先落盘、再放动画：动画只是表现层
+    const openChest = labSource.slice(labSource.indexOf('function openChest'));
+    expect(openChest.indexOf('saveProgress()')).toBeGreaterThan(-1);
+    expect(openChest.indexOf('saveProgress()')).toBeLessThan(openChest.indexOf('flyPoints('));
+  });
+
+  it('拖拽是零依赖指针事件：拖动、槽位高亮、松手吸附、非法落点回弹', () => {
+    expect(labSource).toContain("addEventListener('pointerdown'");
+    expect(labSource).toContain("addEventListener('pointerup'");
+    expect(labSource).toContain("addEventListener('pointercancel'");
+    expect(labSource).toContain('function startGhost');
+    expect(labSource).toContain('function snapGhost');
+    expect(labSource).toContain('is-drop-target');
+    expect(labSource).toContain('document.elementFromPoint');
+    // 触屏横滑交给原生滚动，向上拖才是换词
+    expect(html).toContain('touch-action:pan-x');
+    expect(labSource).toContain('press.touch && Math.abs(dx) > Math.abs(dy)');
+    // 没有任何第三方拖拽库
+    expect(labSource).not.toContain('Sortable');
+    expect(labSource).not.toContain('interact.js');
+    expect(labSource).not.toContain('draggable="true"');
+    // 拖拽期间不碰判定卡：落定后才 flushCommit
+    const moveHandler = labSource.slice(
+      labSource.indexOf('function onCardPointerMove'),
+      labSource.indexOf('function onCardPointerUp'),
+    );
+    expect(moveHandler).not.toContain('paintVerdict');
+    expect(moveHandler).not.toContain('flushCommit');
   });
 });
 

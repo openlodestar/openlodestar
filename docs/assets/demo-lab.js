@@ -1,14 +1,16 @@
 /* docs/assets/demo-lab.js
  *
- * 小游戏页的行为层：三个词就是操作面。点一个词 → 判定卡原地翻成选词卡 → 选一个 →
- * 选词卡收起、判定卡带着新的逐维判据回来。觉得这一组值得记下来，再点「收进图鉴」计分。
+ * 小游戏页的行为层。一回合是一条连贯的线：
+ * 拖一张候选卡进槽位 → 判定卡翻面、判据换新 → 能领的分数变成宝箱落在场上 →
+ * 亲手开箱 → 分数从箱里飞进八格图鉴、格子点亮 → 提示自动指向下一步该换哪一维。
  *
- * 布局是一屏定死的：顶栏 / 进度 / 句子 / 判定卡 / 计分口各占一行，判定卡与选词卡共用一个
- * 绝对定位的区域，所以换词不会把页面撑高，长内容（任务、分数表、复盘、证据、说明）都收
- * 进底部抽屉，触发才展开。
+ * 布局是一屏定死的：顶栏 / 进度 / 句子 / 判定卡 / 候选卡托盘 / 动作坞各占一行。
+ * 判定卡与宝箱、飞分都在这一屏里完成，长内容（任务、分数表、复盘、证据、说明）都收进
+ * 底部抽屉，触发才展开，所以任何一行变长都不会把页面撑出滚动条。
  *
  * 玩法只有一条规则：**每种结论只在第一次被收进图鉴时给分**。同一组重复收是 0 分，
  * 换个组合收同一个结论也是 0 分，所以分数条填满（31 分）就等于八种结论都亲眼看过。
+ * 重复组合与该档已收也会出一只**空箱**——玩家开箱后看到明确理由，不会静默不加分。
  * 分数、结论与逐维判据都不落盘，浏览器本地存储里只存"收过哪几组"（组合号），
  * 页面每次打开都用当前的冻结矩阵重算，数据换了也不会带着旧分跑。
  *
@@ -56,6 +58,19 @@
     dateText: '2021年12月5日',
     sessionName: '禹贡Ⅰ—盛清御瓷新风尚'
   };
+  // 维度严重度与 demo-game-match.js 完全一致：越靠前越差
+  var SEVERITY = ['conflict', 'mismatch', 'unknown', 'edge', 'caliber', 'exact'];
+  // 开箱粒子数：档位越高，箱子越华丽
+  var SPARK_COUNT = {
+    strong: 9,
+    weak: 6,
+    caliber: 4,
+    edge: 3,
+    conflict: 3,
+    mismatch: 2,
+    unknown: 2,
+    uncovered: 1
+  };
 
   var records = game.recordIndex(demoData);
   var sourceByUrl = {};
@@ -67,22 +82,30 @@
 
   var state = {
     values: cloneValues(INITIAL_VALUES),
-    openSlot: null,
+    activeSlot: 'dateText',
     lastChangedKey: null,
     progress: loadProgress(),
     confirmReset: false,
     toastTimer: null,
     sheet: null,
     sheetTrigger: null,
-    soundOn: false
+    soundOn: false,
+    chest: null,
+    opening: false,
+    pendingCode: null,
+    verdictToken: 0,
+    commitTimer: null,
+    dockToken: 0,
+    suggestTimer: null,
+    press: null
   };
 
   var slotElements = Array.prototype.slice.call(document.querySelectorAll('.slot'));
-  var optionsPanel = document.getElementById('slot-options');
-  var optionsTitle = document.getElementById('slot-options-title');
-  var optionList = document.getElementById('option-list');
+  var trayList = document.getElementById('tray-list');
+  var traySlot = document.getElementById('tray-slot');
+  var chestDock = document.getElementById('chest-dock');
+  var loopHint = document.getElementById('loop-hint');
   var verdictElement = document.getElementById('verdict');
-  var claimRow = document.getElementById('claim-row');
   var dexElement = document.getElementById('dex');
   var missionCurrent = document.getElementById('mission-current');
   var fullPanel = document.getElementById('full-panel');
@@ -156,6 +179,23 @@
     }
   }
 
+  function slotElementOf(key) {
+    for (var i = 0; i < slotElements.length; i += 1) {
+      if (slotElements[i].getAttribute('data-slot') === key) return slotElements[i];
+    }
+    return null;
+  }
+
+  function focusSlot(key) {
+    var element = slotElementOf(key);
+    if (element) element.focus({ preventScroll: true });
+  }
+
+  function focusChest() {
+    var node = chestDock.querySelector('.chest');
+    if (node) node.focus({ preventScroll: true });
+  }
+
   // ---- 音效：默认关闭，只在玩家操作时响，不自动播放 ----
 
   var audio = { context: null };
@@ -217,55 +257,20 @@
   function clearProgress() {
     state.progress = game.emptyProgress();
     state.confirmReset = false;
+    state.chest = null;
+    state.opening = false;
+    state.pendingCode = null;
+    ++state.dockToken;
     try {
       window.localStorage.removeItem(game.STORAGE_KEY);
     } catch (error) {
       // 同上：清不掉也只是刷新后回来
     }
     renderHud();
-    renderVerdict(false);
+    flushCommit();
     renderReview();
     renderSheetIfOpen();
     showToast('存档已清空：分数归零，图鉴重新开始。');
-  }
-
-  /** 这一组现在值多少分、能不能收——判定卡与按钮都读它 */
-  function submissionOf(values) {
-    var combo = game.findCombo(data, values);
-    var check = game.evaluateSubmission(state.progress, data, combo);
-    return { combo: combo, check: check };
-  }
-
-  function submitCurrent() {
-    var combo = game.findCombo(data, state.values);
-    var wasCleared = game.isCleared(state.progress, data);
-    var result = game.submit(state.progress, data, combo);
-    if (!result.ok) {
-      playTone(150, 0.1, 'square');
-      var button = claimRow.querySelector('[data-action="submit"]');
-      if (button) {
-        button.classList.remove('is-nope');
-        void button.offsetWidth;
-        button.classList.add('is-nope');
-      }
-      showToast(rejectionText(result));
-      return;
-    }
-    state.progress = result.progress;
-    saveProgress();
-    renderHud(result.code);
-    renderVerdict(false);
-    renderReview();
-    renderSheetIfOpen();
-    playTone(result.cleared ? 880 : 620, 0.16, 'triangle');
-    showPoints('+' + result.points);
-    pulseScore();
-    if (result.cleared && !wasCleared) {
-      celebrate();
-      showToast('八档收齐，通关了：' + game.targetOf(data) + ' / ' + game.targetOf(data) + '。打开「复盘」逐组回看。');
-    } else {
-      showToast('+' + result.points + '：' + game.CONCLUSION_LABELS[result.code] + ' 已收进图鉴。');
-    }
   }
 
   function rejectionText(result) {
@@ -297,7 +302,7 @@
 
   // ---- 顶部：分数、进度条、八格图鉴、当前章 ----
 
-  function renderHud(popCode) {
+  function renderHud(popCode, pendingCode) {
     var score = game.scoreOf(state.progress, data);
     var target = game.targetOf(data);
     var scored = game.scoredCodes(state.progress, data);
@@ -316,6 +321,7 @@
       var collected = !!scored[code];
       var label = game.CONCLUSION_SHORT[code];
       var points = '+' + game.pointsFor(data, code);
+      var arriving = pendingCode === code && collected;
       var inner =
         '<span class="dex-name">' +
         escapeHtml(label) +
@@ -326,6 +332,7 @@
         return (
           '<li><button type="button" class="dex-cell is-scored' +
           (popCode === code ? ' is-pop' : '') +
+          (arriving ? ' is-arriving' : '') +
           '" data-combo="' +
           escapeHtml(scored[code]) +
           '" title="' +
@@ -451,7 +458,7 @@
     var submissions = state.progress.submissions;
     reviewCount.textContent =
       submissions.length === 0
-        ? '还没收过任何一组：把判定卡下面那栏点一下，就能收进图鉴。'
+        ? '还没收过任何一组：拖一张候选卡换个词，开箱就是收录。'
         : submissions.length +
           ' 组 · ' +
           game.scoreOf(state.progress, data) +
@@ -507,7 +514,7 @@
       .join('');
   }
 
-  // ---- 句子与选词卡 ----
+  // ---- 句子、候选卡托盘与换词 ----
 
   function updateSentence() {
     slotElements.forEach(function (element) {
@@ -515,61 +522,226 @@
       element.textContent = state.values[key];
       element.setAttribute(
         'aria-label',
-        slotLabel(key) + '，当前是「' + state.values[key] + '」，按回车或空格打开可换的词'
+        slotLabel(key) +
+          '，当前是「' +
+          state.values[key] +
+          '」，左右方向键换词；有宝箱时按回车开箱'
       );
       if (game.isDemoOnly(data, key, state.values[key])) element.classList.add('is-demo');
       else element.classList.remove('is-demo');
     });
   }
 
-  function updateExpandedState() {
+  function updateSlotClasses() {
     slotElements.forEach(function (element) {
-      var open = state.openSlot === element.getAttribute('data-slot');
-      element.setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) element.classList.add('is-open');
-      else element.classList.remove('is-open');
+      var key = element.getAttribute('data-slot');
+      element.classList.toggle('is-active', key === state.activeSlot);
     });
   }
 
-  function renderOptions(focusValue) {
-    var slot = slotByKey[state.openSlot];
+  function setActiveSlot(key) {
+    if (!slotByKey[key]) return;
+    var changed = state.activeSlot !== key;
+    state.activeSlot = key;
+    updateSlotClasses();
+    if (changed) renderTray();
+  }
+
+  function renderTray(preserveFocus) {
+    var slot = slotByKey[state.activeSlot];
     if (!slot) return;
-    optionsTitle.textContent = '换「' + slot.label + '」';
+    var previous = document.activeElement;
+    var focusedValue =
+      preserveFocus && previous && trayList.contains(previous)
+        ? previous.getAttribute('data-value')
+        : null;
+    traySlot.textContent = slot.label;
     var result = game.resolve(data, demoData, state.values);
-    var parts = [];
-    slot.options.forEach(function (option) {
-      var current = state.values[slot.key] === option.value;
-      // 小标说的是"这个词这一维的判据"，不是整句结论——整句结论另写在判定卡上
-      var dimension = current
-        ? dimensionOfResult(result, slot.key)
-        : game.substitutionDimension(data, demoData, state.values, slot.key, option.value);
-      var conclusionLabel = game.CONCLUSION_LABELS[dimension.conclusion] || dimension.conclusion;
-      parts.push(
-        '<button type="button" class="option' +
+    trayList.innerHTML = slot.options
+      .map(function (option) {
+        var current = state.values[slot.key] === option.value;
+        // 小标说的是"这个词这一维的判据"，不是整句结论——整句结论另写在判定卡上
+        var dimension = current
+          ? dimensionOfResult(result, slot.key)
+          : game.substitutionDimension(data, demoData, state.values, slot.key, option.value);
+        var conclusionLabel = game.CONCLUSION_LABELS[dimension.conclusion] || dimension.conclusion;
+        return (
+          '<div class="word-card' +
           (current ? ' is-current' : '') +
+          '" role="button" tabindex="0" data-slot="' +
+          escapeHtml(slot.key) +
           '" data-value="' +
           escapeHtml(option.value) +
-          '" title="' +
-          escapeHtml(option.note + '｜换过去整句会判成「' + conclusionLabel + '」') +
           '" aria-pressed="' +
           (current ? 'true' : 'false') +
-          '">' +
-          '<span class="option-value">' +
+          '" aria-label="' +
+          escapeHtml(
+            slot.label +
+              '换成「' +
+              option.value +
+              '」，换过去整句会判成「' +
+              conclusionLabel +
+              '」'
+          ) +
+          '" title="' +
+          escapeHtml(option.note + '｜换过去整句会判成「' + conclusionLabel + '」') +
+          '"><span class="word-card-value">' +
           escapeHtml(option.value) +
-          (option.demoOnly ? demoTag() : '') +
-          '</span><span class="chip chip-' +
+          '</span><span class="word-card-foot"><span class="chip chip-' +
           escapeHtml(dimension.state) +
           '">' +
           escapeHtml(dimension.label) +
-          '</span></button>'
-      );
-    });
-    if (slot.options.some(function (option) { return option.demoOnly; })) {
-      parts.push('<p class="option-legend">' + escapeHtml(game.DEMO_ONLY_LEGEND) + '</p>');
+          '</span>' +
+          (option.demoOnly ? demoTag() : '') +
+          '</span></div>'
+        );
+      })
+      .join('');
+    if (focusedValue) {
+      var cards = trayList.querySelectorAll('.word-card');
+      for (var i = 0; i < cards.length; i += 1) {
+        if (cards[i].getAttribute('data-value') === focusedValue) {
+          cards[i].focus({ preventScroll: true });
+          return;
+        }
+      }
     }
-    optionList.innerHTML = parts.join('');
-    updateExpandedState();
-    focusOptionByValue(focusValue || state.values[slot.key]);
+  }
+
+  function activateValue(key, value, source) {
+    var changed = state.values[key] !== value;
+    setActiveSlot(key);
+    applyChange(key, value, { immediate: true, source: source });
+    if (changed) playTone(680, 0.07, 'triangle');
+    if (source === 'card' || source === 'keyboard') focusChest();
+  }
+
+  function activateCard(card, source) {
+    if (!card) return;
+    activateValue(card.getAttribute('data-slot'), card.getAttribute('data-value'), source || 'card');
+  }
+
+  function applyChange(key, value, options) {
+    var opts = options || {};
+    if (!slotByKey[key]) return;
+    if (!game.optionOf(data, key, value)) return;
+    if (state.values[key] === value) {
+      var element = slotElementOf(key);
+      if (element) {
+        element.classList.remove('is-receiving');
+        void element.offsetWidth;
+        element.classList.add('is-receiving');
+      }
+      return;
+    }
+    settlePendingNow();
+    var next = cloneValues(state.values);
+    next[key] = value;
+    state.values = next;
+    state.lastChangedKey = key;
+    state.activeSlot = key;
+    updateSentence();
+    updateSlotClasses();
+    renderTray(true);
+    var target = slotElementOf(key);
+    if (target) {
+      target.classList.remove('is-receiving');
+      void target.offsetWidth;
+      target.classList.add('is-receiving');
+    }
+    if (opts.immediate) flushCommit();
+    else queueCommit();
+  }
+
+  function queueCommit() {
+    if (state.commitTimer) window.clearTimeout(state.commitTimer);
+    state.commitTimer = window.setTimeout(function () {
+      state.commitTimer = null;
+      flushCommit();
+    }, 140);
+  }
+
+  /** 一次落定：判定卡翻面换内容、宝箱按新结论重摆，两者只做一次 */
+  function flushCommit() {
+    if (state.commitTimer) {
+      window.clearTimeout(state.commitTimer);
+      state.commitTimer = null;
+    }
+    var result = game.resolve(data, demoData, state.values);
+    var token = ++state.verdictToken;
+    renderChest(result);
+    updateSlotClasses();
+    if (reducedMotion()) {
+      paintVerdict(result);
+      return;
+    }
+    verdictElement.classList.remove('is-flipping');
+    void verdictElement.offsetWidth;
+    verdictElement.classList.add('is-flipping');
+    window.setTimeout(function () {
+      if (token !== state.verdictToken) return;
+      paintVerdict(result);
+    }, 135);
+    window.setTimeout(function () {
+      if (token !== state.verdictToken) return;
+      verdictElement.classList.remove('is-flipping');
+    }, 320);
+  }
+
+  function paintVerdict(result) {
+    CODE_ORDER.forEach(function (code) {
+      verdictElement.classList.remove('verdict-' + code);
+    });
+    verdictElement.classList.add('verdict-' + result.status);
+    verdictElement.innerHTML = renderCovered(result);
+    if (state.sheet === 'evidence') renderEvidence(result);
+  }
+
+  function cycleOption(key, step) {
+    var slot = slotByKey[key];
+    if (!slot) return;
+    var index = 0;
+    slot.options.forEach(function (option, position) {
+      if (option.value === state.values[key]) index = position;
+    });
+    var next = (index + step + slot.options.length) % slot.options.length;
+    applyChange(key, slot.options[next].value, { source: 'key' });
+  }
+
+  function setValues(next, changedKey) {
+    settlePendingNow();
+    state.values = cloneValues(next);
+    state.lastChangedKey = changedKey || null;
+    updateSentence();
+    updateSlotClasses();
+    renderTray(true);
+    flushCommit();
+  }
+
+  function resetToInitial() {
+    setValues(INITIAL_VALUES, null);
+    state.activeSlot = 'dateText';
+    updateSlotClasses();
+    renderTray(true);
+  }
+
+  function applyCombo(comboId) {
+    var combo = game.comboById(data, comboId);
+    if (!combo) return;
+    var changedKey = null;
+    Object.keys(INITIAL_VALUES).some(function (key) {
+      if (state.values[key] !== combo.values[key]) {
+        changedKey = key;
+        return true;
+      }
+      return false;
+    });
+    setValues(combo.values, changedKey);
+    if (changedKey) {
+      state.activeSlot = changedKey;
+      updateSlotClasses();
+      renderTray(true);
+    }
   }
 
   /**
@@ -594,113 +766,364 @@
     };
   }
 
-  function focusOptionByValue(value) {
-    var buttons = optionList.querySelectorAll('.option');
-    for (var i = 0; i < buttons.length; i += 1) {
-      if (buttons[i].getAttribute('data-value') === value) {
-        buttons[i].focus({ preventScroll: true });
-        return;
+  function worstOf(dimensions) {
+    for (var i = 0; i < SEVERITY.length; i += 1) {
+      for (var j = 0; j < dimensions.length; j += 1) {
+        if (dimensions[j].state === SEVERITY[i]) return dimensions[j];
       }
     }
-    if (buttons.length > 0) buttons[0].focus({ preventScroll: true });
+    return dimensions[0] || null;
   }
 
-  function openOptions(key, focusInto) {
-    state.openSlot = key;
-    optionsPanel.hidden = false;
-    renderOptions(focusInto ? state.values[key] : null);
-    updateExpandedState();
-    playTone(520, 0.05, 'sine');
+  /** 下一步该换哪一维：取判据最差的那一维；全对上时换专场名做探索 */
+  function suggestedSlot(result) {
+    var dimensions = (result && result.dimensions) || [];
+    if (dimensions.length === 0) return state.activeSlot || 'sessionName';
+    if (result.status === 'uncovered') {
+      var positive = dimensions.filter(function (dimension) {
+        return (
+          dimension.state === 'exact' ||
+          dimension.state === 'caliber' ||
+          dimension.state === 'edge'
+        );
+      });
+      var weakest = positive.length > 0 ? worstOf(positive) : dimensions[0];
+      return weakest ? weakest.slot : 'sessionName';
+    }
+    var worst = worstOf(dimensions);
+    if (worst && worst.state !== 'exact') return worst.slot;
+    return 'sessionName';
   }
 
-  function closeOptions(returnFocus) {
-    if (!state.openSlot) return;
-    var previousKey = state.openSlot;
-    state.openSlot = null;
-    optionsPanel.hidden = true;
-    optionList.innerHTML = '';
-    updateExpandedState();
-    if (returnFocus) {
-      slotElements.some(function (element) {
-        if (element.getAttribute('data-slot') !== previousKey) return false;
-        element.focus({ preventScroll: true });
-        return true;
+  function setSuggestedSlot(key) {
+    slotElements.forEach(function (element) {
+      var hit = key && element.getAttribute('data-slot') === key;
+      element.classList.remove('is-suggested');
+      if (hit) {
+        void element.offsetWidth;
+        element.classList.add('is-suggested');
+      }
+    });
+    if (state.suggestTimer) {
+      window.clearTimeout(state.suggestTimer);
+      state.suggestTimer = null;
+    }
+    if (key) {
+      state.suggestTimer = window.setTimeout(function () {
+        state.suggestTimer = null;
+        slotElements.forEach(function (element) {
+          element.classList.remove('is-suggested');
+        });
+      }, 3800);
+    }
+  }
+
+  function nextStepText(result) {
+    var hint = game.nextHint(result);
+    if (hint) return hint;
+    var scored = game.scoredCodes(state.progress, data);
+    var missing = CODE_ORDER.filter(function (code) {
+      return !scored[code];
+    });
+    if (missing.length === 0) return '八档已收齐。';
+    return (
+      '三个词都完全对上了：换掉「' +
+      slotLabel(suggestedSlot(result)) +
+      '」，看看会掉到哪一档。'
+    );
+  }
+
+  // ---- 宝箱：判定出可领就先摆箱，开箱才结算 ----
+
+  function chestMarkup(chest) {
+    var label = game.CONCLUSION_SHORT[chest.code] || chest.code;
+    var className;
+    var aria;
+    if (chest.claimable) {
+      className = 'chest chest-' + chest.code + ' is-ready';
+      aria = '开箱：' + (game.CONCLUSION_LABELS[chest.code] || label) + '，+' + chest.points + ' 分';
+    } else {
+      className = 'chest chest-empty is-empty';
+      aria = '空箱：' + emptyReason(chest);
+    }
+    return (
+      '<button type="button" class="' +
+      className +
+      '" id="chest" data-action="open-chest" aria-label="' +
+      escapeHtml(aria) +
+      '"><span class="chest-inner" aria-hidden="true">' +
+      '<span class="chest-glow"></span>' +
+      '<span class="chest-beam"></span>' +
+      '<span class="chest-lid"><span class="chest-band"></span></span>' +
+      '<span class="chest-body"><span class="chest-band"></span></span>' +
+      '<span class="chest-lock"></span>' +
+      '<span class="chest-points">' +
+      (chest.claimable ? '+' + chest.points : '0') +
+      '</span></span></button>'
+    );
+  }
+
+  function emptyReason(chest) {
+    var short = game.CONCLUSION_SHORT[chest.code] || '';
+    if (chest.reason === 'repeated-combo') return '这组重复了：同一组只算第一次，不会再加分。';
+    if (chest.reason === 'conclusion-taken') {
+      return '「' + short + '」这档收过了：同一档只算第一次，换别的档才有分。';
+    }
+    return '这一组不在冻结矩阵里，收不了。';
+  }
+
+  function renderChest(result) {
+    if (state.opening) return;
+    ++state.dockToken;
+    setSuggestedSlot(null);
+    if (game.isCleared(state.progress, data)) {
+      state.chest = null;
+      chestDock.innerHTML = '<span class="chest-medal" aria-hidden="true">✓</span>';
+      updateLoopHint('cleared', null);
+      return;
+    }
+    var combo = game.findCombo(data, state.values);
+    var check = game.evaluateSubmission(state.progress, data, combo);
+    var chest = {
+      code: result.status,
+      points: game.pointsFor(data, result.status),
+      claimable: !!check.ok,
+      reason: check.reason || '',
+      result: result,
+      comboId: combo ? combo.id : ''
+    };
+    state.chest = chest;
+    chestDock.innerHTML = chestMarkup(chest);
+    updateLoopHint('judge', chest);
+  }
+
+  function updateLoopHint(mode, chest, points) {
+    if (mode === 'cleared') {
+      loopHint.innerHTML =
+        '<strong>已通关</strong>' +
+        game.targetOf(data) +
+        ' / ' +
+        game.targetOf(data) +
+        ' 已收齐，不再出箱；点「复盘」逐组回看。';
+      return;
+    }
+    if (!chest) {
+      loopHint.textContent = '';
+      return;
+    }
+    var result = chest.result;
+    var suggested = suggestedSlot(result);
+    if (mode === 'settled') {
+      loopHint.innerHTML =
+        '<strong>+' +
+        points +
+        ' 已入图鉴</strong>' +
+        escapeHtml(nextStepText(result)) +
+        '<span class="hint-sub">下一步：换掉「' +
+        escapeHtml(slotLabel(suggested)) +
+        '」 · 拖卡或按 ← → 都行</span>';
+      return;
+    }
+    if (mode === 'empty') {
+      loopHint.innerHTML =
+        '<strong>0 分</strong>' +
+        escapeHtml(emptyReason(chest)) +
+        '<span class="hint-sub">下一步：换掉「' +
+        escapeHtml(slotLabel(suggested)) +
+        '」</span>';
+      return;
+    }
+    if (chest.claimable) {
+      loopHint.innerHTML =
+        '<strong>有分可领</strong>开这只「' +
+        escapeHtml(game.CONCLUSION_SHORT[chest.code] || chest.code) +
+        '」箱 · +' +
+        chest.points +
+        '<span class="hint-sub">点箱子或按回车开箱</span>';
+    } else {
+      loopHint.innerHTML =
+        '<strong>箱子是空的</strong>' +
+        escapeHtml(emptyReason(chest)) +
+        '<span class="hint-sub">开箱确认，或直接换一个词</span>';
+    }
+  }
+
+  function settlePendingNow() {
+    if (!state.opening) return;
+    state.opening = false;
+    state.pendingCode = null;
+    state.chest = null;
+    ++state.dockToken;
+    renderHud();
+    chestDock.innerHTML = '';
+  }
+
+  function fadeChest() {
+    var node = chestDock.querySelector('.chest');
+    if (!node) return;
+    node.classList.remove('is-ready');
+    node.classList.add('is-gone');
+    var token = ++state.dockToken;
+    window.setTimeout(function () {
+      if (token !== state.dockToken) return;
+      if (chestDock.querySelector('.chest')) chestDock.innerHTML = '';
+    }, 300);
+  }
+
+  function dexCellRect(code) {
+    var index = CODE_ORDER.indexOf(code);
+    if (index < 0) return null;
+    var cell = dexElement.children[index];
+    return cell ? cell.getBoundingClientRect() : null;
+  }
+
+  function spawnSparks(chest) {
+    if (reducedMotion()) return;
+    var count = chest.claimable ? SPARK_COUNT[chest.code] || 0 : 0;
+    if (count === 0) return;
+    var node = chestDock.querySelector('.chest');
+    if (!node) return;
+    for (var i = 0; i < count; i += 1) {
+      var spark = document.createElement('i');
+      spark.className = 'chest-spark';
+      spark.style.setProperty('--sx', Math.round(Math.random() * 74 - 37) + 'px');
+      spark.style.setProperty('--sy', Math.round(-18 - Math.random() * 48) + 'px');
+      spark.style.animationDelay = Math.round(Math.random() * 120) + 'ms';
+      node.appendChild(spark);
+      spark.addEventListener('animationend', function (event) {
+        event.target.remove();
       });
     }
   }
 
-  function toggleOptions(key, focusInto) {
-    if (state.openSlot === key) closeOptions(true);
-    else openOptions(key, focusInto);
-  }
-
-  function setValues(next, changedKey) {
-    state.values = cloneValues(next);
-    state.lastChangedKey = changedKey || null;
-    updateSentence();
-    renderVerdict(true);
-  }
-
-  function selectOption(key, value) {
-    if (!slotByKey[key]) return;
-    if (!game.optionOf(data, key, value)) return;
-    if (state.values[key] === value) {
-      closeOptions(true);
+  /** 分数从箱子里飞进对应图鉴格：WAAPI 走一条弧线，失败就立即落袋 */
+  function flyPoints(fromRect, toRect, points, done) {
+    if (reducedMotion() || !fromRect || !toRect) {
+      done();
       return;
     }
-    var next = cloneValues(state.values);
-    next[key] = value;
-    closeOptions(false);
-    setValues(next, key);
-    playTone(680, 0.07, 'triangle');
-    var element = slotElementOf(key);
-    if (element) element.focus({ preventScroll: true });
-  }
-
-  function slotElementOf(key) {
-    for (var i = 0; i < slotElements.length; i += 1) {
-      if (slotElements[i].getAttribute('data-slot') === key) return slotElements[i];
+    var node = document.createElement('span');
+    node.className = 'fx-fly';
+    node.textContent = '+' + points;
+    fxLayer.appendChild(node);
+    var sx = fromRect.left + fromRect.width / 2;
+    var sy = fromRect.top + fromRect.height / 2;
+    var ex = toRect.left + toRect.width / 2;
+    var ey = toRect.top + toRect.height / 2;
+    var cx = (sx + ex) / 2 + (ex > sx ? 20 : -20);
+    var cy = Math.min(sy, ey) - 46;
+    var finished = false;
+    function finish() {
+      if (finished) return;
+      finished = true;
+      if (node.parentNode) node.remove();
+      done();
     }
-    return null;
-  }
-
-  function resetToInitial() {
-    closeOptions(false);
-    state.lastChangedKey = null;
-    state.values = cloneValues(INITIAL_VALUES);
-    updateSentence();
-    renderVerdict(true);
-  }
-
-  function applyCombo(comboId) {
-    var combo = game.comboById(data, comboId);
-    if (!combo) return;
-    closeOptions(false);
-    var changedKey = null;
-    Object.keys(INITIAL_VALUES).some(function (key) {
-      if (state.values[key] !== combo.values[key]) {
-        changedKey = key;
-        return true;
+    try {
+      if (typeof node.animate !== 'function') {
+        finish();
+        return;
       }
-      return false;
-    });
-    setValues(combo.values, changedKey);
+      var animation = node.animate(
+        [
+          { transform: 'translate(' + sx + 'px,' + sy + 'px) scale(.55)', opacity: 0.25 },
+          { offset: 0.55, transform: 'translate(' + cx + 'px,' + cy + 'px) scale(1.18)', opacity: 1 },
+          { transform: 'translate(' + ex + 'px,' + ey + 'px) scale(.9)', opacity: 1 }
+        ],
+        { duration: 620, easing: 'cubic-bezier(.25,.6,.3,1)', fill: 'forwards' }
+      );
+      animation.onfinish = finish;
+    } catch (error) {
+      window.setTimeout(finish, 0);
+      return;
+    }
+    window.setTimeout(finish, 1000);
+  }
+
+  function openChest() {
+    var chest = state.chest;
+    if (!chest || state.opening) return;
+    if (game.isCleared(state.progress, data)) return;
+    var node = chestDock.querySelector('.chest');
+    var hadFocus = !!node && document.activeElement === node;
+    var chestRect = node ? node.getBoundingClientRect() : chestDock.getBoundingClientRect();
+    state.opening = true;
+    if (node) {
+      node.classList.remove('is-ready');
+      node.classList.add('is-open');
+    }
+    spawnSparks(chest);
+
+    if (!chest.claimable) {
+      playTone(150, 0.12, 'square');
+      showToast(emptyReason(chest));
+      window.setTimeout(function () {
+        if (!state.opening) return;
+        state.opening = false;
+        state.chest = null;
+        fadeChest();
+        updateLoopHint('empty', chest);
+        var suggested = suggestedSlot(chest.result);
+        setSuggestedSlot(suggested);
+        if (hadFocus) focusSlot(suggested);
+      }, reducedMotion() ? 0 : 520);
+      return;
+    }
+
+    var combo = game.findCombo(data, state.values);
+    var wasCleared = game.isCleared(state.progress, data);
+    var result = game.submit(state.progress, data, combo);
+    if (!result.ok) {
+      // 判定卡与箱子之间状态被改过：按空箱处理，但理由照样说清
+      state.opening = false;
+      state.chest = null;
+      fadeChest();
+      updateLoopHint('empty', chest);
+      showToast(rejectionText(result));
+      return;
+    }
+    state.progress = result.progress;
+    saveProgress();
+    state.pendingCode = result.code;
+    renderHud(null, result.code);
+    playTone(620, 0.12, 'triangle');
+    window.setTimeout(function () {
+      playTone(880, 0.16, 'triangle');
+    }, 120);
+
+    var landed = false;
+    function finish() {
+      if (landed) return;
+      landed = true;
+      state.pendingCode = null;
+      state.opening = false;
+      state.chest = null;
+      renderHud(result.code);
+      pulseScore();
+      fadeChest();
+      renderReview();
+      renderSheetIfOpen();
+      var suggested = suggestedSlot(chest.result);
+      setSuggestedSlot(suggested);
+      updateLoopHint('settled', chest, result.points);
+      if (hadFocus) focusSlot(suggested);
+      if (result.cleared && !wasCleared) {
+        celebrate();
+        showToast(
+          '八档收齐，通关了：' +
+            game.targetOf(data) +
+            ' / ' +
+            game.targetOf(data) +
+            '。打开「复盘」逐组回看。'
+        );
+      } else {
+        showToast('+' + result.points + '：' + game.CONCLUSION_LABELS[result.code] + ' 已收进图鉴。');
+      }
+    }
+    flyPoints(chestRect, dexCellRect(result.code), result.points, finish);
   }
 
   // ---- 判定卡 ----
-
-  function renderVerdict(animate) {
-    var result = game.resolve(data, demoData, state.values);
-    verdictElement.className = 'verdict verdict-' + result.status;
-    verdictElement.innerHTML = renderCovered(result);
-    renderClaim(result);
-    if (animate && !reducedMotion()) {
-      verdictElement.classList.remove('is-flash');
-      void verdictElement.offsetWidth;
-      verdictElement.classList.add('is-flash');
-    }
-    if (state.sheet === 'evidence') renderEvidence(result);
-  }
 
   function statusHead(result) {
     var parts = [];
@@ -720,48 +1143,6 @@
     }
     parts.push('</div>');
     return parts.join('');
-  }
-
-  /**
-   * 计分口：这一组值多少分、为什么值这个分、能不能收。
-   * 三种"0 分"的理由必须分开写——玩家看到 0 分时要知道是重复了、这档收过了，还是已通关。
-   */
-  function renderClaim(result) {
-    var submission = submissionOf(state.values);
-    var check = submission.check;
-    var code = result.status;
-    var points = game.pointsFor(data, code);
-    var label;
-    var note;
-    var disabled = false;
-    var ready = false;
-    if (game.isCleared(state.progress, data)) {
-      label = '已通关 · 不再计分';
-      note = '八档已收齐，不再计分。';
-      disabled = true;
-    } else if (check.ok) {
-      label = '收进图鉴 +' + points;
-      note = '这一档只算第一次 · +' + points;
-      ready = true;
-    } else if (check.reason === 'repeated-combo') {
-      label = '这组已收 · 0 分';
-      note = '同一组重复收不给分';
-      disabled = true;
-    } else {
-      label = '这一档已收 · 0 分';
-      note = '还缺 ' + missingLabels().split('、').length + ' 档，点「任务」看';
-      disabled = true;
-    }
-    claimRow.innerHTML =
-      '<button type="button" class="claim-button' +
-      (ready ? ' is-ready' : '') +
-      '" data-action="submit"' +
-      (disabled ? ' disabled' : '') +
-      '>' +
-      escapeHtml(label) +
-      '</button><span class="claim-note">' +
-      escapeHtml(note) +
-      '</span>';
   }
 
   function renderCovered(result) {
@@ -1226,7 +1607,6 @@
     sheetPanels.forEach(function (panel) {
       panel.hidden = panel.getAttribute('data-sheet-panel') !== name;
     });
-    closeOptions(false);
     renderSheetIfOpen();
     sheetCloseButton.focus({ preventScroll: true });
   }
@@ -1272,23 +1652,7 @@
     }
   }
 
-  // ---- 特效：飘分、进度、收录、通关 ----
-
-  function showPoints(text) {
-    if (reducedMotion()) return;
-    var button = claimRow.querySelector('.claim-button');
-    if (!button) return;
-    var rect = button.getBoundingClientRect();
-    var node = document.createElement('span');
-    node.className = 'fx-points';
-    node.textContent = text;
-    node.style.left = Math.round(rect.left + rect.width / 2) + 'px';
-    node.style.top = Math.round(rect.top) + 'px';
-    fxLayer.appendChild(node);
-    node.addEventListener('animationend', function () {
-      node.remove();
-    });
-  }
+  // ---- 特效：进度、通关 ----
 
   function pulseScore() {
     if (reducedMotion()) return;
@@ -1325,65 +1689,226 @@
     });
   }
 
+  // ---- 拖拽：零依赖指针事件，触屏用横滑浏览、上拖换词 ----
+
+  function onCardPointerDown(event) {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    var card = event.target.closest ? event.target.closest('.word-card') : null;
+    if (!card || !trayList.contains(card)) return;
+    if (state.opening) settlePendingNow();
+    var rect = card.getBoundingClientRect();
+    state.press = {
+      card: card,
+      slotKey: card.getAttribute('data-slot'),
+      value: card.getAttribute('data-value'),
+      startX: event.clientX,
+      startY: event.clientY,
+      rect: rect,
+      touch: event.pointerType !== 'mouse',
+      dragging: false,
+      over: false,
+      ghost: null
+    };
+    window.addEventListener('pointermove', onCardPointerMove);
+    window.addEventListener('pointerup', onCardPointerUp);
+    window.addEventListener('pointercancel', onCardPointerCancel);
+  }
+
+  function onCardPointerMove(event) {
+    var press = state.press;
+    if (!press) return;
+    var dx = event.clientX - press.startX;
+    var dy = event.clientY - press.startY;
+    if (!press.dragging) {
+      if (Math.abs(dx) + Math.abs(dy) < 7) return;
+      // 触屏上横向先动 = 拨卡浏览，交给原生横向滚动
+      if (press.touch && Math.abs(dx) > Math.abs(dy)) {
+        endPress(false);
+        return;
+      }
+      startGhost(press);
+    }
+    if (event.cancelable) event.preventDefault();
+    press.ghost.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    var slotEl = slotElementOf(press.slotKey);
+    if (!slotEl) return;
+    var rect = slotEl.getBoundingClientRect();
+    var near =
+      event.clientX >= rect.left - 30 &&
+      event.clientX <= rect.right + 30 &&
+      event.clientY >= rect.top - 32 &&
+      event.clientY <= rect.bottom + 32;
+    if (near !== press.over) {
+      press.over = near;
+      slotEl.classList.toggle('is-drop-target', near);
+    }
+  }
+
+  function onCardPointerUp(event) {
+    var press = state.press;
+    if (!press) return;
+    var dragging = press.dragging;
+    var over = press.over;
+    var ghost = press.ghost;
+    var x = event.clientX;
+    var y = event.clientY;
+    endPress(!!ghost);
+    if (!dragging) {
+      activateCard(press.card, 'card');
+      return;
+    }
+    if (over) {
+      snapGhost(ghost, press, true, function () {
+        activateValue(press.slotKey, press.value, 'card');
+      });
+      return;
+    }
+    snapGhost(ghost, press, false, null);
+    var dropped = document.elementFromPoint(x, y);
+    if (dropped && dropped.closest && dropped.closest('.slot')) {
+      showToast('这张卡只能换「' + slotLabel(press.slotKey) + '」，落点不对，已经弹回。');
+    }
+  }
+
+  function onCardPointerCancel() {
+    var press = state.press;
+    if (!press) return;
+    if (press.ghost) press.ghost.remove();
+    endPress(false);
+  }
+
+  function startGhost(press) {
+    var ghost = press.card.cloneNode(true);
+    ghost.classList.add('word-card-ghost');
+    ghost.removeAttribute('tabindex');
+    ghost.removeAttribute('role');
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.style.width = press.rect.width + 'px';
+    ghost.style.height = press.rect.height + 'px';
+    ghost.style.left = press.rect.left + 'px';
+    ghost.style.top = press.rect.top + 'px';
+    document.body.appendChild(ghost);
+    press.ghost = ghost;
+    press.dragging = true;
+    press.card.classList.add('is-lifted');
+    document.body.classList.add('is-dragging');
+    slotElements.forEach(function (element) {
+      if (element.getAttribute('data-slot') !== press.slotKey) {
+        element.classList.add('is-drop-muted');
+      }
+    });
+    playTone(420, 0.04, 'sine');
+  }
+
+  function endPress(keepGhost) {
+    var press = state.press;
+    if (!press) return;
+    state.press = null;
+    window.removeEventListener('pointermove', onCardPointerMove);
+    window.removeEventListener('pointerup', onCardPointerUp);
+    window.removeEventListener('pointercancel', onCardPointerCancel);
+    document.body.classList.remove('is-dragging');
+    slotElements.forEach(function (element) {
+      element.classList.remove('is-drop-target');
+      element.classList.remove('is-drop-muted');
+    });
+    if (press.card) press.card.classList.remove('is-lifted');
+    if (press.ghost && !keepGhost) press.ghost.remove();
+  }
+
+  function snapGhost(ghost, press, valid, done) {
+    if (!ghost) {
+      if (done) done();
+      return;
+    }
+    if (reducedMotion()) {
+      ghost.remove();
+      if (done) done();
+      return;
+    }
+    if (valid) {
+      var slotEl = slotElementOf(press.slotKey);
+      var dx = 0;
+      var dy = -60;
+      if (slotEl) {
+        var rect = slotEl.getBoundingClientRect();
+        dx = rect.left + rect.width / 2 - (press.rect.left + press.rect.width / 2);
+        dy = rect.top + rect.height / 2 - (press.rect.top + press.rect.height / 2);
+      }
+      ghost.style.transition = 'transform .17s cubic-bezier(.2,.9,.3,1), opacity .17s ease';
+      ghost.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(.7)';
+      ghost.style.opacity = '0';
+      window.setTimeout(function () {
+        ghost.remove();
+        if (done) done();
+      }, 170);
+      return;
+    }
+    ghost.style.transition = 'transform .22s cubic-bezier(.3,1.4,.5,1), opacity .22s ease';
+    ghost.style.transform = 'translate(0,0)';
+    window.setTimeout(function () {
+      ghost.remove();
+      if (done) done();
+    }, 210);
+  }
+
   // ---- 事件 ----
 
   slotElements.forEach(function (element) {
-    element.addEventListener('click', function (event) {
-      toggleOptions(element.getAttribute('data-slot'), event.detail === 0);
+    var key = element.getAttribute('data-slot');
+    element.addEventListener('click', function () {
+      setActiveSlot(key);
+    });
+    element.addEventListener('focus', function () {
+      setActiveSlot(key);
     });
     element.addEventListener('keydown', function (event) {
-      var key = element.getAttribute('data-slot');
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-        // 不开面板也能换词：方向键在候选里走一格，立刻看到判据变化
+        // 聚焦槽位 → 左右方向键切词 → 回车开箱：不碰鼠标也能走完整局
         event.preventDefault();
+        setActiveSlot(key);
         cycleOption(key, event.key === 'ArrowRight' ? 1 : -1);
         return;
       }
       if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
       event.preventDefault();
-      if (state.openSlot === key) focusOptionByValue(state.values[key]);
-      else openOptions(key, true);
+      if (state.chest) {
+        openChest();
+        return;
+      }
+      setActiveSlot(key);
+      var current = trayList.querySelector('.word-card.is-current');
+      if (current) current.focus({ preventScroll: true });
     });
   });
 
-  function cycleOption(key, step) {
-    var slot = slotByKey[key];
-    if (!slot) return;
-    var index = 0;
-    slot.options.forEach(function (option, position) {
-      if (option.value === state.values[key]) index = position;
-    });
-    var next = (index + step + slot.options.length) % slot.options.length;
-    selectOption(key, slot.options[next].value);
-  }
+  trayList.addEventListener('pointerdown', onCardPointerDown);
 
-  optionList.addEventListener('click', function (event) {
-    var button = event.target.closest ? event.target.closest('.option') : null;
-    if (!button || !state.openSlot) return;
-    event.stopPropagation();
-    selectOption(state.openSlot, button.getAttribute('data-value'));
-  });
-
-  optionList.addEventListener('keydown', function (event) {
+  trayList.addEventListener('keydown', function (event) {
+    var card = event.target.closest ? event.target.closest('.word-card') : null;
+    if (!card) return;
+    if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+      event.preventDefault();
+      activateCard(card, 'keyboard');
+      return;
+    }
     if (event.key === 'Escape') {
       event.preventDefault();
-      closeOptions(true);
+      focusSlot(state.activeSlot);
       return;
     }
-    if (
-      event.key !== 'ArrowRight' &&
-      event.key !== 'ArrowLeft' &&
-      event.key !== 'ArrowDown' &&
-      event.key !== 'ArrowUp'
-    ) {
-      return;
-    }
-    var buttons = Array.prototype.slice.call(optionList.querySelectorAll('.option'));
-    var index = buttons.indexOf(document.activeElement);
-    if (index === -1) return;
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
     event.preventDefault();
-    var step = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : buttons.length - 1;
-    buttons[(index + step) % buttons.length].focus({ preventScroll: true });
+    var cards = Array.prototype.slice.call(trayList.querySelectorAll('.word-card'));
+    var index = cards.indexOf(card);
+    if (index < 0) return;
+    var step = event.key === 'ArrowRight' ? 1 : cards.length - 1;
+    cards[(index + step) % cards.length].focus({ preventScroll: true });
+  });
+
+  chestDock.addEventListener('click', function (event) {
+    if (!event.target.closest) return;
+    if (event.target.closest('[data-action="open-chest"]')) openChest();
   });
 
   verdictElement.addEventListener('click', function (event) {
@@ -1397,11 +1922,6 @@
     if (evidence) {
       openSheet('evidence', evidence);
     }
-  });
-
-  claimRow.addEventListener('click', function (event) {
-    var submit = event.target.closest ? event.target.closest('[data-action="submit"]') : null;
-    if (submit) submitCurrent();
   });
 
   dexElement.addEventListener('click', function (event) {
@@ -1421,10 +1941,6 @@
     });
   });
 
-  document.querySelector('[data-action="close-options"]').addEventListener('click', function () {
-    closeOptions(true);
-  });
-
   sheetElement.addEventListener('click', function (event) {
     if (!event.target.closest) return;
     if (event.target.closest('[data-action="close-sheet"]')) {
@@ -1438,13 +1954,6 @@
     }
   });
 
-  document.addEventListener('click', function (event) {
-    if (!state.openSlot) return;
-    if (event.target.closest && event.target.closest('#slot-options')) return;
-    if (event.target.closest && event.target.closest('.slot')) return;
-    closeOptions(false);
-  });
-
   document.addEventListener('keydown', function (event) {
     trapSheetTab(event);
     if (event.key !== 'Escape') return;
@@ -1452,7 +1961,12 @@
       closeSheet();
       return;
     }
-    if (state.openSlot) closeOptions(true);
+    if (state.chest) {
+      fadeChest();
+      state.chest = null;
+      loopHint.textContent = '';
+      chestDock.innerHTML = '';
+    }
   });
 
   resetProgressButton.addEventListener('click', function () {
@@ -1481,9 +1995,12 @@
   });
 
   updateSentence();
-  updateExpandedState();
+  updateSlotClasses();
+  renderTray();
   renderHud();
-  renderVerdict(false);
+  var initial = game.resolve(data, demoData, state.values);
+  paintVerdict(initial);
+  renderChest(initial);
   renderReview();
   renderCoverage();
 })();

@@ -217,6 +217,24 @@ export function gradeRecordDimensions(
   return gradeDimensions(entries);
 }
 
+/**
+ * 展示用：一条断言的判据状态，只从「支持」行里取。
+ *
+ * 为什么单独一份：门禁用的 `gradeRecordDimensions` 读的是全部证据行（含「不涉及」的
+ * 无关页），改它等于改判定口径；而页面上的「判据」一旦把无关页的状态挂在字段旁边，
+ * 就会出现「查不到 · 判据：完全对上」这种自相矛盾的展示。所以展示走这条更窄的路：
+ * 没有「支持」行就返回 null，页面干脆不显示判据。
+ */
+export function pickSupportDimensionState(rows: EvidenceRecord[]): EvidenceDimensionState | null {
+  const supports = rows.filter((row) => row.relation === 'supports');
+  if (supports.length === 0) return null;
+  const order: EvidenceDimensionState[] = ['conflict', 'exact', 'caliber', 'edge', 'mismatch', 'unknown'];
+  for (const state of order) {
+    if (supports.some((row) => row.state === state)) return state;
+  }
+  return 'unknown';
+}
+
 /** 一条断言的全部证据行 → 该维度状态（冲突优先，其次取最强的正向状态） */
 export function pickDimensionState(rows: EvidenceRecord[]): EvidenceDimensionState {
   const withState = rows.filter((row) => row.state !== undefined);

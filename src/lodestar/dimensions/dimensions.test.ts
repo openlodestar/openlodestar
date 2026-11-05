@@ -5,11 +5,38 @@ import {
   DIMENSION_STATE_WEIGHT,
   dimensionForField,
   gradeDimensions,
+  pickSupportDimensionState,
   registerDimension,
   type DimensionEntry,
 } from './index';
 import { compareTimeDimension } from './time';
 import { cityOf, compareInstitutionDimension } from './institution';
+import type { EvidenceDimensionState, EvidenceRecord, EvidenceRelation } from '../types';
+
+function evidenceRow(
+  relation: EvidenceRelation,
+  state: EvidenceDimensionState | undefined
+): EvidenceRecord {
+  return {
+    evidenceId: 'ev-1',
+    claimId: 'claim-1',
+    url: 'https://example.com/a',
+    domain: 'example.com',
+    sourceFamily: 'example',
+    tier: 'official',
+    quote: '引文',
+    relation,
+    contentWeight: 1,
+    fetchedBy: 'lodestar',
+    fetchedAt: '2026-01-01T00:00:00.000Z',
+    snapshotRef: 'snap',
+    traceId: 'trace',
+    fieldKey: 'dateText',
+    recordId: 'rec-1',
+    dimension: state === undefined ? undefined : 'porcelain:dateText',
+    state,
+  };
+}
 
 function entry(dimension: string, state: DimensionEntry['state'], cap = 1, label = dimension): DimensionEntry {
   return { dimension, label, state, cap };
@@ -131,6 +158,23 @@ describe('跨维度累积与判定顺序', () => {
     ]);
     expect(grade.score).toBe(0.7);
     expect(grade.grade).toBe('weak');
+  });
+});
+
+describe('展示用判据：只认「支持」行，无关页的状态不算判据', () => {
+  it('全是不涉及的行 → 不给判据（null）', () => {
+    const rows = [evidenceRow('irrelevant', 'exact'), evidenceRow('irrelevant', 'conflict')];
+    expect(pickSupportDimensionState(rows)).toBeNull();
+  });
+
+  it('只取支持行：无关页的「完全对上」盖不掉支持行的「口径相容」', () => {
+    const rows = [evidenceRow('irrelevant', 'exact'), evidenceRow('supports', 'caliber')];
+    expect(pickSupportDimensionState(rows)).toBe('caliber');
+  });
+
+  it('支持行缺状态列 → 无从判断，而不是回落到无关页', () => {
+    const rows = [evidenceRow('irrelevant', 'exact'), evidenceRow('supports', undefined)];
+    expect(pickSupportDimensionState(rows)).toBe('unknown');
   });
 });
 

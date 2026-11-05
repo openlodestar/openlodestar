@@ -1,6 +1,6 @@
 // 由 src/demo-page/build-demo-data.ts 从 examples/ 生成，不要手改；改数据请改冻结批次后重跑 pnpm run demo:data。
 window.LODESTAR_DEMO = {
-  "generatedAt": "2026-11-05T16:30:06.808Z",
+  "generatedAt": "2026-11-05T16:52:19.346Z",
   "generator": "src/demo-page/build-demo-data.ts",
   "note": "判定由引擎在构建时算好并冻结：页面只切换展示，不重算计票、门禁与坐标。证据按「记录号＋字段名＋字段值」匹配，字段值对不上就显示「这批证据没覆盖」。",
   "fields": [
@@ -496,7 +496,7 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 2,
                 "notFoundCause": null,
                 "examinedPages": 2,
-                "dimensionState": "conflict"
+                "dimensionState": null
               },
               "sessionName": {
                 "fieldValue": "禹贡Ⅰ—盛清御瓷新风尚",
@@ -881,7 +881,7 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": "coverage",
                 "examinedPages": 2,
-                "dimensionState": "mismatch"
+                "dimensionState": null
               }
             },
             "keyFieldValues": {
@@ -1174,7 +1174,7 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": "coverage",
                 "examinedPages": 2,
-                "dimensionState": "conflict"
+                "dimensionState": null
               },
               "dateText": {
                 "fieldValue": "2022年7月14日",
@@ -2077,7 +2077,7 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": "coverage",
                 "examinedPages": 2,
-                "dimensionState": "exact"
+                "dimensionState": null
               },
               "dateText": {
                 "fieldValue": "2021年11月26日至12月13日",
@@ -2088,7 +2088,7 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 1,
                 "notFoundCause": null,
                 "examinedPages": 1,
-                "dimensionState": "unknown"
+                "dimensionState": null
               },
               "sessionName": {
                 "fieldValue": "宸赏—明清御瓷珍玩",
@@ -2333,7 +2333,7 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": "coverage",
                 "examinedPages": 2,
-                "dimensionState": "exact"
+                "dimensionState": null
               },
               "dateText": {
                 "fieldValue": "2025年8月16日20时—8月22日24时",

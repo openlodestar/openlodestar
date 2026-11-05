@@ -42,6 +42,19 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--navy);outline-offse
 .headline p{margin:0;max-width:840px;color:var(--cream);opacity:.92}
 .legend{max-width:var(--max);margin:18px auto 0;display:flex;gap:10px;flex-wrap:wrap}
 .legend-item{display:flex;align-items:center;gap:8px;background:rgba(244,238,226,.08);border:1px solid rgba(244,238,226,.25);border-radius:10px;padding:8px 12px;font-size:.86rem;color:var(--cream-dim)}
+.legend-dim-item{flex-basis:100%;flex-wrap:wrap;gap:14px}
+.legend-dim-title{color:var(--cream);font-weight:650}
+.legend-dim-one{display:inline-flex;align-items:center;gap:6px;font-size:.82rem}
+.legend-dim-hint{opacity:.78}
+.legend-note{max-width:var(--max);margin:8px auto 0;color:var(--cream-dim);font-size:.82rem;opacity:.85}
+/* 判据六态的配色：完全对上与口径相容要一眼分开；边缘相容明显弱于口径相容；无从判断用中性灰 */
+.dim{display:inline-block;border:1px solid transparent;border-radius:999px;padding:0 8px;font-size:.78rem;font-weight:650;line-height:1.7}
+.dim-exact{background:var(--ok-bg);color:var(--ok);border-color:#C3DCCB}
+.dim-caliber{background:#E7EFF9;color:#1B4373;border-color:#C2D5EA}
+.dim-edge{background:#EEF1F4;color:#5B6878;border:1px dashed #A6B1BF}
+.dim-conflict{background:#F7EFE2;color:#7A4A05;border-color:#E7D3B2}
+.dim-mismatch{background:#EFE9DE;color:#6B5741;border-color:#DCCFBB}
+.dim-unknown{background:#F2F3F5;color:#6B7078;border:1px dashed #C4C8CF}
 main{max-width:var(--max);margin:0 auto;padding:34px 24px 64px}
 .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 22px}
 .chip{
@@ -96,6 +109,9 @@ main{max-width:var(--max);margin:0 auto;padding:34px 24px 64px}
 .evidence{margin-top:12px;display:flex;flex-direction:column;gap:10px}
 .evidence-row{border-top:1px dashed var(--line);padding-top:10px}
 .evidence-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--muted)}
+.evidence-dim{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 0;font-size:.8rem;color:var(--muted)}
+.dim-tag{font-weight:650;color:var(--ink)}
+.matched code{word-break:break-all}
 .relation{font-weight:650;border-radius:6px;padding:0 7px}
 .relation-supports{background:var(--ok-bg);color:var(--ok)}
 .relation-refutes{background:var(--bad-bg);color:var(--bad)}

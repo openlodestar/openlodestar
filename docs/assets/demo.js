@@ -58,6 +58,24 @@
     coverage: '这批候选来源没覆盖到',
     genuinely_absent: '这批来源里确实没有'
   };
+  // 判据六态：与窗口上的 LODESTAR_MATCH.DIMENSION_STATE_LABELS 一一对应，图例只给短名
+  var DIMENSION_ORDER = ['exact', 'caliber', 'edge', 'conflict', 'mismatch', 'unknown'];
+  var DIMENSION_SHORT = {
+    exact: '完全对上',
+    caliber: '口径相容',
+    edge: '边缘相容',
+    conflict: '冲突候选',
+    mismatch: '没对上',
+    unknown: '无从判断'
+  };
+  var DIMENSION_HINTS = {
+    exact: '断言与原文同一写法',
+    caliber: '只是说法不同，不算同一条证据',
+    edge: '没有矛盾，但这不能证明',
+    conflict: '只作候选，不压成「反对」',
+    mismatch: '原文写的是另一回事',
+    unknown: '原文里没有可判的写法'
+  };
 
   var state = { filter: 'all', current: 0 };
 
@@ -225,7 +243,13 @@
     );
     if (field.state === 'covered' && field.dimensionLabel) {
       // 判据维度状态：口径相容不许写成"对/一致"，冲突只作候选
-      parts.push('<span class="stat">判据：' + escapeHtml(field.dimensionLabel) + '</span>');
+      parts.push(
+        '<span class="stat dim dim-' +
+          escapeHtml(field.dimensionState) +
+          '">判据：' +
+          escapeHtml(field.dimensionLabel) +
+          '</span>'
+      );
     }
     parts.push('</div>');
 
@@ -245,7 +269,7 @@
       parts.push('<p class="empty">这个字段一条证据行都没有：这批页面查过了，但没有一处提到它。</p>');
     } else {
       field.evidence.forEach(function (row) {
-        parts.push(renderEvidence(row, entry));
+        parts.push(renderEvidence(row, entry, field));
       });
     }
     parts.push('</div>');
@@ -253,7 +277,7 @@
     return parts.join('');
   }
 
-  function renderEvidence(row, entry) {
+  function renderEvidence(row, entry, field) {
     var source = entry.sourceByUrl[row.url] || null;
     var publisher = source ? source.publisher : row.domain;
     var parts = [];
@@ -273,6 +297,22 @@
         '<span class="family">家族 ' +
         escapeHtml(row.family) +
         '</span></div>'
+    );
+    parts.push(
+      '<p class="evidence-dim">' +
+        '<span class="dim-tag">维度 · ' +
+        escapeHtml(field.label) +
+        '</span>' +
+        '<span class="dim dim-' +
+        escapeHtml(row.state) +
+        '">' +
+        escapeHtml(api.DIMENSION_STATE_LABELS[row.state] || api.DIMENSION_STATE_LABELS.unknown) +
+        '</span>' +
+        '<span class="matched">原文值：' +
+        (row.matchedValue
+          ? '<code>' + escapeHtml(row.matchedValue) + '</code>（已过逐字子串校验）'
+          : '原文里没有明确写法') +
+        '</span></p>'
     );
     parts.push('<blockquote>' + escapeHtml(row.quote) + '</blockquote>');
     if (row.note) parts.push('<p class="evidence-note">' + escapeHtml(row.note) + '</p>');
@@ -359,6 +399,22 @@
           '</span></div>'
       );
     });
+    var dimParts = [];
+    DIMENSION_ORDER.forEach(function (key) {
+      dimParts.push(
+        '<span class="legend-dim-one"><span class="dim dim-' +
+          key +
+          '">' +
+          DIMENSION_SHORT[key] +
+          '</span><span class="legend-dim-hint">' +
+          DIMENSION_HINTS[key] +
+          '</span></span>'
+      );
+    });
+    parts.push('<div class="legend-item legend-dim-item"><span class="legend-dim-title">判据六态</span>' + dimParts.join('') + '</div>');
+    parts.push(
+      '<p class="legend-note">判据说的是「这条证据与断言在某个维度上的关系」，不是整条记录的结论。口径相容只说明说法不同；边缘相容是没有矛盾、但这不能证明；冲突候选不压成「反对」；无从判断表示原文里没有可判的写法。</p>'
+    );
     document.getElementById('legend').innerHTML = parts.join('');
   }
 

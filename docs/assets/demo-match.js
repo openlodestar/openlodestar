@@ -70,8 +70,8 @@
       refuteCount: computed.refuteCount,
       notFoundCause: computed.notFoundCause,
       examinedPages: computed.examinedPages,
-      dimensionState: computed.dimensionState || 'unknown',
-      dimensionLabel: DIMENSION_STATE_LABELS[computed.dimensionState] || DIMENSION_STATE_LABELS.unknown,
+      dimensionState: computed.dimensionState || null,
+      dimensionLabel: computed.dimensionState ? DIMENSION_STATE_LABELS[computed.dimensionState] : null,
       evidence: evidence
     };
   }

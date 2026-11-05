@@ -20,7 +20,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { retallyAndRegate } from '../lodestar/engine';
-import { gradeRecordDimensions, pickDimensionState } from '../lodestar/dimensions';
+import { gradeRecordDimensions, pickSupportDimensionState } from '../lodestar/dimensions';
 import porcelainPack from '../lodestar/packs/porcelain';
 import { createStore } from '../lodestar/storage/adapter';
 import type {
@@ -58,8 +58,11 @@ export interface DemoFieldVerdict {
   notFoundCause: string | null;
   /** 这条断言实际比对过的页面数（按证据行里的不同 URL 计） */
   examinedPages: number;
-  /** 该字段在证据上落到哪个维度状态（老证据缺列读作 unknown） */
-  dimensionState: EvidenceDimensionState;
+  /**
+   * 该字段的判据状态，只从「支持」的证据行里取。
+   * null 表示这条断言没有任何「支持」行 —— 页面不显示判据，免得把无关页的状态挂在字段旁边。
+   */
+  dimensionState: EvidenceDimensionState | null;
 }
 
 export interface DemoEvidenceRow {
@@ -292,7 +295,7 @@ export async function buildCase(exampleName: string): Promise<DemoCaseData> {
           refuteCount: verdict.refuteCount,
           notFoundCause: verdict.notFoundCause ?? null,
           examinedPages,
-          dimensionState: pickDimensionState(claimEvidence),
+          dimensionState: pickSupportDimensionState(claimEvidence),
         };
       }
 

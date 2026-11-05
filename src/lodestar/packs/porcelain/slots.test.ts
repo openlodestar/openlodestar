@@ -154,6 +154,12 @@ describe('时间窗口：断言侧不扩、证据侧上下各放宽一个月', (
     expect(assertionTimeWindow('2021年末')).toEqual({ from: '2021-07-01', to: '2021-12-31' });
   });
 
+  it('同月内的日区间按整段算，不把尾段裸数字读成月份', () => {
+    expect(assertionTimeWindow('2021年12月2日-6日')).toEqual({ from: '2021-12-02', to: '2021-12-06' });
+    expect(assertionTimeWindow('2021年12月2日至6日')).toEqual({ from: '2021-12-02', to: '2021-12-06' });
+    expect(evidenceTimeWindow('2021年12月2日-6日')).toEqual({ from: '2021-12-02', to: '2021-12-06' });
+  });
+
   it('解析不出时间就返回 null，不猜一个窗口出来', () => {
     expect(assertionTimeWindow('近年')).toBeNull();
     expect(evidenceTimeWindow('近年')).toBeNull();

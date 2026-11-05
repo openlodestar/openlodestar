@@ -57,6 +57,7 @@
     "demo:lab-server": "tsx scripts/demo-live-server.mjs",
     "demo:serve": "node scripts/serve-demo.mjs",
     "demo:freeze": "tsx src/demo-page/freeze-batch.ts",
+    "backfill:evidence": "tsx scripts/backfill-evidence-dimensions.ts",
     "verify-quotes": "tsx src/cli.ts verify-quotes",
     "audit": "tsx src/cli.ts audit"
   },

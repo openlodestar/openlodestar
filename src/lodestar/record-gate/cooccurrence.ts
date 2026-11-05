@@ -117,11 +117,11 @@ export function decideGate(input: GateInput): GateOutcome {
   } else {
     /**
      * 最后一道：判据维度是否够得上强坐标。
-     * 冲突否决先于算分（任一维明确冲突直接降弱）；老证据全无维度状态时
-     * `allUnknown` 为真，保留既有门禁结论（无从判断不升坐标，也不改写旧读数）。
+     * 冲突否决先于算分（任一维明确冲突直接降弱）；没有任何维度给出状态的行
+     * 就是"无从判断"，它不升坐标——老数据由回填脚本补齐状态，不在这里留兼容分支。
      */
     const dimensional = gradeRecordDimensions(input.fieldClaimIds, input.claims, input.evidenceByClaim);
-    if (dimensional.grade === 'strong' || dimensional.allUnknown) {
+    if (dimensional.grade === 'strong') {
       gate = 'strong';
       reason = `关键字段全部 supported、共现命中 ${urls.length} 个页面、最低证据等级 ${weakest}`;
     } else {

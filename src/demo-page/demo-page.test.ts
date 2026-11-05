@@ -116,7 +116,12 @@ async function recomputeExample(exampleId: string): Promise<Awaited<ReturnType<t
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `lodestar-demo-test-${exampleId}-`));
   TEMP_DIRS.push(tempDir);
   fs.copyFileSync(path.join(sourceDir, 'claims.jsonl'), path.join(tempDir, 'claims.jsonl'));
-  fs.copyFileSync(path.join(sourceDir, 'evidence.jsonl'), path.join(tempDir, 'evidence.jsonl'));
+  // 回填产物优先，与 `build-demo-data` 保持同一条读取口径（冻结底稿不动）
+  const enriched = path.join(sourceDir, 'evidence.enriched.jsonl');
+  fs.copyFileSync(
+    fs.existsSync(enriched) ? enriched : path.join(sourceDir, 'evidence.jsonl'),
+    path.join(tempDir, 'evidence.jsonl'),
+  );
   fs.mkdirSync(path.join(tempDir, 'snapshots'), { recursive: true });
   for (const name of fs.readdirSync(path.join(sourceDir, 'snapshots'))) {
     if (name.endsWith('.txt')) {
@@ -240,7 +245,7 @@ describe('字段值一变，证据就不许被继承', () => {
     };
     const view = api.buildView(tampered);
     expect(view.gate).toBe('uncovered');
-    expect(view.gateLabel).toBe('这批证据没覆盖');
+    expect(view.gateLabel).toBe('无坐标（这批证据没覆盖）');
     expect(view.bucket).toBe('uncovered');
     expect(view.anchor).toBeNull();
     for (const field of original.fields.filter((item) => item.role === 'key')) {

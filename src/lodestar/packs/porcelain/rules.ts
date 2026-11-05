@@ -242,7 +242,15 @@ function seasonCoreWindow(
 export function parseTimeScope(text: string | null | undefined): { from: string | null; to: string | null } {
   const empty = { from: null, to: null };
   if (!text) return empty;
-  const normalized = String(text).trim();
+  // 同月内的"日区间"先补成年月日形式：`2021年12月2日-6日` → `2021年12月2日至2021年12月6日`。
+  // 不补的话尾段只剩下一个裸数字，会被当成"6 月"，把一场 12 月 2–6 日的拍卖读成一段错误的窗口。
+  const normalized = String(text)
+    .trim()
+    .replace(
+      /(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(?:至|~|～|－|–|—|-)\s*(\d{1,2})\s*日/g,
+      (_whole, year: string, month: string, fromDay: string, toDay: string) =>
+        `${year}年${month}月${fromDay}日至${year}年${month}月${toDay}日`,
+    );
   if (normalized === '') return empty;
 
   // 区间写法先劈开：两侧各按单日期解析

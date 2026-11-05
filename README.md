@@ -129,6 +129,8 @@ pnpm exec tsx src/cli.ts demo --example poly-2021-autumn --report .openlodestar-
 
 新增一批演示素材时，先用 `pnpm run demo:freeze` 把一次 live 运行裁成 `examples/<批次>/`（只保留关键字段全部裁决完的记录，快照只留含引文的段落与上下文、每页不超过 2000 字符），再跑 `pnpm run demo:data` 重新生成数据文件。
 
+冻结批次里早于「判据维度」的证据行没有 `dimension` / `state` / `matchedValue` 三列，用回填脚本补齐：`pnpm run backfill:evidence -- --case examples/poly-2021-autumn`（加 `--dry-run` 只出读数不写文件，`--force` 重算已有状态的行，`--llm` 才让模型兜底摘值）。脚本只写旁挂的 `evidence.enriched.jsonl`，冻结底稿不动；`demo:data` 存在旁挂文件时优先读它。
+
 ### 小游戏版演示：换掉一个词，看证据认不认
 
 `docs/demo-lab.html` 把同一句话拆成四个槽位——拍卖机构、举办时间、专场主名、专场副题——让人自己动手改：
@@ -228,6 +230,7 @@ plugins/browser-playwright/ playwright 渲染插件（独立包；自带 package
 examples/porcelain/         最小离线底稿（合成数据，契约测试用）
 examples/poly-2021-autumn/  真实案例底稿（公开报道的正文节选 + 抓取档案 + 四条候选记录 + case.json）
 examples/demo-batch-*/      在线采集补出来的冻结批次（页面节选 + 来源声明，供交互演示切换）
+examples/*/evidence.enriched.jsonl 判据维度回填产物（旁挂文件，冻结底稿不动；演示构建优先读）
 docs/index.html             站点首页：这个项目做什么、现在到哪一步，并直入两个演示
 docs/demo.html              交互演示页：切换记录、看字段引文与判定（断网可开）
 docs/demo-lab.html          小游戏版演示页：改句子的四个槽位，看证据认不认（断网可开）
@@ -235,6 +238,7 @@ docs/assets/site-nav.css    三页共用的顶栏样式（导航结构只写一�
 docs/demo-lab.md            小游戏玩法、组合矩阵与覆盖读数；站点地图与本地实时实验服务的边界
 scripts/demo-live-server.mjs 只在本机跑的实时实验服务（不部署，默认拒绝运行）
 scripts/serve-demo.mjs      两页演示的本地静态预览（只绑 127.0.0.1，默认端口 3013）
+scripts/backfill-evidence-dimensions.ts 既有证据行的判据维度回填（规则优先、模型兜底、逐字子串校验）
 docs/demo-design-guide.md   演示方法论：一条演示该证明什么、怎么挑素材、怎么摆证据
 docs/time-window-rules.md   时间窗口的两条口径：断言侧不扩、证据侧上下各放宽一个月
 docs/evidence-grading-proposal.md 证据分级的架构：抽取 → 逐维比较 → 汇总，加维度＝注册一份实现

@@ -88,11 +88,19 @@ function ev(claimId: string, url: string, over: Partial<EvidenceRecord> = {}): E
 
 function gateFor(claims: ClaimRecord[], evidence: EvidenceRecord[], verdicts: VerdictRecord[]) {
   const keyClaims = claims.filter((c) => KEY_FIELD_KEYS.includes(c.fieldKey ?? ''));
+  const claimById = new Map(claims.map((c) => [c.claimId, c]));
   const byClaim = new Map<string, EvidenceRecord[]>();
   for (const row of evidence) {
-    const bucket = byClaim.get(row.claimId);
-    if (bucket) bucket.push(row);
-    else byClaim.set(row.claimId, [row]);
+    // 夹具按"回填后每条证据都带维度状态"构造：门禁单测关心的是汇总与共现，
+    // 抽取与比较另有专门测试；没有状态的行会诚实地按无从判断处理，不升强坐标。
+    const claim = claimById.get(row.claimId);
+    const withState: EvidenceRecord =
+      row.state === undefined
+        ? { ...row, dimension: claim?.fieldKey ? `porcelain:${claim.fieldKey}` : undefined, state: 'exact' }
+        : row;
+    const bucket = byClaim.get(withState.claimId);
+    if (bucket) bucket.push(withState);
+    else byClaim.set(withState.claimId, [withState]);
   }
   return decideGate({
     recordId: claims[0]!.recordId!,

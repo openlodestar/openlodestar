@@ -107,12 +107,11 @@ export interface DemoRecord {
     fieldVerdicts: Record<string, DemoFieldVerdict>;
     keyFieldValues: Record<string, string>;
     cooccurrence: { count: number; pages: string[] };
-    /** 判据维度汇总：分数、依据、冲突候选（老证据全 unknown 时不改写门禁） */
+    /** 判据维度汇总：分数、依据、冲突候选 */
     dimensionGrade: {
       grade: 'strong' | 'weak';
       score: number;
       basis: string;
-      allUnknown: boolean;
       conflictDimensions: string[];
       entries: Array<{ dimension: string; label: string; state: EvidenceDimensionState; cap: number }>;
     };
@@ -197,10 +196,16 @@ function recordTitle(fields: DemoFieldValue[], recordId: string): string {
 
 export async function buildCase(exampleName: string): Promise<DemoCaseData> {
   const exampleDir = path.join(EXAMPLES_DIR, exampleName);
+  // 回填产物（`evidence.enriched.jsonl`）是派生的旁挂文件：存在时优先用它，冻结底稿一个字不动。
+  // 判定链仍然是同一条（`retallyAndRegate` 只数既有证据行，不调模型）。
+  const enrichedPath = path.join(exampleDir, 'evidence.enriched.jsonl');
+  const evidenceSource = (await fs.access(enrichedPath).then(() => true).catch(() => false))
+    ? enrichedPath
+    : path.join(exampleDir, 'evidence.jsonl');
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), `lodestar-demo-${exampleName}-`));
   try {
     await copyIfExists(path.join(exampleDir, 'claims.jsonl'), path.join(tempDir, 'claims.jsonl'));
-    await copyIfExists(path.join(exampleDir, 'evidence.jsonl'), path.join(tempDir, 'evidence.jsonl'));
+    await copyIfExists(evidenceSource, path.join(tempDir, 'evidence.jsonl'));
     const snapshotDir = path.join(exampleDir, 'snapshots');
     for (const name of await fs.readdir(snapshotDir)) {
       if (name.endsWith('.txt')) await copyIfExists(path.join(snapshotDir, name), path.join(tempDir, 'snapshots', name));
@@ -214,7 +219,7 @@ export async function buildCase(exampleName: string): Promise<DemoCaseData> {
     });
 
     const claims = await readJsonl<ClaimRecord>(path.join(exampleDir, 'claims.jsonl'));
-    const evidenceRows = await readJsonl<EvidenceRecord>(path.join(exampleDir, 'evidence.jsonl'));
+    const evidenceRows = await readJsonl<EvidenceRecord>(evidenceSource);
     const meta = await readCaseMeta(exampleDir);
     const verdictByClaim = new Map(outcome.verdicts.map((verdict) => [verdict.claimId, verdict]));
     const anchorByRecord = new Map(outcome.anchors.map((anchor) => [anchor.recordId, anchor]));
@@ -344,7 +349,6 @@ export async function buildCase(exampleName: string): Promise<DemoCaseData> {
             grade: dimensionGrade.grade,
             score: dimensionGrade.score,
             basis: dimensionGrade.basis,
-            allUnknown: dimensionGrade.allUnknown,
             conflictDimensions: dimensionGrade.conflictDimensions,
             entries: dimensionGrade.entries,
           },

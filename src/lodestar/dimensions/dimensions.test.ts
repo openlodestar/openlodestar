@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { assertionTimeWindow, evidenceTimeWindow } from '../packs/porcelain/rules';
 import { parseComparison, quoteMatches } from '../adjudicate/compare';
 import {
+  DIMENSION_STATE_WEIGHT,
   dimensionForField,
   gradeDimensions,
   registerDimension,
@@ -31,8 +32,16 @@ describe('时间维度：复用现有窗口读数，不复制季节表', () => {
     expect(compareTimeDimension('2021年10月', '2021年秋季')).toMatchObject({ state: 'caliber' });
   });
 
-  it('月份写到季节的漂移圈里 → 口径相容', () => {
-    expect(compareTimeDimension('2021年8月', '2021年秋季')).toMatchObject({ state: 'caliber' });
+  it('秋季 对 8 月 → 口径相容，折算 0.7', () => {
+    const result = compareTimeDimension('2021年8月', '2021年秋季');
+    expect(result.state).toBe('caliber');
+    expect(DIMENSION_STATE_WEIGHT[result.state]).toBe(0.7);
+  });
+
+  it('秋季 对 12 月 → 边缘相容，折算 0.3', () => {
+    const result = compareTimeDimension('2021年12月', '2021年秋季');
+    expect(result.state).toBe('edge');
+    expect(DIMENSION_STATE_WEIGHT[result.state]).toBe(0.3);
   });
 
   it('日期只擦到放宽圈的边 → 边缘相容', () => {

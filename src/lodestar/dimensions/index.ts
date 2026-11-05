@@ -13,6 +13,8 @@
 import type { ClaimRecord, EvidenceDimensionState, EvidenceRecord, FieldRole } from '../types';
 import { timeDimension } from './time';
 import { institutionDimension } from './institution';
+import { sessionNameDimension } from './text';
+import { locationDimension } from './location';
 
 /** 比较函数的输入：断言里这个字段的值 + 页面里逐字摘出的原文值 */
 export interface DimensionCompareInput {
@@ -109,8 +111,6 @@ export interface DimensionGrade {
   basis: string;
   /** 明确冲突的维度标签（冲突不压成"反对"，只挂候选标记） */
   conflictDimensions: string[];
-  /** 全部维度都无从判断（老证据缺列）：汇总层不据此改变旧门禁 */
-  allUnknown: boolean;
   entries: DimensionEntry[];
 }
 
@@ -141,7 +141,6 @@ export function gradeDimensions(entries: DimensionEntry[]): DimensionGrade {
       score: 0,
       basis: `「${conflictDimensions.join('」「')}」明确冲突，先否决强坐标（冲突只作候选，不压成"反对"）`,
       conflictDimensions,
-      allUnknown: false,
       entries: resolved,
     };
   }
@@ -155,8 +154,7 @@ export function gradeDimensions(entries: DimensionEntry[]): DimensionGrade {
   }
   score = Math.round(score * 100) / 100;
 
-  // 没有任何可展开的维度＝没有任何维度说话，同样按"全无从判断"处理
-  const allUnknown = resolved.every((e) => e.state === 'unknown');
+  // 没有任何可展开的维度＝没有任何维度说话，计 0 分、不升坐标
   const strong = score >= STRONG_SCORE_THRESHOLD && strongDimensions >= 2;
   const qualified = resolved.filter((e) => DIMENSION_STATE_WEIGHT[e.state] >= STRONG_DIMENSION_FLOOR);
 
@@ -169,7 +167,6 @@ export function gradeDimensions(entries: DimensionEntry[]): DimensionGrade {
         ? '没有任何维度给出正向线索'
         : `累计 ${score} 分，未同时满足「≥ ${STRONG_SCORE_THRESHOLD} 且两维各过 ${STRONG_DIMENSION_FLOOR} 倍上限」`,
     conflictDimensions: [],
-    allUnknown,
     entries: resolved,
   };
 }
@@ -235,7 +232,7 @@ export function pickDimensionState(rows: EvidenceRecord[]): EvidenceDimensionSta
 }
 
 // 内置维度：加一个维度只在这里多注册一份实现，汇总层与裁决链不认识具体维度
-for (const spec of [timeDimension, institutionDimension]) {
+for (const spec of [timeDimension, institutionDimension, sessionNameDimension, locationDimension]) {
   if (!registry.has(spec.id)) registerDimension(spec);
 }
 

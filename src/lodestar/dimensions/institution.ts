@@ -15,8 +15,8 @@
 import { canonicalHouseName } from '../packs/porcelain/rules';
 import type { DimensionCompareResult, DimensionSpec } from './index';
 
-/** 地点限定词词表（域知识：只在机构维度里用，不出现在汇总层） */
-const CITY_WORDS = [
+/** 地点限定词词表（域知识：机构维度与地点维度共用一份） */
+export const CITY_WORDS = [
   '北京',
   '上海',
   '广州',

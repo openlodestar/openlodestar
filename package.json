@@ -53,6 +53,8 @@
     "demo": "tsx src/cli.ts demo",
     "demo:real": "tsx src/cli.ts demo --example poly-2021-autumn --report .openlodestar-demo/poly-2021-autumn/demo-report.html",
     "demo:data": "tsx src/demo-page/build-demo-data.ts",
+    "demo:game": "tsx src/demo-page/build-demo-game.ts",
+    "demo:lab-server": "tsx scripts/demo-live-server.mjs",
     "demo:freeze": "tsx src/demo-page/freeze-batch.ts",
     "verify-quotes": "tsx src/cli.ts verify-quotes",
     "audit": "tsx src/cli.ts audit"

@@ -70,6 +70,8 @@ export interface DemoEvidenceRow {
   family: string;
   tier: EvidenceRecord['tier'];
   snapshotFile: string;
+  /** 这次抓取的时间（底稿 evidence.jsonl 的 fetchedAt）：证据卡上要能写出"何时抓的" */
+  fetchedAt: string;
   note: string | null;
 }
 
@@ -174,7 +176,7 @@ function recordTitle(fields: DemoFieldValue[], recordId: string): string {
   return date === '' ? head : `${head}（${date}）`;
 }
 
-async function buildCase(exampleName: string): Promise<DemoCaseData> {
+export async function buildCase(exampleName: string): Promise<DemoCaseData> {
   const exampleDir = path.join(EXAMPLES_DIR, exampleName);
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), `lodestar-demo-${exampleName}-`));
   try {
@@ -299,6 +301,7 @@ async function buildCase(exampleName: string): Promise<DemoCaseData> {
               family: row.sourceFamily,
               tier: row.tier,
               snapshotFile: row.snapshotRef,
+              fetchedAt: row.fetchedAt,
               note: row.note ?? null,
             };
           }),
@@ -336,11 +339,16 @@ async function buildCase(exampleName: string): Promise<DemoCaseData> {
   }
 }
 
-async function main(): Promise<void> {
+/** 参与演示的示例目录名（固定示例在前，随后是冻结批次） */
+export async function listExampleNames(): Promise<string[]> {
   const batchDirs = (await fs.readdir(EXAMPLES_DIR))
     .filter((name) => /^demo-batch-[a-z0-9-]+$/.test(name))
     .sort();
-  const examples = [...FIXED_EXAMPLES, ...batchDirs.filter((name) => !FIXED_EXAMPLES.includes(name))];
+  return [...FIXED_EXAMPLES, ...batchDirs.filter((name) => !FIXED_EXAMPLES.includes(name))];
+}
+
+async function main(): Promise<void> {
+  const examples = await listExampleNames();
 
   const cases: DemoCaseData[] = [];
   for (const exampleName of examples) {
@@ -394,7 +402,12 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  console.error('Failed:', error instanceof Error ? error.message : error);
-  process.exitCode = 1;
-});
+// 只在直接执行本文件时跑构建；被 build-demo-game.ts 导入时只取 buildCase，不重复写数据
+const isDirectRun =
+  process.argv[1] !== undefined && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error('Failed:', error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
+}

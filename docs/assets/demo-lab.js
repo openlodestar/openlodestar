@@ -1,7 +1,11 @@
 /* docs/assets/demo-lab.js
  *
- * 小游戏页的行为层：句子里的三个词就是操作面。点一个词 → 选一个新词 → 结论、逐维判据
- * 与引文立刻出现在句子下面；觉得这一组值得记下来，再点「收进图鉴」把它计分。
+ * 小游戏页的行为层：三个词就是操作面。点一个词 → 判定卡原地翻成选词卡 → 选一个 →
+ * 选词卡收起、判定卡带着新的逐维判据回来。觉得这一组值得记下来，再点「收进图鉴」计分。
+ *
+ * 布局是一屏定死的：顶栏 / 进度 / 句子 / 判定卡 / 计分口各占一行，判定卡与选词卡共用一个
+ * 绝对定位的区域，所以换词不会把页面撑高，长内容（任务、分数表、复盘、证据、说明）都收
+ * 进底部抽屉，触发才展开。
  *
  * 玩法只有一条规则：**每种结论只在第一次被收进图鉴时给分**。同一组重复收是 0 分，
  * 换个组合收同一个结论也是 0 分，所以分数条填满（31 分）就等于八种结论都亲眼看过。
@@ -26,6 +30,7 @@
     slotByKey[slot.key] = slot;
   });
 
+  var CODE_ORDER = ['strong', 'weak', 'caliber', 'edge', 'conflict', 'mismatch', 'unknown', 'uncovered'];
   var RELATION_LABELS = { supports: '支持', refutes: '反对', irrelevant: '不涉及' };
   var TIER_LABELS = { official: '官方', primary: '一手报道', aggregator: '聚合站', unlisted: '未列名' };
   var CAUSE_LABELS = {
@@ -38,6 +43,13 @@
     weak: '弱坐标',
     refuted: '被反驳',
     not_found: '查过没找到'
+  };
+  var PANEL_TITLES = {
+    missions: '三章任务',
+    score: '分数表',
+    review: '复盘 · 收过的组',
+    evidence: '这一组的证据',
+    help: '规则与边界'
   };
   var INITIAL_VALUES = {
     auctionHouse: '北京保利',
@@ -59,7 +71,10 @@
     lastChangedKey: null,
     progress: loadProgress(),
     confirmReset: false,
-    toastTimer: null
+    toastTimer: null,
+    sheet: null,
+    sheetTrigger: null,
+    soundOn: false
   };
 
   var slotElements = Array.prototype.slice.call(document.querySelectorAll('.slot'));
@@ -67,8 +82,13 @@
   var optionsTitle = document.getElementById('slot-options-title');
   var optionList = document.getElementById('option-list');
   var verdictElement = document.getElementById('verdict');
+  var claimRow = document.getElementById('claim-row');
+  var dexElement = document.getElementById('dex');
+  var missionCurrent = document.getElementById('mission-current');
   var fullPanel = document.getElementById('full-panel');
   var fullBody = document.getElementById('full-body');
+  var evidenceLead = document.getElementById('evidence-lead');
+  var evidenceInline = document.getElementById('evidence-inline');
   var coverageBody = document.getElementById('coverage-body');
   var coverageCounts = document.getElementById('coverage-counts');
   var scoreValue = document.getElementById('score-value');
@@ -78,11 +98,17 @@
   var scoreBar = document.getElementById('score-bar');
   var scoreTableBody = document.getElementById('score-table-body');
   var missionList = document.getElementById('mission-list');
-  var missionCurrent = document.getElementById('mission-current');
+  var missionDetail = document.getElementById('mission-detail');
   var toastElement = document.getElementById('toast');
-  var reviewSection = document.getElementById('review');
   var reviewBody = document.getElementById('review-body');
   var reviewCount = document.getElementById('review-count');
+  var sheetElement = document.getElementById('sheet');
+  var sheetTitle = document.getElementById('sheet-title');
+  var sheetPanels = Array.prototype.slice.call(document.querySelectorAll('[data-sheet-panel]'));
+  var sheetCloseButton = sheetElement.querySelector('.sheet-close');
+  var resetProgressButton = document.getElementById('reset-progress');
+  var soundToggle = document.getElementById('sound-toggle');
+  var fxLayer = document.getElementById('fx');
 
   function cloneValues(values) {
     return {
@@ -120,6 +146,42 @@
 
   function demoTag() {
     return '<span class="demo-tag" title="演示用词：不在采集回来的页面里">演示用词</span>';
+  }
+
+  function reducedMotion() {
+    try {
+      return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    } catch (error) {
+      return false;
+    }
+  }
+
+  // ---- 音效：默认关闭，只在玩家操作时响，不自动播放 ----
+
+  var audio = { context: null };
+
+  function playTone(frequency, duration, type) {
+    if (!state.soundOn) return;
+    try {
+      var Ctor = window.AudioContext || window.webkitAudioContext;
+      if (!Ctor) return;
+      if (!audio.context) audio.context = new Ctor();
+      var context = audio.context;
+      if (context.state === 'suspended') context.resume();
+      var oscillator = context.createOscillator();
+      var gain = context.createGain();
+      oscillator.type = type || 'sine';
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.0001, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.1, context.currentTime + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + duration);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + duration + 0.03);
+    } catch (error) {
+      // 没有音频设备或浏览器拦了音频：静音即可，不打断任何操作
+    }
   }
 
   // ---- 存档：只存组合号，分数与判据每次重算 ----
@@ -161,8 +223,9 @@
       // 同上：清不掉也只是刷新后回来
     }
     renderHud();
-    renderVerdict();
+    renderVerdict(false);
     renderReview();
+    renderSheetIfOpen();
     showToast('存档已清空：分数归零，图鉴重新开始。');
   }
 
@@ -175,19 +238,31 @@
 
   function submitCurrent() {
     var combo = game.findCombo(data, state.values);
+    var wasCleared = game.isCleared(state.progress, data);
     var result = game.submit(state.progress, data, combo);
     if (!result.ok) {
+      playTone(150, 0.1, 'square');
+      var button = claimRow.querySelector('[data-action="submit"]');
+      if (button) {
+        button.classList.remove('is-nope');
+        void button.offsetWidth;
+        button.classList.add('is-nope');
+      }
       showToast(rejectionText(result));
       return;
     }
     state.progress = result.progress;
     saveProgress();
-    renderHud();
-    renderVerdict();
+    renderHud(result.code);
+    renderVerdict(false);
     renderReview();
-    if (result.cleared) {
-      showToast('+' + result.points + '：' + game.CONCLUSION_LABELS[result.code] + ' 已收入。八档收齐，通关了。');
-      reviewSection.open = true;
+    renderSheetIfOpen();
+    playTone(result.cleared ? 880 : 620, 0.16, 'triangle');
+    showPoints('+' + result.points);
+    pulseScore();
+    if (result.cleared && !wasCleared) {
+      celebrate();
+      showToast('八档收齐，通关了：' + game.targetOf(data) + ' / ' + game.targetOf(data) + '。打开「复盘」逐组回看。');
     } else {
       showToast('+' + result.points + '：' + game.CONCLUSION_LABELS[result.code] + ' 已收进图鉴。');
     }
@@ -220,9 +295,9 @@
       .join('、');
   }
 
-  // ---- 分数条与三章任务 ----
+  // ---- 顶部：分数、进度条、八格图鉴、当前章 ----
 
-  function renderHud() {
+  function renderHud(popCode) {
     var score = game.scoreOf(state.progress, data);
     var target = game.targetOf(data);
     var scored = game.scoredCodes(state.progress, data);
@@ -231,18 +306,88 @@
 
     scoreValue.textContent = String(score);
     scoreTarget.textContent = String(target);
-    scoreCount.textContent = '已收 ' + count + ' / ' + Object.keys(game.CONCLUSION_LABELS).length;
+    scoreCount.textContent = '已收 ' + count + ' / ' + CODE_ORDER.length;
     scoreFill.style.width = (target > 0 ? Math.min(100, (score / target) * 100) : 0) + '%';
     scoreBar.setAttribute('aria-valuenow', String(score));
     scoreBar.setAttribute('aria-valuemax', String(target));
     scoreBar.classList.toggle('is-cleared', cleared);
 
+    dexElement.innerHTML = CODE_ORDER.map(function (code) {
+      var collected = !!scored[code];
+      var label = game.CONCLUSION_SHORT[code];
+      var points = '+' + game.pointsFor(data, code);
+      var inner =
+        '<span class="dex-name">' +
+        escapeHtml(label) +
+        '</span><span class="dex-points">' +
+        points +
+        '</span>';
+      if (collected) {
+        return (
+          '<li><button type="button" class="dex-cell is-scored' +
+          (popCode === code ? ' is-pop' : '') +
+          '" data-combo="' +
+          escapeHtml(scored[code]) +
+          '" title="' +
+          escapeHtml(label) + '：点一下回到收下它的那一组">' +
+          inner +
+          '</button></li>'
+        );
+      }
+      return '<li class="dex-cell" title="还没收过「' + escapeHtml(label) + '」">' + inner + '</li>';
+    }).join('');
+
+    var currentMission = game.currentMission(data, state.progress);
+    if (cleared) {
+      missionCurrent.innerHTML = '<strong>已通关</strong> · 八种结论各收一次 · 点开复盘逐组回看';
+    } else if (currentMission) {
+      missionCurrent.innerHTML =
+        '<strong>' +
+        escapeHtml(currentMission.title) +
+        '</strong> · ' +
+        currentMission.done +
+        '/' +
+        currentMission.goals.length;
+    } else {
+      missionCurrent.textContent = '';
+    }
+
+    renderMissions();
+    scoreTableBody.innerHTML = renderScoreTable();
+  }
+
+  function renderScoreTable() {
+    var scoring = data.scoring;
+    var rows = CODE_ORDER.map(function (code) {
+      return (
+        '<tr><td><span class="chip chip-' +
+        escapeHtml(code) +
+        '">' +
+        escapeHtml(game.CONCLUSION_SHORT[code]) +
+        '</span></td><td class="points">+' +
+        scoring.byConclusion[code] +
+        '</td><td>' +
+        escapeHtml(scoring.reasons[code]) +
+        '</td></tr>'
+      );
+    }).join('');
+    return (
+      '<table class="score-table"><thead><tr><th>结论</th><th>分</th><th>为什么是这个分</th></tr></thead><tbody>' +
+      rows +
+      '</tbody><tfoot><tr><td>通关线</td><td class="points">' +
+      scoring.target +
+      '</td><td>' +
+      escapeHtml(scoring.note) +
+      '</td></tr></tfoot></table>'
+    );
+  }
+
+  function renderMissions() {
     var missions = game.missionStatus(data, state.progress);
+    var current = game.currentMission(data, state.progress);
     missionList.innerHTML = missions
-      .map(function (mission, index) {
-        var current = !mission.complete && missions.slice(0, index).every(function (before) {
-          return before.complete;
-        });
+      .map(function (mission) {
+        var isCurrent = current && current.id === mission.id;
         var goals = mission.goals
           .map(function (goal) {
             var chip =
@@ -251,30 +396,31 @@
               '">' +
               escapeHtml(game.CONCLUSION_SHORT[goal.code]) +
               '</span>';
-            var points = '<span class="goal-points">+' + goal.points + '</span>';
             if (goal.scored) {
               return (
                 '<button type="button" class="goal is-scored" data-combo="' +
                 escapeHtml(goal.comboId) +
                 '" title="点一下回到收下它的那一组">' +
                 chip +
-                points +
-                '<span class="goal-check">已收</span></button>'
+                '<span class="goal-points">+' +
+                goal.points +
+                '</span><span class="goal-check">已收</span></button>'
               );
             }
             return (
               '<span class="goal' +
-              (current ? ' is-target' : '') +
+              (isCurrent ? ' is-target' : '') +
               '">' +
               chip +
-              points +
-              '</span>'
+              '<span class="goal-points">+' +
+              goal.points +
+              '</span></span>'
             );
           })
           .join('');
         return (
           '<li class="mission' +
-          (current ? ' is-current' : '') +
+          (isCurrent ? ' is-current' : '') +
           (mission.complete ? ' is-complete' : '') +
           '"><p class="mission-title">' +
           escapeHtml(mission.title) +
@@ -289,62 +435,32 @@
       })
       .join('');
 
-    var currentMission = game.currentMission(data, state.progress);
-    if (cleared) {
-      missionCurrent.innerHTML =
-        '<strong>通关了。</strong>八种结论各收了一次，共 ' +
-        score +
-        ' 分。下面「复盘」里能逐组看回自己走过的高分组合与每一维的判据。';
-    } else if (currentMission) {
-      missionCurrent.innerHTML =
-        '<strong>' + escapeHtml(currentMission.title) + '</strong>' + escapeHtml(currentMission.hint);
+    if (!current) {
+      missionDetail.innerHTML =
+        '<strong>三章都打完了。</strong>八种结论各收了一次，' +
+        game.scoreOf(state.progress, data) +
+        ' 分。复盘里能逐组回看自己走过的高分组合与每一维的判据。';
     } else {
-      missionCurrent.textContent = '';
+      missionDetail.innerHTML = '<strong>' + escapeHtml(current.title) + '</strong>' + escapeHtml(current.hint);
     }
-
-    scoreTableBody.innerHTML = renderScoreTable();
-  }
-
-  function renderScoreTable() {
-    var scoring = data.scoring;
-    var order = ['strong', 'weak', 'caliber', 'edge', 'conflict', 'mismatch', 'unknown', 'uncovered'];
-    var rows = order
-      .map(function (code) {
-        return (
-          '<tr><td><span class="chip chip-' +
-          escapeHtml(code) +
-          '">' +
-          escapeHtml(game.CONCLUSION_SHORT[code]) +
-          '</span></td><td class="points">+' +
-          scoring.byConclusion[code] +
-          '</td><td>' +
-          escapeHtml(scoring.reasons[code]) +
-          '</td></tr>'
-        );
-      })
-      .join('');
-    return (
-      '<table class="score-table"><thead><tr><th>结论</th><th>分</th><th>为什么是这个分</th></tr></thead><tbody>' +
-      rows +
-      '</tbody><tfoot><tr><td>通关线</td><td class="points">' +
-      scoring.target +
-      '</td><td>' +
-      escapeHtml(scoring.note) +
-      '</td></tr></tfoot></table>'
-    );
   }
 
   // ---- 复盘 ----
 
   function renderReview() {
     var submissions = state.progress.submissions;
-    reviewSection.hidden = submissions.length === 0;
-    reviewCount.textContent = submissions.length + ' 组 · ' + game.scoreOf(state.progress, data) + ' 分';
+    reviewCount.textContent =
+      submissions.length === 0
+        ? '还没收过任何一组：把判定卡下面那栏点一下，就能收进图鉴。'
+        : submissions.length +
+          ' 组 · ' +
+          game.scoreOf(state.progress, data) +
+          ' 分 · 点任意一行回到那一组';
     if (submissions.length === 0) {
-      reviewBody.innerHTML = '';
+      reviewBody.innerHTML = '<p class="empty">图鉴还是空的。</p>';
       return;
     }
-    var rows = submissions
+    reviewBody.innerHTML = submissions
       .map(function (item, index) {
         var combo = game.comboById(data, item.comboId);
         if (!combo) return '';
@@ -389,10 +505,9 @@
         );
       })
       .join('');
-    reviewBody.innerHTML = rows;
   }
 
-  // ---- 句子与选项 ----
+  // ---- 句子与选词卡 ----
 
   function updateSentence() {
     slotElements.forEach(function (element) {
@@ -419,7 +534,6 @@
   function renderOptions(focusValue) {
     var slot = slotByKey[state.openSlot];
     if (!slot) return;
-    optionsPanel.hidden = false;
     optionsTitle.textContent = '换「' + slot.label + '」';
     var result = game.resolve(data, demoData, state.values);
     var parts = [];
@@ -429,12 +543,10 @@
       var dimension = current
         ? dimensionOfResult(result, slot.key)
         : game.substitutionDimension(data, demoData, state.values, slot.key, option.value);
-      var shortLabel = dimension.label;
       var conclusionLabel = game.CONCLUSION_LABELS[dimension.conclusion] || dimension.conclusion;
       parts.push(
         '<button type="button" class="option' +
           (current ? ' is-current' : '') +
-          (option.demoOnly ? ' is-demo-option' : '') +
           '" data-value="' +
           escapeHtml(option.value) +
           '" title="' +
@@ -442,21 +554,22 @@
           '" aria-pressed="' +
           (current ? 'true' : 'false') +
           '">' +
+          '<span class="option-value">' +
           escapeHtml(option.value) +
           (option.demoOnly ? demoTag() : '') +
-          '<span class="chip chip-' +
+          '</span><span class="chip chip-' +
           escapeHtml(dimension.state) +
           '">' +
-          escapeHtml(shortLabel) +
+          escapeHtml(dimension.label) +
           '</span></button>'
       );
     });
     if (slot.options.some(function (option) { return option.demoOnly; })) {
-      parts.push('<p class="options-legend">' + escapeHtml(game.DEMO_ONLY_LEGEND) + '</p>');
+      parts.push('<p class="option-legend">' + escapeHtml(game.DEMO_ONLY_LEGEND) + '</p>');
     }
     optionList.innerHTML = parts.join('');
     updateExpandedState();
-    if (focusValue) focusOptionByValue(focusValue);
+    focusOptionByValue(focusValue || state.values[slot.key]);
   }
 
   /**
@@ -481,7 +594,6 @@
     };
   }
 
-  /** 把焦点放到某个可选词上（键盘打开面板、选完词之后都要用） */
   function focusOptionByValue(value) {
     var buttons = optionList.querySelectorAll('.option');
     for (var i = 0; i < buttons.length; i += 1) {
@@ -490,67 +602,15 @@
         return;
       }
     }
-  }
-
-  function anchorElement() {
-    if (!state.openSlot) return null;
-    for (var i = 0; i < slotElements.length; i += 1) {
-      if (slotElements[i].getAttribute('data-slot') === state.openSlot) return slotElements[i];
-    }
-    return null;
-  }
-
-  /**
-   * 把浮层贴在刚点的那个词上。次序是：先放词的上方（句尾的词天然不会冒出屏幕），
-   * 上方不够就往页面里借一点滚动余量；仍不够就翻到下方；两头都放不下才夹在视口内。
-   * 横向一律夹进视口。浮层是固定定位、不在文档流里，判定卡不会被推走。
-   */
-  function placeOptions(allowScroll) {
-    var anchor = anchorElement();
-    if (!anchor || optionsPanel.hidden) return;
-    var margin = 8;
-    var gap = 8;
-    var anchorRect = anchor.getBoundingClientRect();
-    var panelRect = optionsPanel.getBoundingClientRect();
-
-    function measure() {
-      anchorRect = anchor.getBoundingClientRect();
-      panelRect = optionsPanel.getBoundingClientRect();
-    }
-
-    var top = anchorRect.top - panelRect.height - gap;
-    if (top < margin && allowScroll && window.scrollY > 0) {
-      var deficit = Math.min(margin - top, window.scrollY);
-      window.scrollBy(0, -deficit);
-      measure();
-      top = anchorRect.top - panelRect.height - gap;
-    }
-    if (top < margin) {
-      var below = anchorRect.bottom + gap;
-      if (below + panelRect.height <= window.innerHeight - margin) {
-        top = below;
-      } else {
-        var maxTop = window.innerHeight - panelRect.height - margin;
-        if (maxTop < margin) maxTop = margin;
-        if (top > maxTop) top = maxTop;
-        if (top < margin) top = margin;
-      }
-    }
-
-    var left = anchorRect.left;
-    var maxLeft = window.innerWidth - panelRect.width - margin;
-    if (maxLeft < margin) maxLeft = margin;
-    if (left > maxLeft) left = maxLeft;
-    if (left < margin) left = margin;
-
-    optionsPanel.style.left = Math.round(left) + 'px';
-    optionsPanel.style.top = Math.round(top) + 'px';
+    if (buttons.length > 0) buttons[0].focus({ preventScroll: true });
   }
 
   function openOptions(key, focusInto) {
     state.openSlot = key;
+    optionsPanel.hidden = false;
     renderOptions(focusInto ? state.values[key] : null);
-    placeOptions(true);
+    updateExpandedState();
+    playTone(520, 0.05, 'sine');
   }
 
   function closeOptions(returnFocus) {
@@ -558,8 +618,6 @@
     var previousKey = state.openSlot;
     state.openSlot = null;
     optionsPanel.hidden = true;
-    optionsPanel.style.left = '';
-    optionsPanel.style.top = '';
     optionList.innerHTML = '';
     updateExpandedState();
     if (returnFocus) {
@@ -580,20 +638,30 @@
     state.values = cloneValues(next);
     state.lastChangedKey = changedKey || null;
     updateSentence();
-    renderVerdict();
+    renderVerdict(true);
   }
 
   function selectOption(key, value) {
     if (!slotByKey[key]) return;
     if (!game.optionOf(data, key, value)) return;
-    if (state.values[key] === value) return;
+    if (state.values[key] === value) {
+      closeOptions(true);
+      return;
+    }
     var next = cloneValues(state.values);
     next[key] = value;
+    closeOptions(false);
     setValues(next, key);
-    if (state.openSlot === key) {
-      renderOptions(value);
-      placeOptions(false);
+    playTone(680, 0.07, 'triangle');
+    var element = slotElementOf(key);
+    if (element) element.focus({ preventScroll: true });
+  }
+
+  function slotElementOf(key) {
+    for (var i = 0; i < slotElements.length; i += 1) {
+      if (slotElements[i].getAttribute('data-slot') === key) return slotElements[i];
     }
+    return null;
   }
 
   function resetToInitial() {
@@ -601,17 +669,11 @@
     state.lastChangedKey = null;
     state.values = cloneValues(INITIAL_VALUES);
     updateSentence();
-    renderVerdict();
+    renderVerdict(true);
   }
 
   function applyCombo(comboId) {
-    var combo = null;
-    for (var i = 0; i < data.combos.length; i += 1) {
-      if (data.combos[i].id === comboId) {
-        combo = data.combos[i];
-        break;
-      }
-    }
+    var combo = game.comboById(data, comboId);
     if (!combo) return;
     closeOptions(false);
     var changedKey = null;
@@ -625,24 +687,24 @@
     setValues(combo.values, changedKey);
   }
 
-  // ---- 结论 ----
+  // ---- 判定卡 ----
 
-  function renderVerdict() {
+  function renderVerdict(animate) {
     var result = game.resolve(data, demoData, state.values);
     verdictElement.className = 'verdict verdict-' + result.status;
     verdictElement.innerHTML = renderCovered(result);
-    if (result.status === 'uncovered') {
-      fullPanel.hidden = true;
-      fullBody.innerHTML = '';
-      return;
+    renderClaim(result);
+    if (animate && !reducedMotion()) {
+      verdictElement.classList.remove('is-flash');
+      void verdictElement.offsetWidth;
+      verdictElement.classList.add('is-flash');
     }
-    fullPanel.hidden = false;
-    fullBody.innerHTML = renderFull(result);
+    if (state.sheet === 'evidence') renderEvidence(result);
   }
 
   function statusHead(result) {
     var parts = [];
-    parts.push('<div class="verdict-head">');
+    parts.push('<div class="verdict-top">');
     parts.push(
       '<span class="badge badge-' +
         escapeHtml(result.status) +
@@ -652,6 +714,9 @@
     );
     if (isChanged()) {
       parts.push('<button type="button" class="link-button" data-action="reset">回到原句</button>');
+    }
+    if (result.status !== 'uncovered') {
+      parts.push('<button type="button" class="link-button" data-action="evidence">看证据 · 拆解</button>');
     }
     parts.push('</div>');
     return parts.join('');
@@ -669,61 +734,49 @@
     var label;
     var note;
     var disabled = false;
+    var ready = false;
     if (game.isCleared(state.progress, data)) {
       label = '已通关 · 不再计分';
-      note = '八种结论各收了一次，共 ' + game.targetOf(data) + ' 分。剩下的时间用来复盘。';
+      note = '八档已收齐，不再计分。';
       disabled = true;
     } else if (check.ok) {
       label = '收进图鉴 +' + points;
-      note =
-        '这一组值 +' +
-        points +
-        '：它是「' +
-        game.CONCLUSION_LABELS[code] +
-        '」，这一档还没收过。收下后，同一档的别的组合就都是 0 分了。';
+      note = '这一档只算第一次 · +' + points;
+      ready = true;
     } else if (check.reason === 'repeated-combo') {
       label = '这组已收 · 0 分';
-      note = '这一组值 0：同一组重复收不给分。换掉一个词，去看另一组。';
+      note = '同一组重复收不给分';
       disabled = true;
     } else {
       label = '这一档已收 · 0 分';
-      note =
-        '这一组值 0：「' +
-        game.CONCLUSION_LABELS[code] +
-        '」已经收过，换个组合收同一档也不加分。还缺：' +
-        missingLabels() +
-        '。';
+      note = '还缺 ' + missingLabels().split('、').length + ' 档，点「任务」看';
       disabled = true;
     }
-    return (
-      '<div class="claim">' +
-      '<button type="button" class="claim-button" data-action="submit"' +
+    claimRow.innerHTML =
+      '<button type="button" class="claim-button' +
+      (ready ? ' is-ready' : '') +
+      '" data-action="submit"' +
       (disabled ? ' disabled' : '') +
       '>' +
       escapeHtml(label) +
-      '</button>' +
-      '<span class="claim-note">' +
+      '</button><span class="claim-note">' +
       escapeHtml(note) +
-      '</span></div>'
-    );
+      '</span>';
   }
 
   function renderCovered(result) {
     var parts = [];
     parts.push(statusHead(result));
     parts.push('<p class="verdict-reason">' + escapeHtml(result.reason) + '</p>');
-    parts.push('<p class="verdict-note">' + escapeHtml(result.hint) + '</p>');
-    parts.push(renderClaim(result));
     var hint = game.nextHint(result);
     if (hint) {
-      parts.push('<p class="verdict-next"><strong>下一步：</strong>' + escapeHtml(hint) + '</p>');
+      parts.push('<p class="verdict-next"><strong>下一步</strong>' + escapeHtml(hint) + '</p>');
     }
     if (result.status === 'uncovered') {
       parts.push(renderUncoveredDimensions(result));
       return parts.join('');
     }
     parts.push(renderDimensions(result));
-    parts.push(renderRecordContext(result));
 
     if (result.view && result.view.conflictCandidates.length > 0) {
       parts.push(
@@ -738,17 +791,6 @@
           ' 的判据是「冲突候选」，页面不会把它压成「反对」。</p>'
       );
     }
-
-    if (result.view) {
-      var entries = decisiveEntries(result.view, result.status, state.lastChangedKey);
-      if (entries.length > 0) {
-        parts.push('<div class="decisive">');
-        entries.forEach(function (entry) {
-          parts.push(renderEvidenceInline(entry));
-        });
-        parts.push('</div>');
-      }
-    }
     return parts.join('');
   }
 
@@ -756,20 +798,25 @@
   function renderDimensions(result, title) {
     if (!result.dimensions || result.dimensions.length === 0) return '';
     var parts = [];
-    parts.push('<div class="dim-layer">');
-    parts.push('<p class="dim-title">' + escapeHtml(title || '每一维的判据') + '</p>');
+    if (title) parts.push('<p class="verdict-note">' + escapeHtml(title) + '</p>');
+    parts.push('<ul class="dims">');
     result.dimensions.forEach(function (dimension) {
-      parts.push('<div class="dim-row">');
+      var evidenceText = dimension.evidenceValue
+        ? '证据：' + dimension.evidenceValue
+        : '证据里没有可比的原文值';
+      parts.push(
+        '<li class="dim-row' +
+          (dimension.slot === state.lastChangedKey ? ' is-changed' : '') +
+          '" title="' +
+          escapeHtml(dimension.label + '：你写的是「' + dimension.value + '」，' + evidenceText) +
+          '">'
+      );
       parts.push('<span class="dim-slot">' + escapeHtml(dimension.label) + '</span>');
+      parts.push('<span class="dim-body">');
       parts.push('<span class="dim-value">' + escapeHtml(dimension.value) + '</span>');
       if (dimension.demoOnly) parts.push(demoTag());
-      parts.push(
-        '<span class="dim-evidence">' +
-          (dimension.evidenceValue
-            ? '证据里写的是 <code>' + escapeHtml(dimension.evidenceValue) + '</code>'
-            : '证据里没有可比的原文值') +
-          '</span>'
-      );
+      parts.push('<span class="dim-ev">' + escapeHtml(evidenceText) + '</span>');
+      parts.push('</span>');
       parts.push(
         '<span class="dim dim-' +
           escapeHtml(dimension.state) +
@@ -777,10 +824,9 @@
           escapeHtml(game.dimensionLabel(dimension.state)) +
           '</span>'
       );
-      parts.push('<span class="dim-note">' + escapeHtml(dimension.note) + '</span>');
-      parts.push('</div>');
+      parts.push('</li>');
     });
-    parts.push('</div>');
+    parts.push('</ul>');
     return parts.join('');
   }
 
@@ -798,13 +844,11 @@
       );
     }).length;
     var parts = [];
+    parts.push(renderDimensions(result));
     parts.push(
-      renderDimensions(result, '离它最近的那条冻结记录，逐维是这样比的')
-    );
-    parts.push(
-      '<p class="verdict-note">这段不是结论：三个词里只有 ' +
+      '<p class="verdict-note">不是结论：三个词里只有 ' +
         positive +
-        ' 维沾边，至少要两维达到「口径相容」及以上才算覆盖。没覆盖既不是被反驳，也不是世界上不存在。</p>'
+        ' 维沾边，要两维到「口径相容」及以上才算覆盖。没覆盖不是被反驳。'
     );
     return parts.join('');
   }
@@ -813,7 +857,7 @@
     if (!result.combo || !result.record) return '';
     var combo = result.combo;
     return (
-      '<p class="verdict-note">对照记录：<strong>' +
+      '<p class="sheet-note">对照记录：<strong>' +
       escapeHtml(combo.recordTitle || result.record.recordId) +
       '</strong>（批次 <code>examples/' +
       escapeHtml(combo.caseId || '') +
@@ -823,15 +867,27 @@
     );
   }
 
-  /** 「举办时间 → 2021年11月15日」这样的差异描述，只说变了的那几个槽 */
-  function describeDiff(nextValues) {
-    var changes = [];
-    game.SLOT_KEYS.forEach(function (key) {
-      if (state.values[key] !== nextValues[key]) {
-        changes.push(slotLabel(key) + ' → ' + nextValues[key]);
-      }
-    });
-    return (changes.length > 1 ? '改 ' + changes.length + ' 个词：' : '只改一个词：') + changes.join('，');
+  // ---- 证据抽屉 ----
+
+  function renderEvidence(result) {
+    result = result || game.resolve(data, demoData, state.values);
+    if (!result.view) {
+      evidenceLead.textContent = '这句话没有落到任何一条冻结记录上，所以没有可摆的证据。';
+      evidenceInline.innerHTML = '';
+      fullPanel.hidden = true;
+      fullBody.innerHTML = '';
+      return;
+    }
+    var entries = decisiveEntries(result.view, result.status, state.lastChangedKey);
+    evidenceLead.innerHTML =
+      renderRecordContext(result) +
+      '<p class="sheet-note">最多三条决定性证据（换过哪个词就先摆那个字段）。全文与逐字段裁决在下面展开。</p>';
+    evidenceInline.innerHTML =
+      entries.length > 0
+        ? entries.map(renderEvidenceInline).join('')
+        : '<p class="empty">这条记录没有可摆的支持证据。</p>';
+    fullPanel.hidden = false;
+    fullBody.innerHTML = renderFull(result);
   }
 
   /**
@@ -1141,7 +1197,6 @@
 
   function renderCoverage() {
     var stats = game.coverage(data);
-    var order = ['strong', 'weak', 'caliber', 'edge', 'conflict', 'mismatch', 'unknown', 'uncovered'];
     coverageBody.innerHTML =
       '<p>' +
       stats.total +
@@ -1150,18 +1205,124 @@
       ' 种能落到某条冻结记录上（至少两个词对上或相容），其余 ' +
       stats.uncovered +
       ' 种显示「这批证据没覆盖」。结论取三个词里最差的那一维，所以「有一维只到口径相容」不会被组合级的强坐标盖掉。</p>';
+    coverageCounts.innerHTML = CODE_ORDER.map(function (code) {
+      return (
+        '<span class="count">' +
+        escapeHtml(game.CONCLUSION_LABELS[code]) +
+        ' ' +
+        stats.byConclusion[code] +
+        '</span>'
+      );
+    }).join('');
+  }
 
-    coverageCounts.innerHTML = order
-      .map(function (code) {
-        return (
-          '<span class="count">' +
-          escapeHtml(game.CONCLUSION_LABELS[code]) +
-          ' ' +
-          stats.byConclusion[code] +
-          '</span>'
-        );
-      })
-      .join('');
+  // ---- 底部抽屉：任务 / 分数 / 复盘 / 证据 / 说明 ----
+
+  function openSheet(name, trigger) {
+    state.sheet = name;
+    state.sheetTrigger = trigger || null;
+    sheetElement.hidden = false;
+    sheetTitle.textContent = PANEL_TITLES[name] || '';
+    sheetPanels.forEach(function (panel) {
+      panel.hidden = panel.getAttribute('data-sheet-panel') !== name;
+    });
+    closeOptions(false);
+    renderSheetIfOpen();
+    sheetCloseButton.focus({ preventScroll: true });
+  }
+
+  function closeSheet() {
+    if (sheetElement.hidden) return;
+    var trigger = state.sheetTrigger;
+    sheetElement.hidden = true;
+    state.sheet = null;
+    state.sheetTrigger = null;
+    if (trigger && trigger.focus) trigger.focus({ preventScroll: true });
+  }
+
+  function renderSheetIfOpen() {
+    if (!state.sheet) return;
+    if (state.sheet === 'missions') renderMissions();
+    else if (state.sheet === 'score') scoreTableBody.innerHTML = renderScoreTable();
+    else if (state.sheet === 'review') renderReview();
+    else if (state.sheet === 'evidence') renderEvidence();
+    else if (state.sheet === 'help') renderCoverage();
+  }
+
+  function trapSheetTab(event) {
+    if (event.key !== 'Tab' || sheetElement.hidden) return;
+    var focusables = Array.prototype.slice
+      .call(
+        sheetElement.querySelectorAll(
+          'button:not([disabled]), a[href], summary, [tabindex]:not([tabindex="-1"])'
+        )
+      )
+      .filter(function (element) {
+        return element.offsetParent !== null;
+      });
+    if (focusables.length === 0) return;
+    var first = focusables[0];
+    var last = focusables[focusables.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  // ---- 特效：飘分、进度、收录、通关 ----
+
+  function showPoints(text) {
+    if (reducedMotion()) return;
+    var button = claimRow.querySelector('.claim-button');
+    if (!button) return;
+    var rect = button.getBoundingClientRect();
+    var node = document.createElement('span');
+    node.className = 'fx-points';
+    node.textContent = text;
+    node.style.left = Math.round(rect.left + rect.width / 2) + 'px';
+    node.style.top = Math.round(rect.top) + 'px';
+    fxLayer.appendChild(node);
+    node.addEventListener('animationend', function () {
+      node.remove();
+    });
+  }
+
+  function pulseScore() {
+    if (reducedMotion()) return;
+    scoreValue.style.transition = 'transform .18s ease-out';
+    scoreValue.style.transform = 'scale(1.28)';
+    window.setTimeout(function () {
+      scoreValue.style.transform = 'scale(1)';
+    }, 190);
+  }
+
+  function celebrate() {
+    if (reducedMotion()) return;
+    var colors = ['#E9C46A', '#57C98A', '#5B9BE0', '#F4EEE2', '#E78B6B'];
+    for (var i = 0; i < 18; i += 1) {
+      var bit = document.createElement('i');
+      bit.className = 'fx-confetti';
+      bit.style.left = 6 + Math.random() * 88 + '%';
+      bit.style.background = colors[i % colors.length];
+      bit.style.animationDelay = Math.round(Math.random() * 260) + 'ms';
+      bit.style.animationDuration = 1100 + Math.round(Math.random() * 600) + 'ms';
+      bit.style.setProperty('--drift', Math.round(Math.random() * 160 - 80) + 'px');
+      bit.style.setProperty('--spin', Math.round(Math.random() * 720 - 360) + 'deg');
+      fxLayer.appendChild(bit);
+      bit.addEventListener('animationend', function (event) {
+        event.target.remove();
+      });
+    }
+    var banner = document.createElement('div');
+    banner.className = 'fx-banner';
+    banner.textContent = '通关 · 31 / 31';
+    fxLayer.appendChild(banner);
+    banner.addEventListener('animationend', function () {
+      banner.remove();
+    });
   }
 
   // ---- 事件 ----
@@ -1171,13 +1332,30 @@
       toggleOptions(element.getAttribute('data-slot'), event.detail === 0);
     });
     element.addEventListener('keydown', function (event) {
+      var key = element.getAttribute('data-slot');
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        // 不开面板也能换词：方向键在候选里走一格，立刻看到判据变化
+        event.preventDefault();
+        cycleOption(key, event.key === 'ArrowRight' ? 1 : -1);
+        return;
+      }
       if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
       event.preventDefault();
-      var key = element.getAttribute('data-slot');
       if (state.openSlot === key) focusOptionByValue(state.values[key]);
       else openOptions(key, true);
     });
   });
+
+  function cycleOption(key, step) {
+    var slot = slotByKey[key];
+    if (!slot) return;
+    var index = 0;
+    slot.options.forEach(function (option, position) {
+      if (option.value === state.values[key]) index = position;
+    });
+    var next = (index + step + slot.options.length) % slot.options.length;
+    selectOption(key, slot.options[next].value);
+  }
 
   optionList.addEventListener('click', function (event) {
     var button = event.target.closest ? event.target.closest('.option') : null;
@@ -1187,6 +1365,11 @@
   });
 
   optionList.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeOptions(true);
+      return;
+    }
     if (
       event.key !== 'ArrowRight' &&
       event.key !== 'ArrowLeft' &&
@@ -1210,30 +1393,68 @@
       resetToInitial();
       return;
     }
-    var submit = event.target.closest('[data-action="submit"]');
-    if (submit) {
-      submitCurrent();
+    var evidence = event.target.closest('[data-action="evidence"]');
+    if (evidence) {
+      openSheet('evidence', evidence);
+    }
+  });
+
+  claimRow.addEventListener('click', function (event) {
+    var submit = event.target.closest ? event.target.closest('[data-action="submit"]') : null;
+    if (submit) submitCurrent();
+  });
+
+  dexElement.addEventListener('click', function (event) {
+    var cell = event.target.closest ? event.target.closest('[data-combo]') : null;
+    if (!cell) return;
+    applyCombo(cell.getAttribute('data-combo'));
+  });
+
+  missionCurrent.addEventListener('click', function () {
+    openSheet('missions', missionCurrent);
+  });
+
+  document.querySelectorAll('[data-sheet]').forEach(function (button) {
+    if (button === missionCurrent) return;
+    button.addEventListener('click', function () {
+      openSheet(button.getAttribute('data-sheet'), button);
+    });
+  });
+
+  document.querySelector('[data-action="close-options"]').addEventListener('click', function () {
+    closeOptions(true);
+  });
+
+  sheetElement.addEventListener('click', function (event) {
+    if (!event.target.closest) return;
+    if (event.target.closest('[data-action="close-sheet"]')) {
+      closeSheet();
       return;
     }
     var jump = event.target.closest('[data-combo]');
-    if (jump) applyCombo(jump.getAttribute('data-combo'));
+    if (jump) {
+      closeSheet();
+      applyCombo(jump.getAttribute('data-combo'));
+    }
   });
 
-  missionList.addEventListener('click', function (event) {
-    var button = event.target.closest ? event.target.closest('[data-combo]') : null;
-    if (!button) return;
-    applyCombo(button.getAttribute('data-combo'));
-    verdictElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.addEventListener('click', function (event) {
+    if (!state.openSlot) return;
+    if (event.target.closest && event.target.closest('#slot-options')) return;
+    if (event.target.closest && event.target.closest('.slot')) return;
+    closeOptions(false);
   });
 
-  reviewBody.addEventListener('click', function (event) {
-    var button = event.target.closest ? event.target.closest('[data-combo]') : null;
-    if (!button) return;
-    applyCombo(button.getAttribute('data-combo'));
-    verdictElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.addEventListener('keydown', function (event) {
+    trapSheetTab(event);
+    if (event.key !== 'Escape') return;
+    if (!sheetElement.hidden) {
+      closeSheet();
+      return;
+    }
+    if (state.openSlot) closeOptions(true);
   });
 
-  var resetProgressButton = document.getElementById('reset-progress');
   resetProgressButton.addEventListener('click', function () {
     if (!state.confirmReset) {
       state.confirmReset = true;
@@ -1252,38 +1473,17 @@
     clearProgress();
   });
 
-  document.querySelector('[data-action="close-options"]').addEventListener('click', function () {
-    closeOptions(true);
+  soundToggle.addEventListener('click', function () {
+    state.soundOn = !state.soundOn;
+    soundToggle.setAttribute('aria-pressed', state.soundOn ? 'true' : 'false');
+    soundToggle.textContent = state.soundOn ? '音效·开' : '音效·关';
+    if (state.soundOn) playTone(660, 0.08, 'sine');
   });
-
-  document.addEventListener('click', function (event) {
-    if (!state.openSlot) return;
-    if (event.target.closest && event.target.closest('#slot-options')) return;
-    if (event.target.closest && event.target.closest('.slot')) return;
-    closeOptions(false);
-  });
-
-  document.addEventListener('keydown', function (event) {
-    if (event.key === 'Escape' && state.openSlot) {
-      closeOptions(true);
-    }
-  });
-
-  window.addEventListener('resize', function () {
-    if (state.openSlot) placeOptions(false);
-  });
-  window.addEventListener(
-    'scroll',
-    function () {
-      if (state.openSlot) placeOptions(false);
-    },
-    { passive: true }
-  );
 
   updateSentence();
   updateExpandedState();
   renderHud();
-  renderVerdict();
+  renderVerdict(false);
   renderReview();
   renderCoverage();
 })();

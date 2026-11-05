@@ -681,7 +681,7 @@ describe('六种维度状态与八种结论都真实可达', () => {
 });
 
 describe('改词即出结论：候选小标与真实结论一致', () => {
-  it('四个槽位改成一个词的可聚焦元素，面板是浮层', () => {
+  it('三个槽位改成一个词的可聚焦元素，选词卡是卡片翻面', () => {
     const html = fs.readFileSync(path.join(DOCS, 'demo-lab.html'), 'utf8');
     expect((html.match(/class="slot"/g) ?? []).length).toBe(3);
     expect((html.match(/aria-controls="slot-options"/g) ?? []).length).toBe(3);
@@ -984,7 +984,7 @@ describe('判据与裁决不一致的行：不计入支持、页面要写出来'
   });
 });
 
-describe('行距与浮层：不撑高行盒、不推动判定卡', () => {
+describe('一屏之内：固定视口、面板翻卡、候选不撑页', () => {
   const html = fs.readFileSync(path.join(DOCS, 'demo-lab.html'), 'utf8');
   const labSource = fs.readFileSync(path.join(DOCS, 'assets', 'demo-lab.js'), 'utf8');
 
@@ -995,12 +995,63 @@ describe('行距与浮层：不撑高行盒、不推动判定卡', () => {
     return html.slice(at, end);
   }
 
-  it('句子行高只由 line-height 决定，媒体查询里不再有手机端覆盖', () => {
+  it('整页定高：body 占满视口不滚动，游戏主体吃剩下的高度', () => {
+    const body = cssBlock('body');
+    expect(body).toContain('height:100dvh');
+    expect(body).toContain('overflow:hidden');
+    expect(body).toContain('display:flex');
+    const gameBlock = cssBlock('.game');
+    expect(gameBlock).toContain('flex:1');
+    expect(gameBlock).toContain('min-height:0');
+    expect(cssBlock('.stage')).toContain('min-height:0');
+  });
+
+  it('判定卡与选词卡共用一块绝对定位的区域，换词不把页面撑高', () => {
+    const wrap = cssBlock('.panel-wrap');
+    expect(wrap).toContain('position:relative');
+    expect(wrap).toContain('flex:1');
+    expect(wrap).toContain('min-height:0');
+    const chooser = cssBlock('.chooser');
+    expect(chooser).toContain('position:absolute');
+    expect(chooser).toContain('inset:0');
+    expect(chooser).toContain('overflow:auto');
+    const verdict = cssBlock('.verdict');
+    expect(verdict).toContain('position:absolute');
+    expect(verdict).toContain('inset:0');
+    const sentence = html.match(/<p class="sentence" id="sentence">[\s\S]*?<\/p>/)?.[0] ?? '';
+    expect(sentence).toContain('class="slot"');
+    expect(sentence).not.toContain('id="slot-options"');
+    // 选词卡不再靠量位置来浮在句子旁边
+    expect(labSource).not.toContain('anchorRect');
+    expect(labSource).not.toContain("addEventListener('scroll'");
+    expect(labSource).not.toContain("addEventListener('resize'");
+  });
+
+  it('长内容收进底部抽屉：任务 / 分数 / 复盘 / 证据 / 说明，点开才展开', () => {
+    expect(html).toContain('id="sheet"');
+    expect(html).toContain('aria-modal="true"');
+    for (const panel of ['missions', 'score', 'review', 'evidence', 'help']) {
+      expect(html).toContain(`data-sheet-panel="${panel}"`);
+    }
+    for (const entry of ['missions', 'score', 'review', 'help']) {
+      expect(html).toContain(`data-sheet="${entry}"`);
+    }
+    expect(html).toContain('id="evidence-inline"');
+    expect(html).toContain('id="full-panel"');
+    // 抽屉里的长内容自己滚，不带着整页一起滚
+    const sheetBody = cssBlock('.sheet-body');
+    expect(sheetBody).toContain('overflow:auto');
+    expect(labSource).toContain('function openSheet');
+    expect(labSource).toContain('function closeSheet');
+    expect(labSource).toContain('trapSheetTab');
+  });
+
+  it('句子行高只由 line-height 决定，媒体查询里没有手机端覆盖', () => {
     const sentence = cssBlock('.sentence');
-    expect(sentence).toContain('line-height:2.4');
-    const media = html.match(/@media \(max-width:860px\)\{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(sentence).toContain('line-height:1.9;');
+    const media = html.match(/@media \(max-width:560px\)\{[\s\S]*?\n\}/)?.[0] ?? '';
     expect(media).toBeTruthy();
-    expect(media).not.toContain('.sentence');
+    expect(media).not.toMatch(/\.sentence\{[^}]*line-height/);
     expect(html).not.toContain('line-height:2.15');
   });
 
@@ -1015,25 +1066,37 @@ describe('行距与浮层：不撑高行盒、不推动判定卡', () => {
     expect(slot).not.toMatch(/padding:\s*1px/);
   });
 
-  it('候选项是脱离文档流的固定定位浮层，不占句子下方的位置', () => {
-    const options = cssBlock('.options');
-    expect(options).toContain('position:fixed');
-    expect(options).toContain('max-width:calc(100vw - 16px)');
-    const sentence = html.match(/<p class="sentence" id="sentence">[\s\S]*?<\/p>/)?.[0] ?? '';
-    expect(sentence).toContain('class="slot"');
-    expect(sentence).not.toContain('id="slot-options"');
-    expect(labSource).toContain('anchorRect.top - panelRect.height - gap');
-    expect(labSource).toContain('anchorRect.bottom + gap');
-    expect(labSource).toContain("'resize'");
-    expect(labSource).toContain("'scroll'");
+  it('动效走 CSS：得分飘字、入册、进度条、通关礼花，并且尊重「减少动效」', () => {
+    for (const keyframe of ['float-up', 'dex-pop', 'confetti-fall', 'banner-in', 'claim-pulse']) {
+      expect(html, `缺少 ${keyframe} 动效`).toContain(`@keyframes ${keyframe}`);
+    }
+    expect(html).toContain('@media (prefers-reduced-motion:reduce)');
+    expect(html).toContain('.fx{display:none}');
+    expect(labSource).toContain("matchMedia('(prefers-reduced-motion: reduce)')");
+    expect(labSource).toContain('function celebrate');
+    expect(labSource).toContain('function showPoints');
   });
 
-  it('键盘路径：回车打开并进浮层、方向键选、Esc 还焦点', () => {
+  it('音效默认关闭，只在玩家操作时响，不自动播放', () => {
+    expect(html).toContain('id="sound-toggle"');
+    expect(html).toContain('aria-pressed="false"');
+    expect(labSource).toContain('soundOn: false');
+    expect(labSource).toContain('AudioContext');
+    // 音频节点只在 playTone 里创建，而 playTone 第一句就是"没开就返回"
+    const playTone = labSource.slice(labSource.indexOf('function playTone'));
+    expect(playTone.indexOf('if (!state.soundOn) return;')).toBeGreaterThan(-1);
+    expect(playTone.indexOf('if (!state.soundOn) return;')).toBeLessThan(
+      playTone.indexOf('new Ctor()'),
+    );
+  });
+
+  it('键盘路径：回车打开并进面板、方向键选、Esc 收起并还焦点', () => {
     expect(labSource).toContain("element.addEventListener('keydown'");
     expect(labSource).toContain("event.key !== 'Enter'");
     expect(labSource).toContain("event.key !== ' '");
     expect(labSource).toContain('focusOptionByValue(state.values[key])');
     expect(labSource).toContain("event.key === 'ArrowRight'");
+    expect(labSource).toContain('cycleOption');
     expect(labSource).toContain("event.key === 'Escape'");
     expect(labSource).toContain('closeOptions(true)');
     expect(labSource).toContain("event.target.closest('#slot-options')");

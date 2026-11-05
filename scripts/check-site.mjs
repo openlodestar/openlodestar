@@ -8,10 +8,15 @@ import { fileURLToPath } from 'node:url';
 // 其余照旧禁止：外链资源、<form>、内联事件、远程 CSS url()、@import。
 // 另外为 file:// 双击打开补了几条：禁 type="module"、import、fetch/XHR、
 // localStorage/sessionStorage（这几样在 file:// 下会失败或不可靠）。
+//
+// 唯一例外：小游戏页要把进度存下来（需求就是刷新不丢分），
+// 所以 docs/assets/demo-lab.js 允许用 localStorage，但必须逐处包在 try/catch 里——
+// file:// 下它可能直接抛异常，兜住就退回"这一局照玩、刷新不记得"。
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const siteDir = join(root, 'docs');
 const errors = [];
+const STORAGE_EXEMPT = new Set(['docs/assets/demo-lab.js']);
 
 function need(condition, message) {
   if (!condition) errors.push(message);
@@ -31,10 +36,25 @@ function checkScriptOffline(label, body) {
   need(!/\bimport\s+[A-Za-z_$]/.test(body), `${label}: import is not allowed (breaks under file://)`);
   need(!/type\s*=\s*["']module/i.test(body), `${label}: type="module" is not allowed (breaks under file://)`);
   need(!/\bfetch\s*\(/.test(body), `${label}: fetch is not allowed (offline pages must read local constants)`);
-  need(
-    !/\b(XMLHttpRequest|localStorage|sessionStorage)\b/.test(body),
-    `${label}: XHR / localStorage / sessionStorage are not allowed (unreliable under file://)`,
-  );
+  need(!/\bXMLHttpRequest\b/.test(body), `${label}: XHR is not allowed (offline pages must read local constants)`);
+  need(!/\bsessionStorage\b/.test(body), `${label}: sessionStorage is not allowed (unreliable under file://)`);
+  if (STORAGE_EXEMPT.has(label)) {
+    // 例外只给"进度存档"：每一处 localStorage 都必须能看见 try {，否则 file:// 下会整页报错
+    const lines = body.split('\n');
+    lines.forEach((line, index) => {
+      if (!/\blocalStorage\b/.test(line)) return;
+      const around = lines.slice(Math.max(0, index - 5), index + 2).join('\n');
+      need(
+        /try\s*\{/.test(around),
+        `${label}: localStorage at line ${index + 1} must sit inside try/catch (file:// may throw)`,
+      );
+    });
+  } else {
+    need(
+      !/\blocalStorage\b/.test(body),
+      `${label}: localStorage is not allowed (unreliable under file://)`,
+    );
+  }
   need(
     !/\bimport\s*\(\s*["']https?:/i.test(body) && !/\bfetch\s*\(\s*["']https?:/i.test(body),
     `${label}: remote data loading is not allowed`,

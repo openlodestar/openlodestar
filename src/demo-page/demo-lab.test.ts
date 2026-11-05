@@ -3,14 +3,16 @@
  * 小游戏页与冻结组合矩阵的一致性测试（离线、零模型调用）
  *
  * 这一版小游戏不再按字面拼四个值，而是拿玩家写的词与冻结证据里的原文值**逐维比对**。
- * 测试守六件事：
+ * 测试守八件事：
  *
  * 1. 每个槽位至少两个候选；标了「演示用词」的值确实不在冻结数据里出现过；
  * 2. 组合矩阵里每一维的状态都能用引擎自己的维度函数复算出来（页面不另写一套规则）；
  * 3. 组合级结论取最差的那一维：有一维只到口径相容，就不会被组合级的强坐标盖掉；
  * 4. 至少两个维度达到「口径相容」及以上才算覆盖，否则不许挂记录、不许继承证据；
  * 5. 六种维度状态与八种结论在矩阵里都真实可达（各至少一组），「只找到相容证据」不是摆设；
- * 6. 文案纪律：口径相容不许写成「对/一致/匹配」，边缘相容必须是「没有矛盾，但这不能证明」。
+ * 6. 玩法：每种结论只在第一次收录时给分、重复收 0 分、八档收齐正好到通关线；
+ * 7. 三章任务把八种结论各要求一次，存档只认组合号（脏存档不会带出假分数）；
+ * 8. 文案纪律：口径相容不许写成「对/一致/匹配」，边缘相容必须是「没有矛盾，但这不能证明」。
  */
 
 import fs from 'node:fs';
@@ -164,6 +166,26 @@ interface GameCombo {
   matched: Array<{ recordId: string; caseId: string; bucket: Bucket; score: number }>;
 }
 
+interface GameMissionGoal {
+  code: ConclusionCode;
+  label: string;
+  points: number;
+}
+
+interface GameMission {
+  id: string;
+  title: string;
+  hint: string;
+  goals: GameMissionGoal[];
+}
+
+interface GameScoring {
+  target: number;
+  byConclusion: Record<ConclusionCode, number>;
+  reasons: Record<ConclusionCode, string>;
+  note: string;
+}
+
 interface GameData {
   generatedAt: string;
   generator: string;
@@ -177,6 +199,8 @@ interface GameData {
     byConclusion: Record<ConclusionCode, number>;
     maxCombos: number;
   };
+  missions: GameMission[];
+  scoring: GameScoring;
 }
 
 interface GameResolveResult {
@@ -190,14 +214,39 @@ interface GameResolveResult {
   dimensions: GameDimension[];
 }
 
+interface GameProgress {
+  version: 1;
+  submissions: Array<{ comboId: string; at: number }>;
+}
+
+interface SubmissionResult {
+  ok: boolean;
+  reason: 'new' | 'repeated-combo' | 'conclusion-taken' | 'unknown-combo';
+  points: number;
+  code: ConclusionCode;
+  progress: GameProgress;
+  cleared: boolean;
+}
+
+interface MissionState {
+  id: string;
+  title: string;
+  hint: string;
+  goals: Array<GameMissionGoal & { comboId: string | null; scored: boolean }>;
+  done: number;
+  complete: boolean;
+}
+
 interface GameApi {
   SLOT_KEYS: SlotKey[];
   CONCLUSION_LABELS: Record<ConclusionCode, string>;
   CONCLUSION_SHORT: Record<ConclusionCode, string>;
   CONCLUSION_HINTS: Record<ConclusionCode, string>;
   DEMO_ONLY_LEGEND: string;
+  STORAGE_KEY: string;
   comboKey: (values: Record<SlotKey, string>) => string;
   findCombo: (data: GameData, values: Record<SlotKey, string>) => GameCombo | null;
+  comboById: (data: GameData, id: string | null) => GameCombo | null;
   slotOptions: (data: GameData, slotKey: SlotKey) => GameSlotOption[];
   optionOf: (data: GameData, slotKey: SlotKey, value: string) => GameSlotOption | null;
   isDemoOnly: (data: GameData, slotKey: SlotKey, value: string) => boolean;
@@ -219,13 +268,28 @@ interface GameApi {
     value: string,
   ) => { state: EvidenceDimensionState | 'uncovered'; conclusion: ConclusionCode; label: string };
   coverage: (data: GameData) => GameData['stats'];
-  representatives: (data: GameData) => GameCombo[];
-  nearbyCovered: (
-    data: GameData,
-    values: Record<SlotKey, string>,
-    limit?: number,
-  ) => Array<{ id: string; values: Record<SlotKey, string>; status: ConclusionCode }>;
   recordIndex: (demo: DemoData) => Record<string, DemoRecord>;
+  emptyProgress: () => GameProgress;
+  progressFrom: (raw: unknown, data: GameData) => GameProgress;
+  pointsFor: (data: GameData, code: ConclusionCode) => number;
+  targetOf: (data: GameData) => number;
+  scoredCodes: (progress: GameProgress, data: GameData) => Record<string, string>;
+  scoreOf: (progress: GameProgress, data: GameData) => number;
+  isCleared: (progress: GameProgress, data: GameData) => boolean;
+  evaluateSubmission: (
+    progress: GameProgress,
+    data: GameData,
+    combo: GameCombo | null,
+  ) => { ok: boolean; reason: SubmissionResult['reason']; points: number; code: ConclusionCode };
+  submit: (
+    progress: GameProgress,
+    data: GameData,
+    combo: GameCombo | null,
+    now?: number,
+  ) => SubmissionResult;
+  missionStatus: (data: GameData, progress: GameProgress) => MissionState[];
+  currentMission: (data: GameData, progress: GameProgress) => MissionState | null;
+  nextHint: (result: GameResolveResult) => string;
 }
 
 function loadPageScripts(): { demo: DemoData; game: GameData; api: GameApi } {
@@ -307,16 +371,19 @@ describe('页面装载与离线约束', () => {
     expect(labSource).not.toContain('drag');
     // 候选小标读"这一维"的判据，不是整句结论——所以要调 substitutionDimension
     expect(labSource).toContain('substitutionDimension');
-    expect(labSource).toContain('nearbyCovered');
-    const dataScript = fs.readFileSync(path.join(DOCS, 'assets/demo-game-data.js'), 'utf8');
-    expect(/^(?:\/\/[^\n]*\n)*window\.LODESTAR_DEMO_GAME = /.test(dataScript)).toBe(true);
-    for (const file of ['assets/demo-lab.js', 'assets/demo-game-match.js']) {
-      const source = fs.readFileSync(path.join(DOCS, file), 'utf8');
+    expect(labSource).toContain('data-action="submit"');
+    // 存档只在页面层写；规则层是纯函数，拿得到 progress 就能算，不碰浏览器存储
+    expect(labSource).toContain('localStorage');
+    expect(labSource).toContain('game.STORAGE_KEY');
+    const rulesSource = fs.readFileSync(path.join(DOCS, 'assets', 'demo-game-match.js'), 'utf8');
+    for (const source of [labSource, rulesSource]) {
       expect(source).not.toContain('fetch(');
       expect(source).not.toContain('XMLHttpRequest');
-      expect(source).not.toContain('localStorage');
       expect(source).not.toContain('sessionStorage');
     }
+    expect(rulesSource).not.toContain('localStorage');
+    const dataScript = fs.readFileSync(path.join(DOCS, 'assets/demo-game-data.js'), 'utf8');
+    expect(/^(?:\/\/[^\n]*\n)*window\.LODESTAR_DEMO_GAME = /.test(dataScript)).toBe(true);
   });
 
   it('原有 demo.html 保持独立：只借顶栏指向小游戏，不引入小游戏的脚本与判定', () => {
@@ -675,23 +742,185 @@ describe('改词即出结论：候选小标与真实结论一致', () => {
     expect(timeDimension?.evidenceValue).toBe('2021年秋季');
   });
 
-  it('「没覆盖」时给出的去处都是矩阵里的真组合，且至少改两个词能到有结论的', () => {
-    const uncovered = comboOf('uncovered');
-    const jumps = api.nearbyCovered(game, uncovered.values, 3);
-    expect(jumps.length).toBeGreaterThan(0);
-    for (const jump of jumps) {
-      expect(jump.status).not.toBe('uncovered');
-      expect(api.resolve(game, demo, jump.values).status).toBe(jump.status);
-      expect(api.findCombo(game, jump.values)?.id).toBe(jump.id);
-    }
+  it('「没覆盖」给的下一步是方向而不是答案：点名还差几维、先动哪一列', () => {
+    const res = api.resolve(game, demo, comboOf('uncovered').values);
+    const hint = api.nextHint(res);
+    expect(hint).toContain('维沾边');
+    expect(hint).toContain('至少');
+    expect(hint).not.toContain('点下面');
   });
 
-  it('代表组合覆盖八种结论，页面按它生成跳转按钮', () => {
-    const reps = api.representatives(game);
-    const codes = new Set(reps.map((combo) => combo.conclusion.code));
-    for (const code of Object.keys(api.CONCLUSION_LABELS)) {
-      expect(codes.has(code as ConclusionCode), `代表组合缺「${code}」`).toBe(true);
+  it('口径相容与冲突候选的下一步用各自的纪律说话', () => {
+    expect(api.nextHint(api.resolve(game, demo, comboOf('caliber').values))).toContain('不能算对上');
+    expect(api.nextHint(api.resolve(game, demo, comboOf('conflict').values))).toContain('冲突只作候选');
+    expect(api.nextHint(api.resolve(game, demo, INITIAL_VALUES))).toBe('');
+  });
+});
+
+describe('玩法：收进图鉴、按结论计分、防刷分', () => {
+  const ORDER: ConclusionCode[] = [
+    'strong',
+    'weak',
+    'caliber',
+    'edge',
+    'conflict',
+    'mismatch',
+    'unknown',
+    'uncovered',
+  ];
+
+  /** 每种结论各收第一次出现的那一组 */
+  function playThrough(): { progress: GameProgress; score: number } {
+    let progress = api.emptyProgress();
+    ORDER.forEach((code, index) => {
+      const combo = comboOf(code);
+      const result = api.submit(progress, game, combo, 1_700_000_000_000 + index);
+      expect(result.ok, `「${code}」收不进去：${result.reason}`).toBe(true);
+      progress = result.progress;
+    });
+    return { progress, score: api.scoreOf(progress, game) };
+  }
+
+  it('八种结论各收一次正好到通关线，且六种维度状态全部亲眼见过', () => {
+    expect(game.scoring.target).toBe(
+      ORDER.reduce((sum, code) => sum + game.scoring.byConclusion[code], 0),
+    );
+    const { progress, score } = playThrough();
+    expect(score).toBe(game.scoring.target);
+    expect(api.isCleared(progress, game)).toBe(true);
+
+    const states = new Set<EvidenceDimensionState>();
+    for (const item of progress.submissions) {
+      const combo = api.comboById(game, item.comboId);
+      expect(combo).not.toBeNull();
+      for (const dimension of combo?.dimensions ?? []) states.add(dimension.state);
     }
+    expect([...states].sort()).toEqual(
+      ['caliber', 'conflict', 'edge', 'exact', 'mismatch', 'unknown'].sort(),
+    );
+  });
+
+  it('通关前不算通关：少收一档就差那一档的分', () => {
+    const { progress } = playThrough();
+    const last = progress.submissions[progress.submissions.length - 1];
+    const partial: GameProgress = {
+      version: 1,
+      submissions: progress.submissions.filter((item) => item.comboId !== last.comboId),
+    };
+    expect(api.scoreOf(partial, game)).toBe(
+      game.scoring.target - game.scoring.byConclusion.uncovered,
+    );
+    expect(api.isCleared(partial, game)).toBe(false);
+    expect(api.currentMission(game, partial)?.id).toBe('m3');
+  });
+
+  it('同一组重复收是 0 分：连收 20 次总分不变', () => {
+    const combo = comboOf('strong');
+    const first = api.submit(api.emptyProgress(), game, combo, 1);
+    expect(first.ok).toBe(true);
+    expect(first.points).toBe(game.scoring.byConclusion.strong);
+    let progress = first.progress;
+    for (let i = 0; i < 20; i += 1) {
+      const again = api.submit(progress, game, combo, 2 + i);
+      expect(again.ok).toBe(false);
+      expect(again.reason).toBe('repeated-combo');
+      expect(again.points).toBe(0);
+      progress = again.progress;
+    }
+    expect(api.scoreOf(progress, game)).toBe(first.points);
+  });
+
+  it('换个组合收同一个结论，也是 0 分', () => {
+    const mismatches = game.combos.filter((combo) => combo.conclusion.code === 'mismatch');
+    expect(mismatches.length).toBeGreaterThan(1);
+    const first = api.submit(api.emptyProgress(), game, mismatches[0], 1);
+    expect(first.ok).toBe(true);
+    const again = api.submit(first.progress, game, mismatches[1], 2);
+    expect(again.ok).toBe(false);
+    expect(again.reason).toBe('conclusion-taken');
+    expect(again.points).toBe(0);
+    expect(api.scoreOf(again.progress, game)).toBe(first.points);
+  });
+
+  it('总分只由「收了哪些结论」决定，与提交顺序无关', () => {
+    const forward = playThrough().score;
+    let reversed = api.emptyProgress();
+    [...ORDER].reverse().forEach((code, index) => {
+      reversed = api.submit(reversed, game, comboOf(code), index + 1).progress;
+    });
+    expect(api.scoreOf(reversed, game)).toBe(forward);
+    expect(api.scoreOf(reversed, game)).toBe(game.scoring.target);
+  });
+
+  it('存档只认组合号：未知组合、重复组合、重复结论都会被丢掉', () => {
+    const { progress } = playThrough();
+    const raw = JSON.parse(JSON.stringify(progress)) as GameProgress;
+    const dirty = {
+      version: 1,
+      submissions: [
+        { comboId: 'g-999', at: 1 },
+        ...raw.submissions,
+        ...raw.submissions,
+        { comboId: raw.submissions[0].comboId, at: 2 },
+      ],
+    };
+    const restored = api.progressFrom(dirty, game);
+    expect(restored.submissions.length).toBe(ORDER.length);
+    expect(api.scoreOf(restored, game)).toBe(game.scoring.target);
+    expect(api.progressFrom({ version: 2, submissions: [] }, game).submissions).toEqual([]);
+    expect(api.progressFrom('nope', game).submissions).toEqual([]);
+    expect(api.progressFrom(null, game).submissions).toEqual([]);
+  });
+
+  it('三章任务把八种结论各要求一次，每档都真有组合可达', () => {
+    const missions = api.missionStatus(game, api.emptyProgress());
+    expect(missions.length).toBe(3);
+    const required = missions.flatMap((mission) => mission.goals.map((goal) => goal.code));
+    expect(required.sort()).toEqual([...ORDER].sort());
+    expect(new Set(required).size).toBe(required.length);
+    for (const mission of missions) {
+      expect(mission.done).toBe(0);
+      expect(mission.complete).toBe(false);
+      for (const goal of mission.goals) {
+        expect(game.combos.some((combo) => combo.conclusion.code === goal.code)).toBe(true);
+        expect(goal.points).toBe(game.scoring.byConclusion[goal.code]);
+      }
+    }
+    expect(api.currentMission(game, api.emptyProgress())?.id).toBe('m1');
+  });
+
+  it('计分表：每一档都有分与理由，页面把分数表与存档口都摆出来', () => {
+    for (const code of ORDER) {
+      expect(game.scoring.byConclusion[code]).toBeGreaterThan(0);
+      expect(game.scoring.reasons[code].length).toBeGreaterThan(0);
+    }
+    const descending = [...ORDER].slice(0, 4).map((code) => game.scoring.byConclusion[code]);
+    expect(descending).toEqual([...descending].sort((a, b) => b - a));
+    const html = fs.readFileSync(path.join(DOCS, 'demo-lab.html'), 'utf8');
+    for (const id of [
+      'score-value',
+      'score-target',
+      'score-fill',
+      'score-table-body',
+      'mission-list',
+      'review-body',
+      'reset-progress',
+      'toast',
+    ]) {
+      expect(html).toContain(`id="${id}"`);
+    }
+    expect(api.STORAGE_KEY).toContain('demo-lab');
+  });
+
+  it('页面不再提供"一键跳到答案"的入口', () => {
+    const html = fs.readFileSync(path.join(DOCS, 'demo-lab.html'), 'utf8');
+    const labSource = fs.readFileSync(path.join(DOCS, 'assets', 'demo-lab.js'), 'utf8');
+    const rulesSource = fs.readFileSync(path.join(DOCS, 'assets', 'demo-game-match.js'), 'utf8');
+    expect(html).not.toContain('reveal-list');
+    expect(html).not.toContain('每种结论挑一条');
+    expect(labSource).not.toContain('representatives');
+    expect(rulesSource).not.toContain('representatives');
+    expect(rulesSource).not.toContain('nearbyCovered');
   });
 });
 

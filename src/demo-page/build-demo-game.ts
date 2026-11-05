@@ -180,6 +180,30 @@ export interface GameStats {
   maxCombos: number;
 }
 
+export interface GameMissionGoal {
+  code: GameConclusionCode;
+  /** 候选芯片上的短标 */
+  label: string;
+  points: number;
+}
+
+export interface GameMission {
+  id: string;
+  title: string;
+  /** 这一章要找的是什么、为什么难 */
+  hint: string;
+  goals: GameMissionGoal[];
+}
+
+export interface GameScoring {
+  /** 收齐全部结论时的总分，也就是通关线 */
+  target: number;
+  byConclusion: Record<GameConclusionCode, number>;
+  /** 每一档为什么是这个分：页面把这张表原样摆出来，玩家能自己核对 */
+  reasons: Record<GameConclusionCode, string>;
+  note: string;
+}
+
 export interface GameData {
   generatedAt: string;
   generator: string;
@@ -187,6 +211,8 @@ export interface GameData {
   slots: GameSlot[];
   combos: GameCombo[];
   stats: GameStats;
+  missions: GameMission[];
+  scoring: GameScoring;
 }
 
 const CONCLUSION_LABELS: Record<GameConclusionCode, string> = {
@@ -211,6 +237,71 @@ const CONCLUSION_HINTS: Record<GameConclusionCode, string> = {
   unknown: '至少一维的说法解析不出来，判不了',
   uncovered: '没有任何一条冻结记录同时在两个词上对上或相容',
 };
+
+/**
+ * 每种结论第一次被收进图鉴时给的分。
+ *
+ * 前四档按证据强度排（强 > 弱 > 相容 > 边缘）；后四档按"这条判据能排除多少"排：
+ * 冲突候选点名了另一个值、信息最多，没对上与无从判断各给一条线索，没覆盖连记录都挂不上。
+ * 分不是"好坏"，是"判据的信息量 × 强度"——所以它必须能被玩家在界面上逐条对出来，
+ * 页面把这张表原样摆在分数条旁边，不做任何隐藏倍率。
+ */
+const CONCLUSION_POINTS: Record<GameConclusionCode, number> = {
+  strong: 8,
+  weak: 6,
+  caliber: 5,
+  edge: 4,
+  conflict: 3,
+  mismatch: 2,
+  unknown: 2,
+  uncovered: 1,
+};
+
+/** 分数表上的"为什么是这个分"：只讲判据，不替玩家下结论 */
+const CONCLUSION_POINT_REASONS: Record<GameConclusionCode, string> = {
+  strong: '三个词都在证据里逐字对上，而且撑起这条记录的独立来源够',
+  weak: '三个词都对上，但撑起这条记录的独立来源不够',
+  caliber: '至少一维只是说法不同，很可能是同一场，但这不能算对上',
+  edge: '至少一维只排除了矛盾，没给出正面证据',
+  conflict: '点名了另一个值，但只作候选，不压成反对',
+  mismatch: '证据明确写的是另一个值',
+  unknown: '解析不出可比的说法，判不了',
+  uncovered: '连一条记录都挂不上：三词里最多一维沾边',
+};
+
+/**
+ * 三章任务：先忙着把"对上 / 没对上"分清，再逼玩家分辨"相容"与"边缘"，
+ * 最后才碰边界（冲突、无从判断、没覆盖）与那个反直觉的弱坐标。
+ * 难度靠"要观察的差别有多细"分档，不靠扣分吓人：任何一组第一次收录都有分。
+ */
+const MISSION_PLAN: Array<{
+  id: string;
+  title: string;
+  hint: string;
+  goals: GameConclusionCode[];
+}> = [
+  {
+    id: 'm1',
+    title: '第一章 · 先把对上和没对上分清',
+    hint:
+      '打开页面就是一组三个词全对上的强坐标。先把「专场名」换成一个别的专场，看证据会不会明确写出另一个值——没对上不是没覆盖。',
+    goals: ['strong', 'mismatch'],
+  },
+  {
+    id: 'm2',
+    title: '第二章 · 看起来像对上，其实不是',
+    hint:
+      '时间差一个月、机构少写一个城市，证据都没反对，但也不算对上。要把「口径相容」和「边缘相容」各收一次，并且分清它们为什么都不是对上。',
+    goals: ['caliber', 'edge'],
+  },
+  {
+    id: 'm3',
+    title: '第三章 · 证据的边界与反直觉的一档',
+    hint:
+      '冲突只作候选，不压成反对；含糊说法解析不出可比的时间；只有一维沾边就叫没覆盖。最后还有一档反直觉的：三个词全对上，也可能只到弱坐标。',
+    goals: ['conflict', 'unknown', 'uncovered', 'weak'],
+  },
+];
 
 const STATE_SCORE: Record<EvidenceDimensionState, number> = {
   exact: 3,
@@ -257,6 +348,30 @@ function slotsOf(): GameSlot[] {
     { key: 'dateText', label: SLOT_LABELS.dateText, options: DATE_OPTIONS },
     { key: 'sessionName', label: SLOT_LABELS.sessionName, options: SESSION_OPTIONS },
   ];
+}
+
+/** 三章任务必须把八种结论各排进一次：漏一档就没有"收齐"这回事，排两次就有一条永远收不到 */
+function missionsOf(): GameMission[] {
+  const seen = new Set<GameConclusionCode>();
+  const missions = MISSION_PLAN.map((plan) => {
+    const goals = plan.goals.map((code) => {
+      if (seen.has(code)) {
+        throw new Error(`结论「${CONCLUSION_LABELS[code]}」被排进了两章任务`);
+      }
+      seen.add(code);
+      return { code, label: CONCLUSION_LABELS[code], points: CONCLUSION_POINTS[code] };
+    });
+    return { id: plan.id, title: plan.title, hint: plan.hint, goals };
+  });
+  const missing = (Object.keys(CONCLUSION_POINTS) as GameConclusionCode[]).filter(
+    (code) => !seen.has(code),
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `这些结论没有被任何一章任务要求：${missing.join('、')}。八种结论必须各被要求一次，否则分数条永远填不满。`,
+    );
+  }
+  return missions;
 }
 
 /** 这一维用哪份实现比对：与门禁读的是同一套维度函数 */
@@ -533,6 +648,12 @@ async function main(): Promise<void> {
     );
   }
 
+  const missions = missionsOf();
+  const target = (Object.keys(CONCLUSION_POINTS) as GameConclusionCode[]).reduce(
+    (sum, code) => sum + CONCLUSION_POINTS[code],
+    0,
+  );
+
   const data: GameData = {
     generatedAt: new Date().toISOString(),
     generator: 'src/demo-page/build-demo-game.ts',
@@ -543,6 +664,15 @@ async function main(): Promise<void> {
     slots,
     combos,
     stats,
+    missions,
+    scoring: {
+      target,
+      byConclusion: CONCLUSION_POINTS,
+      reasons: CONCLUSION_POINT_REASONS,
+      note:
+        '每种结论只在第一次收进图鉴时给分，重复收同一组或同一结论都是 0 分；' +
+        '通关线等于八种结论各收一次的总分，所以分数条填满就等于八档都亲眼看过。',
+    },
   };
 
   await verifyAgainstDemoData(data);
@@ -568,6 +698,9 @@ async function main(): Promise<void> {
       (Object.keys(byConclusion) as GameConclusionCode[])
         .map((code) => `${code}=${byConclusion[code]}`)
         .join(' '),
+  );
+  console.log(
+    `Missions: ${missions.map((mission) => `${mission.id}(${mission.goals.length})`).join(' ')} · target=${target}`,
   );
 }
 

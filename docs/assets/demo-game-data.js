@@ -1,7 +1,7 @@
 // 由 src/demo-page/build-demo-game.ts 从 examples/ 与 demo-data.js 生成，不要手改；改候选词或批次后重跑 pnpm run demo:game。
 // 每条组合只冻结"逐维比对结果 + 组合级结论 + 指向哪条冻结记录"；逐条证据、引文与快照在 demo-data.js。
 window.LODESTAR_DEMO_GAME = {
-  "generatedAt": "2026-11-05T17:32:14.238Z",
+  "generatedAt": "2026-11-05T18:00:18.463Z",
   "generator": "src/demo-page/build-demo-game.ts",
   "note": "组合矩阵在构建时用引擎的维度函数算好：每个词与冻结证据里的原文值逐维比对，结论取最差的那一维；至少两个词达到「口径相容」及以上才算覆盖。标了 demoOnly 的候选是演示用词，不在冻结底稿里出现过，页面必须标出来。",
   "slots": [
@@ -7311,5 +7311,92 @@ window.LODESTAR_DEMO_GAME = {
       "uncovered": 32
     },
     "maxCombos": 100
+  },
+  "missions": [
+    {
+      "id": "m1",
+      "title": "第一章 · 先把对上和没对上分清",
+      "hint": "打开页面就是一组三个词全对上的强坐标。先把「专场名」换成一个别的专场，看证据会不会明确写出另一个值——没对上不是没覆盖。",
+      "goals": [
+        {
+          "code": "strong",
+          "label": "强坐标",
+          "points": 8
+        },
+        {
+          "code": "mismatch",
+          "label": "没对上，证据写的是别的",
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "m2",
+      "title": "第二章 · 看起来像对上，其实不是",
+      "hint": "时间差一个月、机构少写一个城市，证据都没反对，但也不算对上。要把「口径相容」和「边缘相容」各收一次，并且分清它们为什么都不是对上。",
+      "goals": [
+        {
+          "code": "caliber",
+          "label": "只找到相容证据",
+          "points": 5
+        },
+        {
+          "code": "edge",
+          "label": "没有矛盾，但这不能证明",
+          "points": 4
+        }
+      ]
+    },
+    {
+      "id": "m3",
+      "title": "第三章 · 证据的边界与反直觉的一档",
+      "hint": "冲突只作候选，不压成反对；含糊说法解析不出可比的时间；只有一维沾边就叫没覆盖。最后还有一档反直觉的：三个词全对上，也可能只到弱坐标。",
+      "goals": [
+        {
+          "code": "conflict",
+          "label": "冲突候选",
+          "points": 3
+        },
+        {
+          "code": "unknown",
+          "label": "无从判断",
+          "points": 2
+        },
+        {
+          "code": "uncovered",
+          "label": "这批证据没覆盖",
+          "points": 1
+        },
+        {
+          "code": "weak",
+          "label": "弱坐标",
+          "points": 6
+        }
+      ]
+    }
+  ],
+  "scoring": {
+    "target": 31,
+    "byConclusion": {
+      "strong": 8,
+      "weak": 6,
+      "caliber": 5,
+      "edge": 4,
+      "conflict": 3,
+      "mismatch": 2,
+      "unknown": 2,
+      "uncovered": 1
+    },
+    "reasons": {
+      "strong": "三个词都在证据里逐字对上，而且撑起这条记录的独立来源够",
+      "weak": "三个词都对上，但撑起这条记录的独立来源不够",
+      "caliber": "至少一维只是说法不同，很可能是同一场，但这不能算对上",
+      "edge": "至少一维只排除了矛盾，没给出正面证据",
+      "conflict": "点名了另一个值，但只作候选，不压成反对",
+      "mismatch": "证据明确写的是另一个值",
+      "unknown": "解析不出可比的说法，判不了",
+      "uncovered": "连一条记录都挂不上：三词里最多一维沾边"
+    },
+    "note": "每种结论只在第一次收进图鉴时给分，重复收同一组或同一结论都是 0 分；通关线等于八种结论各收一次的总分，所以分数条填满就等于八档都亲眼看过。"
   }
 };

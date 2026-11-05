@@ -1,9 +1,14 @@
 /* docs/assets/demo-lab.js
  *
  * 小游戏页的行为层：句子里的三个词就是操作面。点一个词 → 选一个新词 → 结论、逐维判据
- * 与引文立刻出现在句子下面，没有单独的"识别"按钮，也没有词库与拖拽这些第二套操作路径。
+ * 与引文立刻出现在句子下面；觉得这一组值得记下来，再点「收进图鉴」把它计分。
  *
- * 页面不重算判定、不联网、不读本地文件、不写存储；组合矩阵是构建时用引擎算好并冻结的，
+ * 玩法只有一条规则：**每种结论只在第一次被收进图鉴时给分**。同一组重复收是 0 分，
+ * 换个组合收同一个结论也是 0 分，所以分数条填满（31 分）就等于八种结论都亲眼看过。
+ * 分数、结论与逐维判据都不落盘，浏览器本地存储里只存"收过哪几组"（组合号），
+ * 页面每次打开都用当前的冻结矩阵重算，数据换了也不会带着旧分跑。
+ *
+ * 页面不重算判定、不联网、不读本地文件；组合矩阵是构建时用引擎算好并冻结的，
  * 唯一的安全阀在 demo-game-match.js：查不到组合就显示「这批证据没覆盖」，
  * 不继承旧证据，也不显示成被拒收。
  */
@@ -51,7 +56,10 @@
   var state = {
     values: cloneValues(INITIAL_VALUES),
     openSlot: null,
-    lastChangedKey: null
+    lastChangedKey: null,
+    progress: loadProgress(),
+    confirmReset: false,
+    toastTimer: null
   };
 
   var slotElements = Array.prototype.slice.call(document.querySelectorAll('.slot'));
@@ -63,7 +71,18 @@
   var fullBody = document.getElementById('full-body');
   var coverageBody = document.getElementById('coverage-body');
   var coverageCounts = document.getElementById('coverage-counts');
-  var revealList = document.getElementById('reveal-list');
+  var scoreValue = document.getElementById('score-value');
+  var scoreTarget = document.getElementById('score-target');
+  var scoreCount = document.getElementById('score-count');
+  var scoreFill = document.getElementById('score-fill');
+  var scoreBar = document.getElementById('score-bar');
+  var scoreTableBody = document.getElementById('score-table-body');
+  var missionList = document.getElementById('mission-list');
+  var missionCurrent = document.getElementById('mission-current');
+  var toastElement = document.getElementById('toast');
+  var reviewSection = document.getElementById('review');
+  var reviewBody = document.getElementById('review-body');
+  var reviewCount = document.getElementById('review-count');
 
   function cloneValues(values) {
     return {
@@ -101,6 +120,276 @@
 
   function demoTag() {
     return '<span class="demo-tag" title="演示用词：不在采集回来的页面里">演示用词</span>';
+  }
+
+  // ---- 存档：只存组合号，分数与判据每次重算 ----
+
+  function loadProgress() {
+    try {
+      var raw = window.localStorage.getItem(game.STORAGE_KEY);
+      if (!raw) return game.emptyProgress();
+      return game.progressFrom(JSON.parse(raw), data);
+    } catch (error) {
+      return game.emptyProgress();
+    }
+  }
+
+  function saveProgress() {
+    try {
+      window.localStorage.setItem(game.STORAGE_KEY, JSON.stringify(state.progress));
+    } catch (error) {
+      // 隐私模式或配额满：只影响"刷新后还记得"，不影响这一局的计分
+    }
+  }
+
+  function showToast(text) {
+    if (!text) return;
+    toastElement.textContent = text;
+    toastElement.classList.add('is-visible');
+    if (state.toastTimer) window.clearTimeout(state.toastTimer);
+    state.toastTimer = window.setTimeout(function () {
+      toastElement.classList.remove('is-visible');
+    }, 4200);
+  }
+
+  function clearProgress() {
+    state.progress = game.emptyProgress();
+    state.confirmReset = false;
+    try {
+      window.localStorage.removeItem(game.STORAGE_KEY);
+    } catch (error) {
+      // 同上：清不掉也只是刷新后回来
+    }
+    renderHud();
+    renderVerdict();
+    renderReview();
+    showToast('存档已清空：分数归零，图鉴重新开始。');
+  }
+
+  /** 这一组现在值多少分、能不能收——判定卡与按钮都读它 */
+  function submissionOf(values) {
+    var combo = game.findCombo(data, values);
+    var check = game.evaluateSubmission(state.progress, data, combo);
+    return { combo: combo, check: check };
+  }
+
+  function submitCurrent() {
+    var combo = game.findCombo(data, state.values);
+    var result = game.submit(state.progress, data, combo);
+    if (!result.ok) {
+      showToast(rejectionText(result));
+      return;
+    }
+    state.progress = result.progress;
+    saveProgress();
+    renderHud();
+    renderVerdict();
+    renderReview();
+    if (result.cleared) {
+      showToast('+' + result.points + '：' + game.CONCLUSION_LABELS[result.code] + ' 已收入。八档收齐，通关了。');
+      reviewSection.open = true;
+    } else {
+      showToast('+' + result.points + '：' + game.CONCLUSION_LABELS[result.code] + ' 已收进图鉴。');
+    }
+  }
+
+  function rejectionText(result) {
+    if (result.reason === 'repeated-combo') return '这一组已经收过，再收不加分。换一个词试试。';
+    if (result.reason === 'conclusion-taken') {
+      return (
+        '「' +
+        game.CONCLUSION_LABELS[result.code] +
+        '」已经收过了，同一档再收不加分。去收还没见过的：' +
+        missingLabels() +
+        '。'
+      );
+    }
+    return '这一组不在冻结矩阵里，收不了。';
+  }
+
+  function missingLabels() {
+    var scored = game.scoredCodes(state.progress, data);
+    var missing = Object.keys(game.CONCLUSION_LABELS).filter(function (code) {
+      return !scored[code];
+    });
+    if (missing.length === 0) return '（已经全收齐了）';
+    return missing
+      .map(function (code) {
+        return game.CONCLUSION_LABELS[code];
+      })
+      .join('、');
+  }
+
+  // ---- 分数条与三章任务 ----
+
+  function renderHud() {
+    var score = game.scoreOf(state.progress, data);
+    var target = game.targetOf(data);
+    var scored = game.scoredCodes(state.progress, data);
+    var count = Object.keys(scored).length;
+    var cleared = score >= target;
+
+    scoreValue.textContent = String(score);
+    scoreTarget.textContent = String(target);
+    scoreCount.textContent = '已收 ' + count + ' / ' + Object.keys(game.CONCLUSION_LABELS).length;
+    scoreFill.style.width = (target > 0 ? Math.min(100, (score / target) * 100) : 0) + '%';
+    scoreBar.setAttribute('aria-valuenow', String(score));
+    scoreBar.setAttribute('aria-valuemax', String(target));
+    scoreBar.classList.toggle('is-cleared', cleared);
+
+    var missions = game.missionStatus(data, state.progress);
+    missionList.innerHTML = missions
+      .map(function (mission, index) {
+        var current = !mission.complete && missions.slice(0, index).every(function (before) {
+          return before.complete;
+        });
+        var goals = mission.goals
+          .map(function (goal) {
+            var chip =
+              '<span class="chip chip-' +
+              escapeHtml(goal.code) +
+              '">' +
+              escapeHtml(game.CONCLUSION_SHORT[goal.code]) +
+              '</span>';
+            var points = '<span class="goal-points">+' + goal.points + '</span>';
+            if (goal.scored) {
+              return (
+                '<button type="button" class="goal is-scored" data-combo="' +
+                escapeHtml(goal.comboId) +
+                '" title="点一下回到收下它的那一组">' +
+                chip +
+                points +
+                '<span class="goal-check">已收</span></button>'
+              );
+            }
+            return (
+              '<span class="goal' +
+              (current ? ' is-target' : '') +
+              '">' +
+              chip +
+              points +
+              '</span>'
+            );
+          })
+          .join('');
+        return (
+          '<li class="mission' +
+          (current ? ' is-current' : '') +
+          (mission.complete ? ' is-complete' : '') +
+          '"><p class="mission-title">' +
+          escapeHtml(mission.title) +
+          '<span class="mission-done">' +
+          mission.done +
+          '/' +
+          mission.goals.length +
+          '</span></p><div class="mission-goals">' +
+          goals +
+          '</div></li>'
+        );
+      })
+      .join('');
+
+    var currentMission = game.currentMission(data, state.progress);
+    if (cleared) {
+      missionCurrent.innerHTML =
+        '<strong>通关了。</strong>八种结论各收了一次，共 ' +
+        score +
+        ' 分。下面「复盘」里能逐组看回自己走过的高分组合与每一维的判据。';
+    } else if (currentMission) {
+      missionCurrent.innerHTML =
+        '<strong>' + escapeHtml(currentMission.title) + '</strong>' + escapeHtml(currentMission.hint);
+    } else {
+      missionCurrent.textContent = '';
+    }
+
+    scoreTableBody.innerHTML = renderScoreTable();
+  }
+
+  function renderScoreTable() {
+    var scoring = data.scoring;
+    var order = ['strong', 'weak', 'caliber', 'edge', 'conflict', 'mismatch', 'unknown', 'uncovered'];
+    var rows = order
+      .map(function (code) {
+        return (
+          '<tr><td><span class="chip chip-' +
+          escapeHtml(code) +
+          '">' +
+          escapeHtml(game.CONCLUSION_SHORT[code]) +
+          '</span></td><td class="points">+' +
+          scoring.byConclusion[code] +
+          '</td><td>' +
+          escapeHtml(scoring.reasons[code]) +
+          '</td></tr>'
+        );
+      })
+      .join('');
+    return (
+      '<table class="score-table"><thead><tr><th>结论</th><th>分</th><th>为什么是这个分</th></tr></thead><tbody>' +
+      rows +
+      '</tbody><tfoot><tr><td>通关线</td><td class="points">' +
+      scoring.target +
+      '</td><td>' +
+      escapeHtml(scoring.note) +
+      '</td></tr></tfoot></table>'
+    );
+  }
+
+  // ---- 复盘 ----
+
+  function renderReview() {
+    var submissions = state.progress.submissions;
+    reviewSection.hidden = submissions.length === 0;
+    reviewCount.textContent = submissions.length + ' 组 · ' + game.scoreOf(state.progress, data) + ' 分';
+    if (submissions.length === 0) {
+      reviewBody.innerHTML = '';
+      return;
+    }
+    var rows = submissions
+      .map(function (item, index) {
+        var combo = game.comboById(data, item.comboId);
+        if (!combo) return '';
+        var result = game.resolve(data, demoData, combo.values);
+        var dims = (combo.dimensions || [])
+          .map(function (dimension) {
+            return (
+              '<span class="dim dim-' +
+              escapeHtml(dimension.state) +
+              '">' +
+              escapeHtml(dimension.label) +
+              ' · ' +
+              escapeHtml(game.dimensionLabel(dimension.state)) +
+              '</span>'
+            );
+          })
+          .join('');
+        return (
+          '<button type="button" class="review-row" data-combo="' +
+          escapeHtml(combo.id) +
+          '" title="点一下回到这一组">' +
+          '<span class="review-index">' +
+          (index + 1) +
+          '</span>' +
+          '<span class="chip chip-' +
+          escapeHtml(combo.conclusion.code) +
+          '">' +
+          escapeHtml(game.CONCLUSION_SHORT[combo.conclusion.code]) +
+          '</span>' +
+          '<span class="review-points">+' +
+          game.pointsFor(data, combo.conclusion.code) +
+          '</span>' +
+          '<span class="review-sentence">' +
+          escapeHtml(combo.sentence) +
+          '</span>' +
+          '<span class="review-dims">' +
+          dims +
+          '</span>' +
+          '<span class="review-reason">' +
+          escapeHtml(result.reason || '') +
+          '</span></button>'
+        );
+      })
+      .join('');
+    reviewBody.innerHTML = rows;
   }
 
   // ---- 句子与选项 ----
@@ -368,32 +657,69 @@
     return parts.join('');
   }
 
+  /**
+   * 计分口：这一组值多少分、为什么值这个分、能不能收。
+   * 三种"0 分"的理由必须分开写——玩家看到 0 分时要知道是重复了、这档收过了，还是已通关。
+   */
+  function renderClaim(result) {
+    var submission = submissionOf(state.values);
+    var check = submission.check;
+    var code = result.status;
+    var points = game.pointsFor(data, code);
+    var label;
+    var note;
+    var disabled = false;
+    if (game.isCleared(state.progress, data)) {
+      label = '已通关 · 不再计分';
+      note = '八种结论各收了一次，共 ' + game.targetOf(data) + ' 分。剩下的时间用来复盘。';
+      disabled = true;
+    } else if (check.ok) {
+      label = '收进图鉴 +' + points;
+      note =
+        '这一组值 +' +
+        points +
+        '：它是「' +
+        game.CONCLUSION_LABELS[code] +
+        '」，这一档还没收过。收下后，同一档的别的组合就都是 0 分了。';
+    } else if (check.reason === 'repeated-combo') {
+      label = '这组已收 · 0 分';
+      note = '这一组值 0：同一组重复收不给分。换掉一个词，去看另一组。';
+      disabled = true;
+    } else {
+      label = '这一档已收 · 0 分';
+      note =
+        '这一组值 0：「' +
+        game.CONCLUSION_LABELS[code] +
+        '」已经收过，换个组合收同一档也不加分。还缺：' +
+        missingLabels() +
+        '。';
+      disabled = true;
+    }
+    return (
+      '<div class="claim">' +
+      '<button type="button" class="claim-button" data-action="submit"' +
+      (disabled ? ' disabled' : '') +
+      '>' +
+      escapeHtml(label) +
+      '</button>' +
+      '<span class="claim-note">' +
+      escapeHtml(note) +
+      '</span></div>'
+    );
+  }
+
   function renderCovered(result) {
     var parts = [];
     parts.push(statusHead(result));
     parts.push('<p class="verdict-reason">' + escapeHtml(result.reason) + '</p>');
     parts.push('<p class="verdict-note">' + escapeHtml(result.hint) + '</p>');
+    parts.push(renderClaim(result));
+    var hint = game.nextHint(result);
+    if (hint) {
+      parts.push('<p class="verdict-next"><strong>下一步：</strong>' + escapeHtml(hint) + '</p>');
+    }
     if (result.status === 'uncovered') {
-      var jumps = game.nearbyCovered(data, state.values, 3);
       parts.push(renderUncoveredDimensions(result));
-      if (jumps.length > 0) {
-        parts.push('<p class="verdict-note">只改一个词到下面这几组，就能看到有结论的样子：</p>');
-        parts.push('<div class="reveal-list">');
-        jumps.forEach(function (jump) {
-          parts.push(
-            '<button type="button" class="reveal-button" data-combo="' +
-              escapeHtml(jump.id) +
-              '"><span class="chip chip-' +
-              escapeHtml(jump.status) +
-              '">' +
-              escapeHtml(game.CONCLUSION_SHORT[jump.status] || jump.status) +
-              '</span> ' +
-              escapeHtml(jump.sentence) +
-              '</button>'
-          );
-        });
-        parts.push('</div>');
-      }
       return parts.join('');
     }
     parts.push(renderDimensions(result));
@@ -836,24 +1162,6 @@
         );
       })
       .join('');
-
-    revealList.innerHTML = game
-      .representatives(data)
-      .map(function (combo) {
-        return (
-          '<button type="button" class="reveal-button" data-combo="' +
-          escapeHtml(combo.id) +
-          '">' +
-          '<span class="chip chip-' +
-          escapeHtml(combo.conclusion.code) +
-          '">' +
-          escapeHtml(game.CONCLUSION_SHORT[combo.conclusion.code]) +
-          '</span> ' +
-          escapeHtml(combo.sentence) +
-          '</button>'
-        );
-      })
-      .join('');
   }
 
   // ---- 事件 ----
@@ -902,14 +1210,46 @@
       resetToInitial();
       return;
     }
+    var submit = event.target.closest('[data-action="submit"]');
+    if (submit) {
+      submitCurrent();
+      return;
+    }
     var jump = event.target.closest('[data-combo]');
     if (jump) applyCombo(jump.getAttribute('data-combo'));
   });
 
-  revealList.addEventListener('click', function (event) {
+  missionList.addEventListener('click', function (event) {
     var button = event.target.closest ? event.target.closest('[data-combo]') : null;
     if (!button) return;
     applyCombo(button.getAttribute('data-combo'));
+    verdictElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  reviewBody.addEventListener('click', function (event) {
+    var button = event.target.closest ? event.target.closest('[data-combo]') : null;
+    if (!button) return;
+    applyCombo(button.getAttribute('data-combo'));
+    verdictElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  var resetProgressButton = document.getElementById('reset-progress');
+  resetProgressButton.addEventListener('click', function () {
+    if (!state.confirmReset) {
+      state.confirmReset = true;
+      resetProgressButton.textContent = '再点一次，确认清空';
+      resetProgressButton.classList.add('is-confirming');
+      window.setTimeout(function () {
+        if (!state.confirmReset) return;
+        state.confirmReset = false;
+        resetProgressButton.textContent = '清空存档';
+        resetProgressButton.classList.remove('is-confirming');
+      }, 5000);
+      return;
+    }
+    resetProgressButton.textContent = '清空存档';
+    resetProgressButton.classList.remove('is-confirming');
+    clearProgress();
   });
 
   document.querySelector('[data-action="close-options"]').addEventListener('click', function () {
@@ -942,6 +1282,8 @@
 
   updateSentence();
   updateExpandedState();
+  renderHud();
   renderVerdict();
+  renderReview();
   renderCoverage();
 })();

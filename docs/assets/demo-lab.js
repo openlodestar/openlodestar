@@ -727,11 +727,11 @@
       stats.total +
       ' 种组合里，有记录可查的只有 ' +
       stats.covered +
-      ' 种（对 ' +
+      ' 种（强坐标 ' +
       stats.byStatus.strong +
-      '、对得弱 ' +
+      '、弱坐标 ' +
       stats.byStatus.weak +
-      '、不对 ' +
+      '、被反驳 ' +
       stats.byStatus.refuted +
       '、查过没找到 ' +
       stats.byStatus.not_found +
@@ -742,9 +742,9 @@
     var counts = [
       ['组合总数', stats.total],
       ['有记录可查', stats.covered],
-      ['对', stats.byStatus.strong],
-      ['对得弱', stats.byStatus.weak],
-      ['不对', stats.byStatus.refuted],
+      ['强坐标', stats.byStatus.strong],
+      ['弱坐标', stats.byStatus.weak],
+      ['被反驳', stats.byStatus.refuted],
       ['查过没找到', stats.byStatus.not_found],
       ['没覆盖', stats.uncovered]
     ];

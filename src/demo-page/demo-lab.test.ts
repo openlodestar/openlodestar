@@ -357,7 +357,7 @@ describe('页面装载与离线约束', () => {
   it('五个结论各有独立的标签，没覆盖不会被写成拒收', () => {
     expect(api.STATUS_LABELS.strong).toBe('强坐标');
     expect(api.STATUS_LABELS.weak).toContain('弱坐标');
-    expect(api.STATUS_LABELS.refuted).toBe('不对');
+    expect(api.STATUS_LABELS.refuted).toBe('被反驳');
     expect(api.STATUS_LABELS.not_found).toContain('查过');
     expect(api.STATUS_LABELS.uncovered).toBe('这批证据没覆盖');
     for (const label of Object.values(api.STATUS_LABELS)) {
@@ -580,7 +580,7 @@ describe('组合矩阵与冻结数据逐条一致', () => {
 });
 
 describe('单槽替换：有证据与没覆盖走两条路', () => {
-  it('把时间从 12 月 5 日换成 11 月 15 日，得到「不对」且有反驳引文', () => {
+  it('把时间从 12 月 5 日换成 11 月 15 日，得到「被反驳」且有反驳引文', () => {
     const values = edited({ dateText: '2021年11月15日' });
     const combo = api.findCombo(game, values);
     expect(combo, '这组替换应命中冻结记录').not.toBeNull();
@@ -588,7 +588,7 @@ describe('单槽替换：有证据与没覆盖走两条路', () => {
     expect(combo?.computation?.bucket).toBe('refuted');
     const resolved = api.resolve(game, demo, values);
     expect(resolved.status).toBe('refuted');
-    expect(resolved.label).toBe('不对');
+    expect(resolved.label).toBe('被反驳');
     expect(resolved.view?.gate).toBe('rejected');
     const refutes = resolved.record?.evidence.filter((row) => row.relation === 'refutes') ?? [];
     expect(refutes.length).toBeGreaterThan(0);
@@ -721,7 +721,7 @@ describe('改词即出结论：新交互的核心路径', () => {
     }
   });
 
-  it('只改一个词就能分别走到「不对」与「没覆盖」，不需要额外确认步骤', () => {
+  it('只改一个词就能分别走到「被反驳」与「没覆盖」，不需要额外确认步骤', () => {
     expect(api.substitutionStatus(game, demo, INITIAL_VALUES, 'dateText', '2021年11月15日')).toBe(
       'refuted',
     );
@@ -747,7 +747,7 @@ describe('改词即出结论：新交互的核心路径', () => {
     expect(uncovered.record).toBeNull();
     expect(uncovered.view).toBeNull();
 
-    // 收窄后「禹贡Ⅱ」不再是初始句子的候选（它只能配郎世宁）；「对得弱」仍能从没覆盖一步跳过去
+    // 收窄后「禹贡Ⅱ」不再是初始句子的候选（它只能配郎世宁）；「弱坐标」仍能从没覆盖一步跳过去
     expect(api.slotOptions(game, INITIAL_VALUES, 'sessionPrefix')).not.toContain('禹贡Ⅱ');
     const weak = comboIn('weak');
     expect(
@@ -790,7 +790,7 @@ describe('改词即出结论：新交互的核心路径', () => {
     expect(seen.has('uncovered')).toBe(true);
     expect(seen.has('refuted')).toBe(true);
     expect(api.STATUS_SHORT.uncovered).toBe('没覆盖');
-    expect(api.STATUS_SHORT.refuted).toBe('不对');
+    expect(api.STATUS_SHORT.refuted).toBe('反驳');
     for (const status of ['strong', 'weak', 'refuted', 'not_found', 'uncovered'] as const) {
       expect(api.STATUS_SHORT[status]).toBeTruthy();
     }

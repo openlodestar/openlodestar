@@ -1,0 +1,63 @@
+{
+  "id": "demo-batch-3",
+  "title": "2021 年嘉德「宸赏」专场（在线采集冻结）",
+  "subtitle": "一次 full 模式的真实采集：日期被独立来源直接反驳，机构在预算内没查到，整条记录不入坐标库",
+  "query": "中国嘉德2021年秋季拍卖会「宸赏」专场的拍卖机构、举办时间、专场名称",
+  "capturedAt": "2026-11-04",
+  "summary": "一次真实在线采集的冻结批次，保留 1 条记录、3 条断言、6 条证据、4 份页面节选。判定由引擎从这批证据重算，不沿用在线运行的结论。",
+  "sources": [
+    {
+      "id": "src-1",
+      "url": "https://www.cguardian.com/",
+      "publisher": "www.cguardian.com",
+      "publishedAt": "",
+      "tier": "official",
+      "family": "cguardian.com",
+      "capture": "snapshots/page-5be883.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T09:24:40.409Z"
+    },
+    {
+      "id": "src-2",
+      "url": "https://artpro.com/news/23729",
+      "publisher": "artpro.com",
+      "publishedAt": "",
+      "tier": "aggregator",
+      "family": "artpro.com",
+      "capture": "snapshots/page-a05723.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T09:27:10.956Z"
+    },
+    {
+      "id": "src-3",
+      "url": "https://amma.artron.net/observation_shownews.php?newid=1095192",
+      "publisher": "amma.artron.net",
+      "publishedAt": "",
+      "tier": "primary",
+      "family": "artron.net",
+      "capture": "snapshots/page-16465e.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T09:25:47.222Z"
+    },
+    {
+      "id": "src-4",
+      "url": "http://wx.ttp.51bidlive.com/news/detail?id=4516",
+      "publisher": "wx.ttp.51bidlive.com",
+      "publishedAt": "",
+      "tier": "unlisted",
+      "family": "51bidlive.com",
+      "capture": "snapshots/page-ac7935.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T09:30:48.418Z"
+    }
+  ],
+  "expectations": [],
+  "notProven": [
+    "rec-20261104-bb1fe7：这只是\"这批证据里的结论\"。抓取有预算上限，页面也可能随时间变化；页面上的\"查不到\"说的是这批节选里没有，不是世界上不存在。"
+  ],
+  "limitations": [
+    "这是一次 live 运行的冻结结果：搜索排名、页面可达性与模型输出都不可复现，同一个问题再跑一次可能得到别的记录。",
+    "快照是渲染后正文的节选，不是全文；裁剪规则是\"含引文的段落 + 直接上下文\"，每页不超过 2000 字符。",
+    "只保留关键字段全部裁决完的记录；在提问阶段被稳定性筛掉或没跑完的记录已剔除。"
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "id": "demo-batch-14",
+  "title": "2021 年保利「禹贡Ⅰ」专场（结果报道采集冻结）",
+  "subtitle": "一次 full 模式的真实采集：三项关键字段都被两条独立来源支持、共现两个页面——强坐标",
+  "query": "北京保利2021年12月5日「禹贡Ⅰ—盛清御瓷新风尚」专场拍卖结果报道：拍卖机构、举办时间、专场名称",
+  "capturedAt": "2026-11-04",
+  "summary": "一次真实在线采集的冻结批次，保留 1 条记录、3 条断言、11 条证据、5 份页面节选。判定由引擎从这批证据重算，不沿用在线运行的结论。",
+  "sources": [
+    {
+      "id": "src-1",
+      "url": "https://www.phillips.com/article/72692590/phillips-and-poly-auction-partner-for-beijing-hong-kong-auctions",
+      "publisher": "www.phillips.com",
+      "publishedAt": "",
+      "tier": "official",
+      "family": "phillips.com",
+      "capture": "snapshots/page-07e788.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T10:17:35.901Z"
+    },
+    {
+      "id": "src-2",
+      "url": "https://www.polypm.com.cn/auction/auction_index.html?infoId=4549156646126882816",
+      "publisher": "www.polypm.com.cn",
+      "publishedAt": "",
+      "tier": "official",
+      "family": "polypm.com.cn",
+      "capture": "snapshots/page-6e02cd.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T10:18:09.307Z"
+    },
+    {
+      "id": "src-3",
+      "url": "https://m-news.artron.net/news/20260915/n1940787.html",
+      "publisher": "m-news.artron.net",
+      "publishedAt": "",
+      "tier": "primary",
+      "family": "artron.net",
+      "capture": "snapshots/page-e2f1d2.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T10:18:40.357Z"
+    },
+    {
+      "id": "src-4",
+      "url": "https://artpro.com/news/31111",
+      "publisher": "artpro.com",
+      "publishedAt": "",
+      "tier": "aggregator",
+      "family": "artpro.com",
+      "capture": "snapshots/page-6b5480.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T10:19:16.312Z"
+    },
+    {
+      "id": "src-5",
+      "url": "http://wx.ttp.51bidlive.com/news/detail?id=4516",
+      "publisher": "wx.ttp.51bidlive.com",
+      "publishedAt": "",
+      "tier": "unlisted",
+      "family": "51bidlive.com",
+      "capture": "snapshots/page-706f14.txt",
+      "snapshotKind": "excerpt",
+      "capturedAt": "2026-11-04T10:20:13.891Z"
+    }
+  ],
+  "expectations": [],
+  "notProven": [
+    "rec-20261104-9ba4ea：这只是\"这批证据里的结论\"。抓取有预算上限，页面也可能随时间变化；页面上的\"查不到\"说的是这批节选里没有，不是世界上不存在。"
+  ],
+  "limitations": [
+    "这是一次 live 运行的冻结结果：搜索排名、页面可达性与模型输出都不可复现，同一个问题再跑一次可能得到别的记录。",
+    "快照是渲染后正文的节选，不是全文；裁剪规则是\"含引文的段落 + 直接上下文\"，每页不超过 2000 字符。",
+    "只保留关键字段全部裁决完的记录；在提问阶段被稳定性筛掉或没跑完的记录已剔除。"
+  ]
+}

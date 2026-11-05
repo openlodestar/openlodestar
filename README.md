@@ -119,6 +119,39 @@ pnpm exec tsx src/cli.ts demo --example poly-2021-autumn --report .openlodestar-
 
 为什么要这样组织演示、以及一条结论旁边应该摆哪些东西，见 [docs/demo-design-guide.md](docs/demo-design-guide.md)；案例本身的来源、快照与预期结局见 [examples/poly-2021-autumn/README.md](examples/poly-2021-autumn/README.md)。
 
+### 交互演示：在浏览器里换一条记录
+
+`docs/demo.html` 是给站点用的交互版：从冻结批次里挑一条记录，看它被拆成哪几个字段、每个字段的引文与出处、判成强或弱或被反驳或查不到、关键字段有没有在同一页上同时出现，以及最后给不给坐标。
+
+它不需要服务端，也不引任何第三方资源，双击本地文件、断网都能打开。页面只做切换，**判定是构建时由引擎算好并冻结的**——`docs/assets/demo-data.js` 由 `pnpm run demo:data` 从 `examples/` 生成，页面不重算计票、门禁与坐标。改完底稿要重新生成一遍，再跑 `node scripts/check-site.mjs` 校验站点红线（同源脚本、离线可用、体积上限）。
+
+演示数据里的证据按「记录号 + 字段名 + 字段值」匹配：字段值一旦与构建时不一致，页面只显示"这批证据没覆盖"，不会继承旧证据，也不会把值对不上的记录判成被拒收。这条规则有测试守着。
+
+新增一批演示素材时，先用 `pnpm run demo:freeze` 把一次 live 运行裁成 `examples/<批次>/`（只保留关键字段全部裁决完的记录，快照只留含引文的段落与上下文、每页不超过 2000 字符），再跑 `pnpm run demo:data` 重新生成数据文件。
+
+### 小游戏版演示：换掉一个词，看证据认不认
+
+`docs/demo-lab.html` 把同一句话拆成四个槽位——拍卖机构、举办时间、专场主名、专场副题——让人自己动手改：
+
+> [北京保利] 在 [2021年12月5日] 举办了一场名为「[禹贡Ⅰ]—[盛清御瓷新风尚]」的拍卖会。
+
+点一个词，它上方就弹出可换的词，每个词右边带着这个小标——`对`、`弱`、`不对`、`查过没找到`、`没覆盖`，都是这份冻结矩阵里算出来的。点一个新词，句子换掉，结论与引文立刻更新，没有单独的「识别」按钮要按。撞进「没覆盖」时，卡片会直接给出改一两个词就能落到有结论组合的去处，点一下就到。
+
+句子里每个词都能用键盘聚焦（对外是按钮语义）：Tab 聚焦、回车或空格打开、方向键挑词、回车选中、Esc 收起并回到原词。网页也是触屏直接点。拖动与词库这两种第二操作路径已经去掉。
+
+和上面那页一样，这页也不联网、不引第三方资源、双击就能开，判定是构建时由引擎算好冻结的：`pnpm run demo:game`（`src/demo-page/build-demo-game.ts`）按「机构 + 专场主名 + 副题」的真实共现建候选，每个真实三元组再与 4 个时间候选组合，共 12 种组合，逐条去冻结记录里找四个值全部相等的同款，命中就冻结门禁、逐字段裁决、共现与坐标，输出 `docs/assets/demo-game-data.js`。先跑 `pnpm run demo:data` 再跑它。12 种组合里只有 4 种有记录可查（对、弱、不对、查过没找到各一条），其余 8 种都是真实专场换了举办时间、这批证据没覆盖到，页面照实说「这批证据没覆盖」，不搬运旧证据、也不判成被拒收——这条界线有测试逐组合守着。
+
+玩法、组合矩阵与覆盖读数见 [docs/demo-lab.md](docs/demo-lab.md)。同一份文档里还写了一个**只在本机跑、不部署**的实时实验服务（`pnpm run demo:lab-server`，`127.0.0.1:3014`，默认拒绝运行，加 `--allow-spend` 才真的花钱查）。
+
+两页演示都可以直接双击本地文件打开。要在浏览器里用 `http://127.0.0.1:3013/demo-lab.html` 这种地址看，起一个只绑本机的静态预览：
+
+```bash
+pnpm run demo:serve                    # 默认 http://127.0.0.1:3013/demo-lab.html
+pnpm run demo:serve -- --port 3014     # 3013 被占用时换端口
+```
+
+按 `Ctrl+C` 停止。它只监听 `127.0.0.1`、只读 `docs/`，不联网、不读密钥、不计费；终端一关服务就没了，所以它只是预览，不是部署。
+
 ### 在线实验：把同一批断言放进真实链路
 
 `live` 子命令跑的是**在线**链路：查询翻译、搜索、抓页、逐页比对都调用真实服务，结论落在独立目录，不覆盖冻结示例。它用来回答"把这份离线底稿放回今天的互联网，还能得出同样的结论吗"，而不是一份可重复的演示。
@@ -189,10 +222,20 @@ src/
   prompts/                  提示词模板（YAML，每条规则都带 enabled）
   integrations/             搜索提供者（注册表 + 内置 llm-web/serper）、浏览器插件注册表与约定加载、抓取策略、HTML 清洗
   llm/                      OpenAI 兼容调用与重试
+  demo-page/                交互演示的数据构建与冻结脚本（docs/demo.html 与 docs/demo-lab.html 的数据由它们生成）
 plugins/browser-playwright/ playwright 渲染插件（独立包；自带 package.json 与 playwright 依赖）
 examples/porcelain/         最小离线底稿（合成数据，契约测试用）
 examples/poly-2021-autumn/  真实案例底稿（公开报道的正文节选 + 抓取档案 + 四条候选记录 + case.json）
+examples/demo-batch-*/      在线采集补出来的冻结批次（页面节选 + 来源声明，供交互演示切换）
+docs/index.html             站点首页：这个项目做什么、现在到哪一步，并直入两个演示
+docs/demo.html              交互演示页：切换记录、看字段引文与判定（断网可开）
+docs/demo-lab.html          小游戏版演示页：改句子的四个槽位，看证据认不认（断网可开）
+docs/assets/site-nav.css    三页共用的顶栏样式（导航结构只写一份，链接全部相对路径）
+docs/demo-lab.md            小游戏玩法、组合矩阵与覆盖读数；站点地图与本地实时实验服务的边界
+scripts/demo-live-server.mjs 只在本机跑的实时实验服务（不部署，默认拒绝运行）
+scripts/serve-demo.mjs      两页演示的本地静态预览（只绑 127.0.0.1，默认端口 3013）
 docs/demo-design-guide.md   演示方法论：一条演示该证明什么、怎么挑素材、怎么摆证据
+docs/time-window-rules.md   时间窗口的两条口径：断言侧不扩、证据侧上下各放宽一个月
 .env.example                在线链路的环境变量模板（复制为 .env；离线命令不需要）
 .github/                    CI 与 issue 模板
 CONTRIBUTING.md             参与方式、硬规矩与 PR 检查单

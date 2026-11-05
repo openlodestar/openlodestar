@@ -271,6 +271,7 @@ export const porcelainPack: DomainPack = {
 
   recordMatchKey(record: ParsedRecord): string {
     const house = canonicalHouseName(record.fields.auctionHouse ?? null);
+    // 冬季窗口从命名年份的 12 月开始，窗口起点年份就是命名年份
     const scope = parseTimeScope(record.fields.dateText ?? null);
     const year = scope.from ? scope.from.slice(0, 4) : '';
     // 专场名先剥掉"专场/拍卖会"这类每次都可能多写少写的尾词，再截断（模型两次作答用词长短不同）

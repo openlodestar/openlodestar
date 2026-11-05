@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>交互演示 · OpenLodestar — 换一条记录，看它凭什么算数</title>
+<meta name="description" content="从冻结批次里切换一条记录，现场看它被拆成哪几个字段、每个字段的引文与出处、判成强或弱或被反驳或查不到，以及最后给不给坐标。断网也能打开。">
+<link rel="canonical" href="https://openlodestar.github.io/openlodestar/demo.html">
+<link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="stylesheet" href="assets/site-nav.css">
+<style>
+:root{
+  --navy:#101E3C;
+  --cream:#F4EEE2;
+  --cream-dim:#C9C2B4;
+  --paper:#FBF7EF;
+  --card:#FFFDF8;
+  --ink:#171B24;
+  --muted:#5B5F68;
+  --line:#DED6C6;
+  --ok:#1F6B45;
+  --ok-bg:#E7F3EC;
+  --warn:#7A4A05;
+  --warn-bg:#FBF0DB;
+  --bad:#8A1C1C;
+  --bad-bg:#FBE9E7;
+  --skip:#3E4A5E;
+  --skip-bg:#EDEFF3;
+  --max:1120px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+  line-height:1.8;-webkit-font-smoothing:antialiased;
+}
+a{color:var(--navy)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--navy);outline-offset:3px;border-radius:2px}
+.top{background:var(--navy);color:var(--cream);padding:0 24px 44px}
+.headline{max-width:var(--max);margin:26px auto 0}
+.headline h1{margin:0 0 10px;font-size:clamp(1.6rem,3.4vw,2.4rem);line-height:1.25;font-weight:650}
+.headline p{margin:0;max-width:840px;color:var(--cream);opacity:.92}
+.legend{max-width:var(--max);margin:18px auto 0;display:flex;gap:10px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:8px;background:rgba(244,238,226,.08);border:1px solid rgba(244,238,226,.25);border-radius:10px;padding:8px 12px;font-size:.86rem;color:var(--cream-dim)}
+main{max-width:var(--max);margin:0 auto;padding:34px 24px 64px}
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 22px}
+.chip{
+  font:inherit;font-size:.92rem;cursor:pointer;border:1px solid var(--line);background:var(--card);
+  color:var(--ink);border-radius:999px;padding:7px 14px;
+}
+.chip.is-active{background:var(--navy);border-color:var(--navy);color:var(--cream)}
+.chip .count{opacity:.7;margin-left:2px}
+.layout{display:grid;grid-template-columns:320px minmax(0,1fr);gap:22px;align-items:start}
+.list{display:flex;flex-direction:column;gap:10px}
+.record{
+  display:block;width:100%;text-align:left;font:inherit;cursor:pointer;
+  border:1px solid var(--line);background:var(--card);border-radius:12px;padding:12px 14px;
+}
+.record.is-current{border-color:var(--navy);box-shadow:inset 3px 0 0 var(--navy)}
+.record-title{display:block;font-weight:620;line-height:1.5}
+.record-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:.82rem;color:var(--muted)}
+.badge{display:inline-block;border-radius:999px;padding:2px 10px;font-size:.8rem;font-weight:600;line-height:1.6}
+.badge-strong{background:var(--ok-bg);color:var(--ok)}
+.badge-weak{background:var(--warn-bg);color:var(--warn)}
+.badge-refuted{background:var(--bad-bg);color:var(--bad)}
+.badge-not_found{background:var(--skip-bg);color:var(--skip)}
+.badge-uncovered{background:var(--skip-bg);color:var(--skip)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px 26px 28px}
+.eyebrow{margin:0;color:var(--muted);font-size:.84rem;letter-spacing:.02em}
+.panel h2{margin:2px 0 8px;font-size:clamp(1.25rem,2.4vw,1.6rem);line-height:1.35}
+.query{margin:0 0 18px;color:var(--muted);font-size:.92rem}
+.status{border-radius:12px;padding:14px 16px;margin:0 0 26px;border:1px solid var(--line);background:var(--paper)}
+.status-strong{border-color:#CBE3D5;background:var(--ok-bg)}
+.status-weak{border-color:#EBD8B4;background:var(--warn-bg)}
+.status-refuted{border-color:#EBC9C6;background:var(--bad-bg)}
+.status-not_found,.status-uncovered{border-color:#D5D9E0;background:var(--skip-bg)}
+.status-reason{margin:8px 0 0;font-size:.95rem}
+.status-note{margin:8px 0 0;font-size:.88rem;color:var(--muted)}
+.panel h3{margin:26px 0 12px;font-size:1.02rem;line-height:1.4}
+.fields{display:flex;flex-direction:column;gap:14px}
+.field{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--card)}
+.field-state-uncovered{border-color:#D5D9E0;background:var(--skip-bg)}
+.field-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.field-label{font-size:.86rem;color:var(--muted)}
+.role{font-size:.74rem;border:1px solid var(--line);border-radius:999px;padding:0 8px;color:var(--muted)}
+.field-value{font-weight:650;font-size:1.04rem}
+.uncovered{margin:8px 0 0;color:var(--skip);font-size:.92rem}
+.field-verdict{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 0;font-size:.84rem;color:var(--muted)}
+.verdict{border-radius:6px;padding:1px 8px;font-weight:650;font-size:.82rem}
+.verdict-supported{background:var(--ok-bg);color:var(--ok)}
+.verdict-refuted{background:var(--bad-bg);color:var(--bad)}
+.verdict-conflicting{background:var(--warn-bg);color:var(--warn)}
+.verdict-not_found{background:var(--skip-bg);color:var(--skip)}
+.stat{white-space:nowrap}
+.verdict-note{margin:8px 0 0;font-size:.86rem;color:var(--muted)}
+.evidence{margin-top:12px;display:flex;flex-direction:column;gap:10px}
+.evidence-row{border-top:1px dashed var(--line);padding-top:10px}
+.evidence-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--muted)}
+.relation{font-weight:650;border-radius:6px;padding:0 7px}
+.relation-supports{background:var(--ok-bg);color:var(--ok)}
+.relation-refutes{background:var(--bad-bg);color:var(--bad)}
+.relation-irrelevant{background:var(--skip-bg);color:var(--skip)}
+blockquote{margin:8px 0;padding:8px 12px;border-left:3px solid var(--navy);background:var(--paper);font-size:.94rem}
+.evidence-note{margin:6px 0;color:var(--muted);font-size:.84rem}
+.evidence-link{margin:4px 0 6px;font-size:.82rem;word-break:break-all}
+details{margin-top:6px}
+summary{cursor:pointer;font-size:.84rem;color:var(--muted)}
+pre{
+  margin:8px 0 0;padding:10px 12px;background:var(--paper);border:1px solid var(--line);border-radius:8px;
+  white-space:pre-wrap;word-break:break-word;font-size:.8rem;line-height:1.65;max-height:320px;overflow:auto;
+}
+.cooccur,.anchor{border:1px solid var(--line);border-radius:12px;padding:12px 16px;background:var(--paper)}
+.cooccur p,.anchor p{margin:0 0 8px;font-size:.92rem}
+.cooccur ul,.anchor ul{margin:0 0 8px;padding-left:20px;font-size:.86rem;word-break:break-all}
+.anchor-label{margin:10px 0 4px;color:var(--muted);font-size:.84rem}
+.stale{color:var(--bad);font-size:.86rem}
+.empty{margin:4px 0;color:var(--muted);font-size:.88rem}
+.panel-foot{margin-top:26px;padding-top:14px;border-top:1px solid var(--line)}
+.panel-foot p{margin:0;color:var(--muted);font-size:.82rem}
+code{font-size:.85em;background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:0 4px;word-break:break-all}
+@media (max-width:860px){
+  .layout{grid-template-columns:1fr}
+  .list{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .record{min-width:230px}
+}
+</style>
+</head>
+<body>
+<div class="top">
+  <header class="site-nav">
+    <div class="site-nav-inner">
+      <a class="brand" href="index.html">OpenLodestar</a>
+      <nav aria-label="主导航">
+        <a href="index.html">主页</a>
+        <a href="demo.html" aria-current="page">逐条演示</a>
+        <a href="demo-lab.html">小游戏</a>
+        <a href="https://github.com/openlodestar/openlodestar">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="headline">
+    <h1>换一条记录，看它凭什么算数</h1>
+    <p>数据来自冻结批次：每条记录都是模型先说出来、再逐条拿去公开网页取证的候选。下面切换记录，就能看到它被拆成哪几个字段、每个字段的引文与出处、判成什么，以及最后给不给坐标。</p>
+  </div>
+  <div class="legend" id="legend"></div>
+</div>
+<main>
+  <div class="filters" id="bucket-filter"></div>
+  <div class="layout">
+    <div class="list" id="record-list"></div>
+    <article class="panel" id="record-panel"></article>
+  </div>
+</main>
+<script src="assets/demo-data.js"></script>
+<script src="assets/demo-match.js"></script>
+<script src="assets/demo.js"></script>
+</body>
+</html>

@@ -148,20 +148,80 @@
     });
     optionList.innerHTML = parts.join('');
     updateExpandedState();
-    if (focusValue) {
-      var buttons = optionList.querySelectorAll('.option');
-      for (var i = 0; i < buttons.length; i += 1) {
-        if (buttons[i].getAttribute('data-value') === focusValue) {
-          buttons[i].focus({ preventScroll: true });
-          break;
-        }
+    if (focusValue) focusOptionByValue(focusValue);
+  }
+
+  /** 把焦点放到某个可选词上（键盘打开面板、选完词之后都要用） */
+  function focusOptionByValue(value) {
+    var buttons = optionList.querySelectorAll('.option');
+    for (var i = 0; i < buttons.length; i += 1) {
+      if (buttons[i].getAttribute('data-value') === value) {
+        buttons[i].focus({ preventScroll: true });
+        return;
       }
     }
+  }
+
+  function anchorElement() {
+    if (!state.openSlot) return null;
+    for (var i = 0; i < slotElements.length; i += 1) {
+      if (slotElements[i].getAttribute('data-slot') === state.openSlot) return slotElements[i];
+    }
+    return null;
+  }
+
+  /**
+   * 把浮层贴在刚点的那个词上。次序是：先放词的上方（句尾的词天然不会冒出屏幕），
+   * 上方不够就往页面里借一点滚动余量；仍不够就翻到下方；两头都放不下才夹在视口内。
+   * 横向一律夹进视口。浮层是固定定位、不在文档流里，判定卡不会被推走。
+   * allowScroll 只在打开时允许：滚动中的重排不再反过来滚页面，免得和用户抢滚动条。
+   */
+  function placeOptions(allowScroll) {
+    var anchor = anchorElement();
+    if (!anchor || optionsPanel.hidden) return;
+    var margin = 8;
+    var gap = 8;
+    var anchorRect = anchor.getBoundingClientRect();
+    var panelRect = optionsPanel.getBoundingClientRect();
+
+    function measure() {
+      anchorRect = anchor.getBoundingClientRect();
+      panelRect = optionsPanel.getBoundingClientRect();
+    }
+
+    var top = anchorRect.top - panelRect.height - gap;
+    if (top < margin && allowScroll && window.scrollY > 0) {
+      var deficit = Math.min(margin - top, window.scrollY);
+      window.scrollBy(0, -deficit);
+      measure();
+      top = anchorRect.top - panelRect.height - gap;
+    }
+    if (top < margin) {
+      var below = anchorRect.bottom + gap;
+      if (below + panelRect.height <= window.innerHeight - margin) {
+        top = below;
+      } else {
+        var maxTop = window.innerHeight - panelRect.height - margin;
+        if (maxTop < margin) maxTop = margin;
+        if (top > maxTop) top = maxTop;
+        if (top < margin) top = margin;
+      }
+    }
+
+    var left = anchorRect.left;
+    var maxLeft = window.innerWidth - panelRect.width - margin;
+    if (maxLeft < margin) maxLeft = margin;
+    if (left > maxLeft) left = maxLeft;
+    if (left < margin) left = margin;
+
+    optionsPanel.style.left = Math.round(left) + 'px';
+    optionsPanel.style.top = Math.round(top) + 'px';
   }
 
   function openOptions(key, focusInto) {
     state.openSlot = key;
     renderOptions(focusInto ? state.values[key] : null);
+    placeOptions(true);
   }
 
   function closeOptions(returnFocus) {
@@ -169,6 +229,8 @@
     var previousKey = state.openSlot;
     state.openSlot = null;
     optionsPanel.hidden = true;
+    optionsPanel.style.left = '';
+    optionsPanel.style.top = '';
     optionList.innerHTML = '';
     updateExpandedState();
     if (returnFocus) {
@@ -189,7 +251,6 @@
     state.values = cloneValues(next);
     state.lastChangedKey = changedKey || null;
     updateSentence();
-    if (state.openSlot) renderOptions(state.values[state.openSlot]);
     renderVerdict();
   }
 
@@ -199,7 +260,10 @@
     var next = cloneValues(state.values);
     next[key] = value;
     setValues(next, key);
-    if (state.openSlot === key) renderOptions(value);
+    if (state.openSlot === key) {
+      renderOptions(value);
+      placeOptions(false);
+    }
   }
 
   function resetToInitial() {
@@ -712,6 +776,15 @@
     element.addEventListener('click', function (event) {
       toggleOptions(element.getAttribute('data-slot'), event.detail === 0);
     });
+    // 槽位是带 role="button" 的 span（不是原生 button），回车与空格必须自己接：
+    // 打开时把焦点送进浮层，已经在同一组里则把焦点送回该词，方向键在浮层里继续用。
+    element.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
+      event.preventDefault();
+      var key = element.getAttribute('data-slot');
+      if (state.openSlot === key) focusOptionByValue(state.values[key]);
+      else openOptions(key, true);
+    });
   });
 
   optionList.addEventListener('click', function (event) {
@@ -772,6 +845,17 @@
       closeOptions(true);
     }
   });
+
+  window.addEventListener('resize', function () {
+    if (state.openSlot) placeOptions(false);
+  });
+  window.addEventListener(
+    'scroll',
+    function () {
+      if (state.openSlot) placeOptions(false);
+    },
+    { passive: true }
+  );
 
   updateSentence();
   updateExpandedState();

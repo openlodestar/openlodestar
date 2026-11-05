@@ -34,7 +34,7 @@ body{
   line-height:1.75;-webkit-font-smoothing:antialiased;
 }
 a{color:var(--navy)}
-a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--navy);outline-offset:3px;border-radius:2px}
+a:focus-visible,button:focus-visible,summary:focus-visible,.slot:focus-visible{outline:2px solid var(--navy);outline-offset:3px;border-radius:2px}
 .top{background:var(--navy);color:var(--cream);padding:0 24px 30px}
 .top-inner{max-width:var(--max);margin:0 auto;padding:20px 0 0;display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
 .brand{font-weight:650;text-decoration:none;color:var(--cream)}
@@ -47,18 +47,26 @@ main{max-width:var(--max);margin:0 auto;padding:22px 24px 56px}
 .stage{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 24px 22px}
 .eyebrow{margin:0 0 8px;color:var(--muted);font-size:.84rem;letter-spacing:.02em}
 .sentence{
-  margin:0;font-size:clamp(1.05rem,2.2vw,1.3rem);line-height:2.05;
+  margin:0;font-size:clamp(1.05rem,2.2vw,1.3rem);line-height:2.4;
   border-left:3px solid var(--navy);background:var(--paper);border-radius:8px;padding:12px 15px;
 }
 .plain{white-space:pre-wrap}
+/* 词是行内元素：纵向内边距与边框全部为 0，行高不会被词块撑开，
+   单行与多行的行距都等于 .sentence 的 line-height。 */
 .slot{
-  font:inherit;font-size:1em;font-weight:650;cursor:pointer;color:var(--navy);
-  background:#fff;border:1px dashed var(--navy);border-radius:7px;padding:1px 8px;margin:0 2px;
+  display:inline;font:inherit;font-size:1em;font-weight:650;cursor:pointer;color:var(--navy);
+  background:#fff;border:0;border-bottom:2px dashed var(--navy);border-radius:4px;
+  padding:0 6px;margin:0;vertical-align:baseline;
 }
 .slot:hover{background:var(--ok-bg)}
-.slot.is-open{background:var(--navy);border-style:solid;color:var(--cream)}
+.slot.is-open{background:var(--navy);color:var(--cream);border-bottom-color:var(--cream)}
 .dash{white-space:pre}
-.options{margin:10px 0 0;border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:10px 13px}
+/* 可换词浮层：固定定位、脱离文档流，判定卡不会被推走 */
+.options{
+  position:fixed;z-index:40;margin:0;border:1px solid var(--line);border-radius:12px;
+  background:var(--paper);padding:8px 12px;box-shadow:0 12px 28px rgba(16,30,60,.2);
+  width:max-content;max-width:calc(100vw - 16px);
+}
 .options-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:.88rem;color:var(--muted)}
 .link-button{font:inherit;font-size:.85rem;background:none;border:0;color:var(--navy);cursor:pointer;text-decoration:underline;padding:0}
 .option-list{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
@@ -156,7 +164,6 @@ code{font-size:.84em;background:var(--paper);border:1px solid var(--line);border
   .top{padding:0 16px 24px}
   main{padding:18px 16px 44px}
   .stage{padding:16px 15px 18px}
-  .sentence{line-height:2.15}
 }
 </style>
 </head>
@@ -175,11 +182,11 @@ code{font-size:.84em;background:var(--paper);border:1px solid var(--line);border
   <section class="stage" aria-labelledby="stage-title">
     <p class="eyebrow" id="stage-title">待识别的一句话（四个词都能换）</p>
     <p class="sentence" id="sentence">
-      <button type="button" class="slot" data-slot="auctionHouse" aria-haspopup="true" aria-expanded="false" aria-controls="slot-options">北京保利</button>
+      <span class="slot" role="button" tabindex="0" data-slot="auctionHouse" aria-haspopup="true" aria-expanded="false" aria-controls="slot-options">北京保利</span>
       <span class="plain">在</span>
-      <button type="button" class="slot" data-slot="dateText" aria-haspopup="true" aria-expanded="false" aria-controls="slot-options">2021年12月5日</button>
+      <span class="slot" role="button" tabindex="0" data-slot="dateText" aria-haspopup="true" aria-expanded="false" aria-controls="slot-options">2021年12月5日</span>
       <span class="plain">举办了一场名为「</span>
-      <button type="button" class="slot" data-slot="sessionPrefix" aria-haspopup="true" aria-expanded="false" aria-controls="slot-options">禹贡Ⅰ</button><span class="dash">—</span><button type="button" class="slot" data-slot="sessionSubtitle" aria-haspopup="true" aria-expanded="false" aria-controls="slot-options">盛清御瓷新风尚</button>
+      <span class="slot" role="button" tabindex="0" data-slot="sessionPrefix" aria-haspopup="true" aria-expanded="false" aria-controls="slot-options">禹贡Ⅰ</span><span class="dash">—</span><span class="slot" role="button" tabindex="0" data-slot="sessionSubtitle" aria-haspopup="true" aria-expanded="false" aria-controls="slot-options">盛清御瓷新风尚</span>
       <span class="plain">」的拍卖会。</span>
     </p>
 

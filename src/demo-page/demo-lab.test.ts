@@ -598,11 +598,15 @@ function withValue(
 }
 
 describe('改词即出结论：新交互的核心路径', () => {
-  it('四个槽位都是按钮，键盘能逐个聚焦换词', () => {
+  it('四个槽位是可聚焦的行内元素，不是会撑高行盒的行内大盒子', () => {
     const html = fs.readFileSync(path.join(DOCS, 'demo-lab.html'), 'utf8');
     expect((html.match(/class="slot"/g) ?? []).length).toBe(4);
     expect((html.match(/aria-controls="slot-options"/g) ?? []).length).toBe(4);
+    expect((html.match(/role="button" tabindex="0" data-slot=/g) ?? []).length).toBe(4);
     expect(html).toContain('data-action="close-options"');
+    // 原生 button 在 Chromium 里 display 恒为 inline-block，它的 margin box 会撑高行盒，
+    // 所以槽位改用带 role 的 span，键盘支持改由脚本自己接
+    expect(html).not.toContain('<button type="button" class="slot"');
   });
 
   it('每个可换词的状态小标都等于真实结论，没有一处靠猜', () => {
@@ -692,5 +696,72 @@ describe('改词即出结论：新交互的核心路径', () => {
     for (const status of ['strong', 'weak', 'refuted', 'not_found', 'uncovered'] as const) {
       expect(api.STATUS_SHORT[status]).toBeTruthy();
     }
+  });
+});
+
+describe('行距与浮层：不撑高行盒、不推动判定卡', () => {
+  const html = fs.readFileSync(path.join(DOCS, 'demo-lab.html'), 'utf8');
+  const labSource = fs.readFileSync(path.join(DOCS, 'assets/demo-lab.js'), 'utf8');
+
+  /** 取某个选择器的 CSS 规则块（页面里每个选择器只出现一次） */
+  function cssBlock(selector: string): string {
+    const at = html.indexOf(`\n${selector}{`);
+    expect(at, `找不到 ${selector} 的样式块`).toBeGreaterThan(-1);
+    const end = html.indexOf('}', at);
+    return html.slice(at, end);
+  }
+
+  it('句子行高只由 line-height 决定，媒体查询里不再有手机端覆盖', () => {
+    const sentence = cssBlock('.sentence');
+    expect(sentence).toContain('line-height:2.4');
+    // 手机端曾把行高单独调成 2.15，双行与单行的行距因此跳变；这条覆盖必须消失
+    const media = html.match(/@media \(max-width:860px\)\{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(media).toBeTruthy();
+    expect(media).not.toContain('.sentence');
+    expect(html).not.toContain('line-height:2.15');
+  });
+
+  it('词块纵向不占位：行内、无纵向内边距、无纵向边框', () => {
+    const slot = cssBlock('.slot');
+    expect(slot).toContain('display:inline');
+    expect(slot).toContain('padding:0 6px');
+    expect(slot).toContain('margin:0');
+    expect(slot).not.toContain('inline-block');
+    // 只留一条下划线，不能有会在上下方向撑出盒子的边框
+    expect(slot).toContain('border-bottom:2px dashed');
+    expect(slot).not.toMatch(/border:\s*1px/);
+    expect(slot).not.toMatch(/padding:\s*1px/);
+  });
+
+  it('候选项是脱离文档流的固定定位浮层，不占句子下方的位置', () => {
+    const options = cssBlock('.options');
+    expect(options).toContain('position:fixed');
+    expect(options).toContain('max-width:calc(100vw - 16px)');
+    // 浮层不能是句子的子节点，否则句子换行时会把它一起带走或撑开
+    const sentence = html.match(/<p class="sentence" id="sentence">[\s\S]*?<\/p>/)?.[0] ?? '';
+    expect(sentence).toContain('class="slot"');
+    expect(sentence).not.toContain('id="slot-options"');
+    // 定位次序：优先词的上方，上方不够翻到下方，两头都不够才夹进视口
+    expect(labSource).toContain('anchorRect.top - panelRect.height - gap');
+    expect(labSource).toContain('anchorRect.bottom + gap');
+    expect(labSource).toContain('window.innerWidth');
+    expect(labSource).toContain('window.innerHeight');
+    expect(labSource).toContain("'resize'");
+    expect(labSource).toContain("'scroll'");
+  });
+
+  it('键盘路径：回车打开并进浮层、方向键选、回车确认、Esc 还焦点', () => {
+    expect(labSource).toContain("element.addEventListener('keydown'");
+    expect(labSource).toContain("event.key !== 'Enter'");
+    expect(labSource).toContain("event.key !== ' '");
+    expect(labSource).toContain('focusOptionByValue(state.values[key])');
+    expect(labSource).toContain("event.key === 'ArrowRight'");
+    expect(labSource).toContain("event.key === 'Escape'");
+    // Esc 与「收起」都把焦点还回原来那个词
+    expect(labSource).toContain('closeOptions(true)');
+    // 点浮层里的词不能顺手把浮层关掉，点别处才关
+    expect(labSource).toContain("event.target.closest('#slot-options')");
+    expect(labSource).toContain('event.stopPropagation()');
+    expect(labSource).toMatch(/closeOptions\(false\)/);
   });
 });

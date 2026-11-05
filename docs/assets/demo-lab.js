@@ -1,10 +1,11 @@
 /* docs/assets/demo-lab.js
  *
- * 小游戏页的行为层：句子里的四个词就是操作面。点一个词 → 选一个新词 → 结论与引文
- * 立刻出现在句子下面，没有单独的“识别”按钮，也没有词库与拖拽这些第二套操作路径。
+ * 小游戏页的行为层：句子里的三个词就是操作面。点一个词 → 选一个新词 → 结论、逐维判据
+ * 与引文立刻出现在句子下面，没有单独的"识别"按钮，也没有词库与拖拽这些第二套操作路径。
  *
- * 页面不重算判定、不联网、不读本地文件、不写存储；唯一的安全阀在 demo-game-match.js：
- * 组合对不上就显示「这批证据没覆盖」，不继承旧证据，也不显示成被拒收。
+ * 页面不重算判定、不联网、不读本地文件、不写存储；组合矩阵是构建时用引擎算好并冻结的，
+ * 唯一的安全阀在 demo-game-match.js：查不到组合就显示「这批证据没覆盖」，
+ * 不继承旧证据，也不显示成被拒收。
  */
 (function () {
   'use strict';
@@ -27,13 +28,17 @@
     coverage: '这批候选来源没覆盖到',
     genuinely_absent: '这批来源里确实没有'
   };
+  var BUCKET_LABELS = {
+    strong: '强坐标',
+    weak: '弱坐标',
+    refuted: '被反驳',
+    not_found: '查过没找到'
+  };
   var INITIAL_VALUES = {
     auctionHouse: '北京保利',
     dateText: '2021年12月5日',
-    sessionPrefix: '禹贡Ⅰ',
-    sessionSubtitle: '盛清御瓷新风尚'
+    sessionName: '禹贡Ⅰ—盛清御瓷新风尚'
   };
-  var SESSION_SEPARATOR = '—';
 
   var records = game.recordIndex(demoData);
   var sourceByUrl = {};
@@ -64,8 +69,7 @@
     return {
       auctionHouse: values.auctionHouse,
       dateText: values.dateText,
-      sessionPrefix: values.sessionPrefix,
-      sessionSubtitle: values.sessionSubtitle
+      sessionName: values.sessionName
     };
   }
 
@@ -95,6 +99,10 @@
     });
   }
 
+  function demoTag() {
+    return '<span class="demo-tag" title="演示用词：不在采集回来的页面里">演示用词</span>';
+  }
+
   // ---- 句子与选项 ----
 
   function updateSentence() {
@@ -105,6 +113,8 @@
         'aria-label',
         slotLabel(key) + '，当前是「' + state.values[key] + '」，按回车或空格打开可换的词'
       );
+      if (game.isDemoOnly(data, key, state.values[key])) element.classList.add('is-demo');
+      else element.classList.remove('is-demo');
     });
   }
 
@@ -122,35 +132,64 @@
     if (!slot) return;
     optionsPanel.hidden = false;
     optionsTitle.textContent = '换「' + slot.label + '」';
-    var currentStatus = game.resolve(data, demoData, state.values).status;
+    var result = game.resolve(data, demoData, state.values);
     var parts = [];
-    // 候选只给"能和另外两个已选词构成真实三元组"的值；时间槽不参与三元组，始终全列
-    var options = game.slotOptions(data, state.values, slot.key);
-    options.forEach(function (value) {
-      var current = state.values[slot.key] === value;
-      var status = current
-        ? currentStatus
-        : game.substitutionStatus(data, demoData, state.values, slot.key, value);
-      var shortLabel = game.STATUS_SHORT[status] || status;
+    slot.options.forEach(function (option) {
+      var current = state.values[slot.key] === option.value;
+      // 小标说的是"这个词这一维的判据"，不是整句结论——整句结论另写在判定卡上
+      var dimension = current
+        ? dimensionOfResult(result, slot.key)
+        : game.substitutionDimension(data, demoData, state.values, slot.key, option.value);
+      var shortLabel = dimension.label;
+      var conclusionLabel = game.CONCLUSION_LABELS[dimension.conclusion] || dimension.conclusion;
       parts.push(
         '<button type="button" class="option' +
           (current ? ' is-current' : '') +
+          (option.demoOnly ? ' is-demo-option' : '') +
           '" data-value="' +
-          escapeHtml(value) +
+          escapeHtml(option.value) +
+          '" title="' +
+          escapeHtml(option.note + '｜换过去整句会判成「' + conclusionLabel + '」') +
           '" aria-pressed="' +
           (current ? 'true' : 'false') +
           '">' +
-          escapeHtml(value) +
+          escapeHtml(option.value) +
+          (option.demoOnly ? demoTag() : '') +
           '<span class="chip chip-' +
-          escapeHtml(status) +
+          escapeHtml(dimension.state) +
           '">' +
           escapeHtml(shortLabel) +
           '</span></button>'
       );
     });
+    if (slot.options.some(function (option) { return option.demoOnly; })) {
+      parts.push('<p class="options-legend">' + escapeHtml(game.DEMO_ONLY_LEGEND) + '</p>');
+    }
     optionList.innerHTML = parts.join('');
     updateExpandedState();
     if (focusValue) focusOptionByValue(focusValue);
+  }
+
+  /**
+   * 当前这句话里，某个槽位和证据比成了什么样。
+   * 当前组合没覆盖时矩阵里也留着"最接近那条记录"的逐维结果，照样可以显示这一维；
+   * 连逐维结果都没有，才退回「没覆盖」。
+   */
+  function dimensionOfResult(result, slotKey) {
+    var dimensions = result.dimensions || [];
+    for (var i = 0; i < dimensions.length; i += 1) {
+      if (dimensions[i].slot !== slotKey) continue;
+      return {
+        state: dimensions[i].state,
+        conclusion: result.status,
+        label: game.dimensionLabel(dimensions[i].state)
+      };
+    }
+    return {
+      state: 'uncovered',
+      conclusion: result.status,
+      label: game.CONCLUSION_LABELS.uncovered
+    };
   }
 
   /** 把焦点放到某个可选词上（键盘打开面板、选完词之后都要用） */
@@ -176,7 +215,6 @@
    * 把浮层贴在刚点的那个词上。次序是：先放词的上方（句尾的词天然不会冒出屏幕），
    * 上方不够就往页面里借一点滚动余量；仍不够就翻到下方；两头都放不下才夹在视口内。
    * 横向一律夹进视口。浮层是固定定位、不在文档流里，判定卡不会被推走。
-   * allowScroll 只在打开时允许：滚动中的重排不再反过来滚页面，免得和用户抢滚动条。
    */
   function placeOptions(allowScroll) {
     var anchor = anchorElement();
@@ -258,8 +296,7 @@
 
   function selectOption(key, value) {
     if (!slotByKey[key]) return;
-    // 和渲染时用同一份候选表：不在当前可组合候选里的值一律拒绝
-    if (game.slotOptions(data, state.values, key).indexOf(value) === -1) return;
+    if (!game.optionOf(data, key, value)) return;
     if (state.values[key] === value) return;
     var next = cloneValues(state.values);
     next[key] = value;
@@ -303,24 +340,26 @@
 
   function renderVerdict() {
     var result = game.resolve(data, demoData, state.values);
+    verdictElement.className = 'verdict verdict-' + result.status;
+    verdictElement.innerHTML = renderCovered(result);
     if (result.status === 'uncovered') {
-      verdictElement.className = 'verdict verdict-uncovered';
-      verdictElement.innerHTML = renderUncovered(result);
       fullPanel.hidden = true;
       fullBody.innerHTML = '';
       return;
     }
-    verdictElement.className = 'verdict verdict-' + result.status;
-    verdictElement.innerHTML = renderCovered(result);
     fullPanel.hidden = false;
     fullBody.innerHTML = renderFull(result);
   }
 
-  function statusHead(status, label) {
+  function statusHead(result) {
     var parts = [];
     parts.push('<div class="verdict-head">');
     parts.push(
-      '<span class="badge badge-' + escapeHtml(status) + '">' + escapeHtml(label) + '</span>'
+      '<span class="badge badge-' +
+        escapeHtml(result.status) +
+        '">' +
+        escapeHtml(result.label) +
+        '</span>'
     );
     if (isChanged()) {
       parts.push('<button type="button" class="link-button" data-action="reset">回到原句</button>');
@@ -330,72 +369,133 @@
   }
 
   function renderCovered(result) {
-    var view = result.view;
     var parts = [];
-    parts.push(statusHead(result.status, result.label));
+    parts.push(statusHead(result));
     parts.push('<p class="verdict-reason">' + escapeHtml(result.reason) + '</p>');
     parts.push('<p class="verdict-note">' + escapeHtml(result.hint) + '</p>');
+    if (result.status === 'uncovered') {
+      var jumps = game.nearbyCovered(data, state.values, 3);
+      parts.push(renderUncoveredDimensions(result));
+      if (jumps.length > 0) {
+        parts.push('<p class="verdict-note">只改一个词到下面这几组，就能看到有结论的样子：</p>');
+        parts.push('<div class="reveal-list">');
+        jumps.forEach(function (jump) {
+          parts.push(
+            '<button type="button" class="reveal-button" data-combo="' +
+              escapeHtml(jump.id) +
+              '"><span class="chip chip-' +
+              escapeHtml(jump.status) +
+              '">' +
+              escapeHtml(game.CONCLUSION_SHORT[jump.status] || jump.status) +
+              '</span> ' +
+              escapeHtml(jump.sentence) +
+              '</button>'
+          );
+        });
+        parts.push('</div>');
+      }
+      return parts.join('');
+    }
+    parts.push(renderDimensions(result));
+    parts.push(renderRecordContext(result));
 
-    var notFoundField = null;
-    view.fields.forEach(function (field) {
-      if (field.verdict === 'not_found') notFoundField = field;
-    });
-    if (notFoundField) {
+    if (result.view && result.view.conflictCandidates.length > 0) {
       parts.push(
-        '<p class="verdict-note">「' +
-          escapeHtml(notFoundField.label) +
-          '」查过了：' +
-          escapeHtml(CAUSE_LABELS[notFoundField.notFoundCause] || '这批来源里没有其他说法') +
-          '。这是「这批证据里没有」，不是「世界上不存在」。</p>'
+        '<p class="verdict-note">冲突只作候选：' +
+          escapeHtml(
+            result.view.conflictCandidates
+              .map(function (item) {
+                return item.label;
+              })
+              .join('、')
+          ) +
+          ' 的判据是「冲突候选」，页面不会把它压成「反对」。</p>'
       );
     }
 
-    var entries = decisiveEntries(view, result.status, state.lastChangedKey);
-    if (entries.length > 0) {
-      parts.push('<div class="decisive">');
-      entries.forEach(function (entry) {
-        parts.push(renderEvidenceInline(entry));
-      });
-      parts.push('</div>');
+    if (result.view) {
+      var entries = decisiveEntries(result.view, result.status, state.lastChangedKey);
+      if (entries.length > 0) {
+        parts.push('<div class="decisive">');
+        entries.forEach(function (entry) {
+          parts.push(renderEvidenceInline(entry));
+        });
+        parts.push('</div>');
+      }
     }
     return parts.join('');
   }
 
-  function renderUncovered(result) {
+  /** 逐维判据：三个词各自与证据里的原文值比成了什么样，一眼看清 */
+  function renderDimensions(result, title) {
+    if (!result.dimensions || result.dimensions.length === 0) return '';
     var parts = [];
-    parts.push(statusHead('uncovered', result.label));
-    parts.push('<p class="verdict-reason">' + escapeHtml(result.reason) + '</p>');
-
-    var counts = game.SLOT_KEYS.map(function (key) {
-      return slotLabel(key) + ' ' + countRecordsWithValue(key, state.values[key]) + ' 条';
-    });
-    parts.push(
-      '<p class="verdict-note">这四个词在冻结记录里各出现过：' +
-        escapeHtml(counts.join(' · ')) +
-        '。但没有任何一条记录同时写着这四个值。</p>'
-    );
-
-    var jumps = game.nearbyCovered(data, state.values, 3);
-    if (jumps.length > 0) {
-      parts.push('<p class="jump-label">换一两个词就能看到有证据的结论：</p>');
-      parts.push('<div class="jumps">');
-      jumps.forEach(function (jump) {
-        var diff = describeDiff(jump.values);
-        parts.push(
-          '<button type="button" class="jump" data-combo="' +
-            escapeHtml(jump.id) +
-            '">' +
-            escapeHtml(diff) +
-            '<span class="chip chip-' +
-            escapeHtml(jump.status) +
-            '">' +
-            escapeHtml(game.STATUS_SHORT[jump.status] || jump.status) +
-            '</span></button>'
-        );
-      });
+    parts.push('<div class="dim-layer">');
+    parts.push('<p class="dim-title">' + escapeHtml(title || '每一维的判据') + '</p>');
+    result.dimensions.forEach(function (dimension) {
+      parts.push('<div class="dim-row">');
+      parts.push('<span class="dim-slot">' + escapeHtml(dimension.label) + '</span>');
+      parts.push('<span class="dim-value">' + escapeHtml(dimension.value));
+      if (dimension.demoOnly) parts.push(demoTag());
+      parts.push('</span>');
+      parts.push(
+        '<span class="dim-evidence">' +
+          (dimension.evidenceValue
+            ? '证据里写的是 <code>' + escapeHtml(dimension.evidenceValue) + '</code>'
+            : '证据里没有可比的原文值') +
+          '</span>'
+      );
+      parts.push(
+        '<span class="dim dim-' +
+          escapeHtml(dimension.state) +
+          '">' +
+          escapeHtml(game.dimensionLabel(dimension.state)) +
+          '</span>'
+      );
+      parts.push('<span class="dim-note">' + escapeHtml(dimension.note) + '</span>');
       parts.push('</div>');
-    }
+    });
+    parts.push('</div>');
     return parts.join('');
+  }
+
+  /**
+   * 没覆盖时也把逐维摆出来——那是"离这句话最近的那条记录"的比对结果。
+   * 必须说明它不是结论：三词里最多只有一维沾边，才判成没覆盖。
+   */
+  function renderUncoveredDimensions(result) {
+    if (!result.dimensions || result.dimensions.length === 0) return '';
+    var positive = result.dimensions.filter(function (dimension) {
+      return (
+        dimension.state === 'exact' ||
+        dimension.state === 'caliber' ||
+        dimension.state === 'edge'
+      );
+    }).length;
+    var parts = [];
+    parts.push(
+      renderDimensions(result, '离它最近的那条冻结记录，逐维是这样比的')
+    );
+    parts.push(
+      '<p class="verdict-note">这段不是结论：三个词里只有 ' +
+        positive +
+        ' 维沾边，至少要两维达到「口径相容」及以上才算覆盖。没覆盖既不是被反驳，也不是世界上不存在。</p>'
+    );
+    return parts.join('');
+  }
+
+  function renderRecordContext(result) {
+    if (!result.combo || !result.record) return '';
+    var combo = result.combo;
+    return (
+      '<p class="verdict-note">对照记录：<strong>' +
+      escapeHtml(combo.recordTitle || result.record.recordId) +
+      '</strong>（批次 <code>examples/' +
+      escapeHtml(combo.caseId || '') +
+      '/</code>）。它的门禁是「' +
+      escapeHtml(BUCKET_LABELS[combo.bucket] || combo.bucket || '') +
+      '」——这是这条冻结记录本身的结论，与你换掉的词无关。</p>'
+    );
   }
 
   /** 「举办时间 → 2021年11月15日」这样的差异描述，只说变了的那几个槽 */
@@ -430,7 +530,7 @@
       if (!duplicated) picked.push(entry);
     }
 
-    if (status === 'refuted') {
+    if (status === 'refuted' || status === 'conflict') {
       all.forEach(function (entry) {
         if (entry.row.relation === 'refutes') push(entry);
       });
@@ -474,14 +574,36 @@
     );
     parts.push('<span>' + escapeHtml(publisher) + '</span>');
     parts.push('<span>' + escapeHtml(TIER_LABELS[row.tier] || row.tier) + '</span>');
-    parts.push('<span>家族 ' + escapeHtml(row.family) + '</span>');
     parts.push('<span>抓取于 ' + escapeHtml(formatTime(row.fetchedAt)) + '</span>');
     parts.push('</div>');
     parts.push('<blockquote>' + escapeHtml(row.quote) + '</blockquote>');
+    parts.push(renderEvidenceDimension(row, field));
     parts.push(
       '<p class="ev-link"><a href="' + escapeHtml(row.url) + '">' + escapeHtml(row.url) + '</a></p>'
     );
     parts.push('</article>');
+    return parts.join('');
+  }
+
+  function renderEvidenceDimension(row, field) {
+    var parts = [];
+    parts.push('<p class="evidence-dim">');
+    parts.push('<span class="dim-tag">维度 · ' + escapeHtml(field.label) + '</span>');
+    parts.push(
+      '<span class="dim dim-' +
+        escapeHtml(row.state) +
+        '">' +
+        escapeHtml(game.dimensionLabel(row.state)) +
+        '</span>'
+    );
+    parts.push(
+      '<span class="matched">原文值：' +
+        (row.matchedValue
+          ? '<code>' + escapeHtml(row.matchedValue) + '</code>（已过逐字子串校验）'
+          : '原文里没有明确写法') +
+        '</span>'
+    );
+    parts.push('</p>');
     return parts.join('');
   }
 
@@ -499,23 +621,6 @@
     parts.push('</div>');
     parts.push(renderCooccurrence(view));
     parts.push(renderAnchor(view));
-
-    if (combo.matched.length > 1) {
-      var extra = combo.matched.filter(function (item) {
-        return item.recordId !== combo.recordId;
-      });
-      parts.push(
-        '<p class="verdict-note">同一组取值在冻结数据里另有 ' +
-          extra.length +
-          ' 条记录（' +
-          extra
-            .map(function (item) {
-              return escapeHtml(item.bucket + ' / ' + item.recordId);
-            })
-            .join('、') +
-          '）；这里展示门禁最高的那一条，其余记录不合并证据。</p>'
-      );
-    }
 
     parts.push('<footer class="panel-foot">');
     parts.push(
@@ -577,6 +682,15 @@
       );
     }
 
+    (field.contradictorySupports || []).forEach(function (row) {
+      parts.push(
+        '<p class="contradiction"><strong>模型裁决与判据不一致</strong>：模型把这一页判成「支持」，' +
+          '但判据层认定原文值与断言冲突' +
+          (row.matchedValue ? '（原文值 <code>' + escapeHtml(row.matchedValue) + '</code>）' : '') +
+          '。按「判据优先」，这一行不计入支持、也不进累计分；模型原来的裁决与原文都保留在下面，供审计回看。</p>'
+      );
+    });
+
     parts.push('<div class="evidence">');
     if (field.evidence.length === 0) {
       parts.push('<p class="empty">这个字段一条证据行都没有：这批页面查过了，但没有一处提到它。</p>');
@@ -607,14 +721,12 @@
         '<span>' +
         escapeHtml(TIER_LABELS[row.tier] || row.tier) +
         '</span>' +
-        '<span>家族 ' +
-        escapeHtml(row.family) +
-        '</span>' +
         '<span class="stat">抓取于 ' +
         escapeHtml(formatTime(row.fetchedAt)) +
         '</span></div>'
     );
     parts.push('<blockquote>' + escapeHtml(row.quote) + '</blockquote>');
+    parts.push(renderEvidenceDimension(row, { label: fieldLabelForKey(row.fieldKey) }));
     if (row.note) parts.push('<p class="verdict-note">' + escapeHtml(row.note) + '</p>');
     parts.push(
       '<p class="ev-link"><a href="' +
@@ -634,6 +746,14 @@
     }
     parts.push('</article>');
     return parts.join('');
+  }
+
+  function fieldLabelForKey(key) {
+    var found = key;
+    (demoData.fields || []).forEach(function (field) {
+      if (field.key === key) found = field.label;
+    });
+    return found;
   }
 
   function renderCooccurrence(view) {
@@ -694,81 +814,44 @@
 
   // ---- 覆盖读数 ----
 
-  /** 某个槽位取值在多少条冻结记录里出现过（先把专场名拆成主名与副题） */
-  function countRecordsWithValue(key, value) {
-    var count = 0;
-    Object.keys(records).forEach(function (recordId) {
-      var triple = tripleOfRecord(records[recordId]);
-      if (triple && triple[key] === value) count += 1;
-    });
-    return count;
-  }
-
-  function tripleOfRecord(record) {
-    var byKey = {};
-    (record.fields || []).forEach(function (field) {
-      byKey[field.key] = field.value;
-    });
-    var session = byKey.sessionName || '';
-    var at = session.indexOf(SESSION_SEPARATOR);
-    if (!byKey.auctionHouse || !byKey.dateText || at <= 0) return null;
-    return {
-      auctionHouse: byKey.auctionHouse,
-      dateText: byKey.dateText,
-      sessionPrefix: session.slice(0, at),
-      sessionSubtitle: session.slice(at + SESSION_SEPARATOR.length)
-    };
-  }
-
   function renderCoverage() {
     var stats = game.coverage(data);
+    var order = ['strong', 'weak', 'caliber', 'edge', 'conflict', 'mismatch', 'unknown', 'uncovered'];
     coverageBody.innerHTML =
       '<p>' +
       stats.total +
-      ' 种组合里，有记录可查的只有 ' +
+      ' 种组合里，' +
       stats.covered +
-      ' 种（强坐标 ' +
-      stats.byStatus.strong +
-      '、弱坐标 ' +
-      stats.byStatus.weak +
-      '、被反驳 ' +
-      stats.byStatus.refuted +
-      '、查过没找到 ' +
-      stats.byStatus.not_found +
-      '），其余 ' +
+      ' 种能落到某条冻结记录上（至少两个词对上或相容），其余 ' +
       stats.uncovered +
-      ' 种是跨记录拼出来的组合，显示「这批证据没覆盖」。每个可换词右边的小标签也来自这份矩阵。</p>';
+      ' 种显示「这批证据没覆盖」。结论取三个词里最差的那一维，所以「有一维只到口径相容」不会被组合级的强坐标盖掉。</p>';
 
-    var counts = [
-      ['组合总数', stats.total],
-      ['有记录可查', stats.covered],
-      ['强坐标', stats.byStatus.strong],
-      ['弱坐标', stats.byStatus.weak],
-      ['被反驳', stats.byStatus.refuted],
-      ['查过没找到', stats.byStatus.not_found],
-      ['没覆盖', stats.uncovered]
-    ];
-    coverageCounts.innerHTML = counts
-      .map(function (item) {
-        return '<span class="count">' + item[0] + ' ' + item[1] + '</span>';
+    coverageCounts.innerHTML = order
+      .map(function (code) {
+        return (
+          '<span class="count">' +
+          escapeHtml(game.CONCLUSION_LABELS[code]) +
+          ' ' +
+          stats.byConclusion[code] +
+          '</span>'
+        );
       })
       .join('');
 
-    var covered = data.combos.filter(function (combo) {
-      return combo.status === 'covered' && combo.computation;
-    });
-    revealList.innerHTML = covered
+    revealList.innerHTML = game
+      .representatives(data)
       .map(function (combo) {
         return (
           '<button type="button" class="reveal-button" data-combo="' +
           escapeHtml(combo.id) +
           '">' +
-          escapeHtml(combo.sentence) +
           '<span class="chip chip-' +
-          escapeHtml(combo.computation.bucket) +
-          '"> ' +
-          escapeHtml(game.STATUS_SHORT[combo.computation.bucket] || combo.computation.bucket) +
-          '</span></button>'
+          escapeHtml(combo.conclusion.code) +
+          '">' +
+          escapeHtml(game.CONCLUSION_SHORT[combo.conclusion.code]) +
+          '</span> ' +
+          escapeHtml(combo.sentence) +
+          '</button>'
         );
       })
       .join('');
@@ -780,8 +863,6 @@
     element.addEventListener('click', function (event) {
       toggleOptions(element.getAttribute('data-slot'), event.detail === 0);
     });
-    // 槽位是带 role="button" 的 span（不是原生 button），回车与空格必须自己接：
-    // 打开时把焦点送进浮层，已经在同一组里则把焦点送回该词，方向键在浮层里继续用。
     element.addEventListener('keydown', function (event) {
       if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
       event.preventDefault();
@@ -794,7 +875,6 @@
   optionList.addEventListener('click', function (event) {
     var button = event.target.closest ? event.target.closest('.option') : null;
     if (!button || !state.openSlot) return;
-    // 选完不收起面板：同一组里换个词再看结果只花一次点击
     event.stopPropagation();
     selectOption(state.openSlot, button.getAttribute('data-value'));
   });

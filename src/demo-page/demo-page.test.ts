@@ -36,6 +36,8 @@ interface DemoEvidence {
   fieldValue: string;
   quote: string;
   url: string;
+  relation?: 'supports' | 'refutes' | 'irrelevant';
+  state?: string;
 }
 
 interface DemoFieldVerdict {
@@ -44,6 +46,7 @@ interface DemoFieldVerdict {
   verdict: string;
   supportCount: number;
   refuteCount: number;
+  contradictorySupports?: Array<{ matchedValue: string | null; quote: string; url: string }>;
 }
 
 interface DemoRecord {
@@ -192,7 +195,18 @@ describe('数据与引擎不漂移', () => {
           expect(recomputed, `${record.recordId}/${fieldKey} 重算没有裁决`).toBeDefined();
           if (!recomputed) continue;
           expect(fieldVerdict.verdict).toBe(recomputed.verdict);
-          expect(fieldVerdict.supportCount).toBe(recomputed.supportCount);
+          // 模型判「支持」、判据判「冲突」的行不计入支持：支持数 = 引擎票数 − 这类行数
+          const contradictoryRows = record.evidence.filter(
+            (row) =>
+              row.fieldKey === fieldKey &&
+              row.fieldValue === fieldVerdict.fieldValue &&
+              row.relation === 'supports' &&
+              row.state === 'conflict',
+          ).length;
+          expect(fieldVerdict.contradictorySupports?.length ?? 0).toBe(contradictoryRows);
+          expect(fieldVerdict.supportCount).toBe(
+            Math.max(0, recomputed.supportCount - contradictoryRows),
+          );
           expect(fieldVerdict.refuteCount).toBe(recomputed.refuteCount);
         }
         for (const field of record.fields) {

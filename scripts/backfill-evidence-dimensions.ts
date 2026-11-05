@@ -107,13 +107,41 @@ export function extractHouseValue(quote: string): string | null {
   return best ? quote.slice(best.index, best.index + best.length) : null;
 }
 
+/**
+ * 一串字像不像"专场名"。
+ *
+ * 只靠"整行 ≤60 字"会把报道句整句摘成专场名（例如「6月9日-15日，北京保利2024年春季艺术品
+ * 拍卖会主阶段各专场拍卖圆满收官。」），这种值一旦进了比对，就会把一句报道当成一个专场，
+ * 后果比留空更糟。所以这里宁可留 unknown，也不硬摘：
+ * - 带句读标点（。！？；，）的，是句子或片段，不是名字；
+ * - 带"圆满/收官/举办/落槌"这类报道词的，同上；
+ * - 以"拍卖会"结尾的是整场拍卖会的名字，不是其中某个专场；
+ * - 超过 32 字的也当句子处理（现有最长专场名 25 字）。
+ */
+const SESSION_NAME_MAX_LENGTH = 32;
+const SESSION_SENTENCE_PUNCT = /[。！？；，,]/;
+const SESSION_REPORT_WORDS = /(圆满|收官|落幕|举行|举办|开拍|落槌|预展|成交额|总成交)/;
+const SESSION_EVENT_SUFFIX = /拍卖会$/;
+
+export function looksLikeSessionName(value: string): boolean {
+  const text = value.trim();
+  if (text === '') return false;
+  if (text.length > SESSION_NAME_MAX_LENGTH) return false;
+  if (SESSION_SENTENCE_PUNCT.test(text)) return false;
+  if (SESSION_REPORT_WORDS.test(text)) return false;
+  if (SESSION_EVENT_SUFFIX.test(text)) return false;
+  return true;
+}
+
 /** 专场名：优先中文引号里的片段，其次整行（短行）或断言原值在页面逐字出现的位置 */
 export function extractSessionValue(quote: string, claimValue: string): string | null {
   const quoted = /[「“]([^」”]{2,80})[」”]/.exec(quote);
-  if (quoted && quoted[1]) return quoted[1];
-  if (claimValue !== '' && quote.includes(claimValue)) return claimValue;
+  if (quoted && quoted[1] && looksLikeSessionName(quoted[1])) return quoted[1];
+  if (claimValue !== '' && quote.includes(claimValue) && looksLikeSessionName(claimValue)) {
+    return claimValue;
+  }
   const trimmed = quote.trim();
-  return trimmed !== '' && trimmed.length <= 60 ? trimmed : null;
+  return looksLikeSessionName(trimmed) ? trimmed : null;
 }
 
 /** 地点：引文里出现的第一个城市词（原样返回词表里的写法） */

@@ -72,6 +72,7 @@
       examinedPages: computed.examinedPages,
       dimensionState: computed.dimensionState || null,
       dimensionLabel: computed.dimensionState ? DIMENSION_STATE_LABELS[computed.dimensionState] : null,
+      contradictorySupports: computed.contradictorySupports || [],
       evidence: evidence
     };
   }

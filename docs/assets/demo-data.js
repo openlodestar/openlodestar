@@ -1,6 +1,6 @@
 // 由 src/demo-page/build-demo-data.ts 从 examples/ 生成，不要手改；改数据请改冻结批次后重跑 pnpm run demo:data。
 window.LODESTAR_DEMO = {
-  "generatedAt": "2026-11-05T16:52:19.346Z",
+  "generatedAt": "2026-11-05T17:33:25.682Z",
   "generator": "src/demo-page/build-demo-data.ts",
   "note": "判定由引擎在构建时算好并冻结：页面只切换展示，不重算计票、门禁与坐标。证据按「记录号＋字段名＋字段值」匹配，字段值对不上就显示「这批证据没覆盖」。",
   "fields": [
@@ -41,6 +41,80 @@ window.LODESTAR_DEMO = {
     "refuted": 2,
     "not_found": 3
   },
+  "derivedExamples": [
+    {
+      "id": "derived-autumn-jd",
+      "title": "秋季＋北京嘉德 对 8月＋北京市的嘉德",
+      "claim": [
+        {
+          "label": "举办时间",
+          "value": "2021年8月"
+        },
+        {
+          "label": "拍卖机构",
+          "value": "北京嘉德"
+        }
+      ],
+      "evidence": [
+        {
+          "label": "举办时间",
+          "value": "2021年秋季"
+        },
+        {
+          "label": "拍卖机构",
+          "value": "北京市的嘉德"
+        }
+      ],
+      "dimensions": [
+        {
+          "label": "举办时间",
+          "state": "caliber",
+          "weight": 0.7,
+          "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量"
+        },
+        {
+          "label": "拍卖机构",
+          "state": "exact",
+          "weight": 1,
+          "note": "同一机构，地点限定词一致"
+        }
+      ],
+      "score": 1.7,
+      "grade": "strong",
+      "basis": "「拍卖机构」「举办时间」在各自维度上对上（累计 1.7，≥ 1.2）",
+      "conflictDimensions": [],
+      "summary": "时间这一维只到「口径相容」（很可能是同一场，只是说法不同），机构这一维完全对上；累计 1.7 分、两维都过线，所以是强坐标。要看清楚：强坐标不等于每一项都「完全对上」，这里的时间就只是口径相容。"
+    },
+    {
+      "id": "derived-autumn-dec",
+      "title": "秋季 对 12月5日",
+      "claim": [
+        {
+          "label": "举办时间",
+          "value": "2021年12月5日"
+        }
+      ],
+      "evidence": [
+        {
+          "label": "举办时间",
+          "value": "2021年秋季"
+        }
+      ],
+      "dimensions": [
+        {
+          "label": "举办时间",
+          "state": "edge",
+          "weight": 0.3,
+          "note": "只在两侧各放宽一个月的窗口边缘擦上，不等于同一件"
+        }
+      ],
+      "score": 0.3,
+      "grade": "weak",
+      "basis": "累计 0.3 分，未同时满足「≥ 1.2 且两维各过 0.7 倍上限」",
+      "conflictDimensions": [],
+      "summary": "只有这一维，且只到「边缘相容」：没有矛盾，但这不能证明。累计 0.3 分，既凑不够 1.2 分、也不满足「至少两维各过 0.7 倍上限」，所以停在弱坐标。方向也有讲究：反过来写（你说「2021年秋季」、证据写「2021年12月5日」），两个时间窗口不相交，会判成「冲突候选」，不是弱坐标。"
+    }
+  ],
   "cases": [
     {
       "id": "poly-2021-autumn",
@@ -248,7 +322,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 2,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               },
               "dateText": {
                 "fieldValue": "2021年12月5日",
@@ -259,7 +334,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 2,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               },
               "sessionName": {
                 "fieldValue": "禹贡Ⅰ—盛清御瓷新风尚",
@@ -270,7 +346,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 2,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               },
               "location": {
                 "fieldValue": "北京",
@@ -281,7 +358,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 1,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               }
             },
             "keyFieldValues": {
@@ -485,7 +563,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 2,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               },
               "dateText": {
                 "fieldValue": "2021年11月15日",
@@ -496,7 +575,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 2,
                 "notFoundCause": null,
                 "examinedPages": 2,
-                "dimensionState": null
+                "dimensionState": null,
+                "contradictorySupports": []
               },
               "sessionName": {
                 "fieldValue": "禹贡Ⅰ—盛清御瓷新风尚",
@@ -507,7 +587,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 2,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               }
             },
             "keyFieldValues": {
@@ -641,7 +722,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 1,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               },
               "dateText": {
                 "fieldValue": "2021年秋季",
@@ -652,7 +734,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 1,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               },
               "sessionName": {
                 "fieldValue": "禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
@@ -663,7 +746,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 1,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               }
             },
             "keyFieldValues": {
@@ -859,7 +943,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 2,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               },
               "dateText": {
                 "fieldValue": "2021年12月",
@@ -870,7 +955,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 2,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               },
               "sessionName": {
                 "fieldValue": "禹贡Ⅲ—盛清御瓷新风尚",
@@ -881,7 +967,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": "coverage",
                 "examinedPages": 2,
-                "dimensionState": null
+                "dimensionState": null,
+                "contradictorySupports": []
               }
             },
             "keyFieldValues": {
@@ -1122,9 +1209,9 @@ window.LODESTAR_DEMO = {
               "snapshotFile": "snapshots/page-704f73.txt",
               "fetchedAt": "2026-11-04T09:14:20.974Z",
               "note": "页面主题：介绍北京保利2024年春季艺术品拍卖会的整体成交情况及各专场拍品详情",
-              "dimension": "porcelain:sessionName",
-              "state": "mismatch",
-              "matchedValue": "6月9日-15日，北京保利2024年春季艺术品拍卖会主阶段各专场拍卖圆满收官。"
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-eff79b",
@@ -1139,9 +1226,9 @@ window.LODESTAR_DEMO = {
               "snapshotFile": "snapshots/page-6bfad1.txt",
               "fetchedAt": "2026-11-04T09:15:51.383Z",
               "note": "页面主题：盘点2022年度艺术品市场高价成交瓷器排行榜及相关拍品来源信息",
-              "dimension": "porcelain:sessionName",
-              "state": "caliber",
-              "matchedValue": "保利香港2022年秋季拍卖会，中国古董珍玩专场，Lot 3037"
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-00903b",
@@ -1156,9 +1243,9 @@ window.LODESTAR_DEMO = {
               "snapshotFile": "snapshots/page-00903b.txt",
               "fetchedAt": "2026-11-04T09:18:55.473Z",
               "note": "页面主题：该页面讲的是北京保利2022年秋季艺术品拍卖会（含中国古董珍玩专场）的日程安排与拍品介绍",
-              "dimension": "porcelain:sessionName",
-              "state": "mismatch",
-              "matchedValue": "北京保利2022秋季艺术品拍卖会"
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             }
           ],
           "computation": {
@@ -1174,18 +1261,26 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": "coverage",
                 "examinedPages": 2,
-                "dimensionState": null
+                "dimensionState": null,
+                "contradictorySupports": []
               },
               "dateText": {
                 "fieldValue": "2022年7月14日",
                 "claimId": "cl-rec-20261104-f584a0-dateText",
                 "verdict": "supported",
                 "evidenceGrade": "E1",
-                "supportCount": 1,
+                "supportCount": 0,
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 4,
-                "dimensionState": "conflict"
+                "dimensionState": "conflict",
+                "contradictorySupports": [
+                  {
+                    "matchedValue": "2022年秋季",
+                    "quote": "保利香港2022年秋季拍卖会，中国古董珍玩专场，Lot 3037",
+                    "url": "http://wx.ttp.51bidlive.com/news/detail?id=4814"
+                  }
+                ]
               },
               "sessionName": {
                 "fieldValue": "中國古董珍玩專場",
@@ -1196,7 +1291,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 3,
-                "dimensionState": "caliber"
+                "dimensionState": "unknown",
+                "contradictorySupports": []
               }
             },
             "keyFieldValues": {
@@ -1218,6 +1314,12 @@ window.LODESTAR_DEMO = {
               ],
               "entries": [
                 {
+                  "dimension": "field:sessionName",
+                  "label": "sessionName",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
                   "dimension": "porcelain:auctionHouse",
                   "label": "auctionHouse",
                   "state": "conflict",
@@ -1227,12 +1329,6 @@ window.LODESTAR_DEMO = {
                   "dimension": "porcelain:dateText",
                   "label": "dateText",
                   "state": "conflict",
-                  "cap": 1
-                },
-                {
-                  "dimension": "porcelain:sessionName",
-                  "label": "sessionName",
-                  "state": "caliber",
                   "cap": 1
                 }
               ]
@@ -1459,7 +1555,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 2,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               },
               "dateText": {
                 "fieldValue": "2021年12月5日",
@@ -1470,7 +1567,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 4,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               },
               "sessionName": {
                 "fieldValue": "禹贡Ⅰ—盛清御瓷新风尚",
@@ -1481,7 +1579,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 2,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               }
             },
             "keyFieldValues": {
@@ -1814,7 +1913,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 5,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               },
               "dateText": {
                 "fieldValue": "2021年12月5日",
@@ -1825,7 +1925,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 4,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               },
               "sessionName": {
                 "fieldValue": "禹贡Ⅰ—盛清御瓷新风尚",
@@ -1836,7 +1937,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 2,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               }
             },
             "keyFieldValues": {
@@ -2025,9 +2127,9 @@ window.LODESTAR_DEMO = {
               "snapshotFile": "snapshots/page-5be883.txt",
               "fetchedAt": "2026-11-04T09:24:40.409Z",
               "note": "页面主题：该页面展示的是中国嘉德2026年秋季拍卖会的各专场日程与拍品信息。",
-              "dimension": "porcelain:sessionName",
-              "state": "mismatch",
-              "matchedValue": "中国嘉德2026年秋季拍卖会"
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-eaf075",
@@ -2042,9 +2144,9 @@ window.LODESTAR_DEMO = {
               "snapshotFile": "snapshots/page-16465e.txt",
               "fetchedAt": "2026-11-04T09:25:47.222Z",
               "note": "页面主题：该页面介绍的是中国嘉德2021年春季拍卖会“宸赏—明清御瓷珍玩”专场的预展安排与部分拍品详情。",
-              "dimension": "porcelain:sessionName",
-              "state": "mismatch",
-              "matchedValue": "中国嘉德2021春季拍卖会"
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-ac7935",
@@ -2077,7 +2179,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": "coverage",
                 "examinedPages": 2,
-                "dimensionState": null
+                "dimensionState": null,
+                "contradictorySupports": []
               },
               "dateText": {
                 "fieldValue": "2021年11月26日至12月13日",
@@ -2088,7 +2191,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 1,
                 "notFoundCause": null,
                 "examinedPages": 1,
-                "dimensionState": null
+                "dimensionState": null,
+                "contradictorySupports": []
               },
               "sessionName": {
                 "fieldValue": "宸赏—明清御瓷珍玩",
@@ -2099,7 +2203,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 3,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               }
             },
             "keyFieldValues": {
@@ -2333,18 +2438,26 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": "coverage",
                 "examinedPages": 2,
-                "dimensionState": null
+                "dimensionState": null,
+                "contradictorySupports": []
               },
               "dateText": {
                 "fieldValue": "2025年8月16日20时—8月22日24时",
                 "claimId": "cl-rec-20261104-9863c4-dateText",
                 "verdict": "supported",
                 "evidenceGrade": "E1",
-                "supportCount": 1,
+                "supportCount": 0,
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 3,
-                "dimensionState": "conflict"
+                "dimensionState": "conflict",
+                "contradictorySupports": [
+                  {
+                    "matchedValue": "2025年8月13日",
+                    "quote": "8.递藏之趣专场预展时间：2025年8月13日10时—8月16日20时；拍卖时间：2025年8月16日20时—8月22日24时；",
+                    "url": "https://wwj.beijing.gov.cn/bjww/362749/362751/cs88/743733485/index.html"
+                  }
+                ]
               },
               "sessionName": {
                 "fieldValue": "递藏之趣专场",
@@ -2355,7 +2468,8 @@ window.LODESTAR_DEMO = {
                 "refuteCount": 0,
                 "notFoundCause": null,
                 "examinedPages": 1,
-                "dimensionState": "exact"
+                "dimensionState": "exact",
+                "contradictorySupports": []
               }
             },
             "keyFieldValues": {

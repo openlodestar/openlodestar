@@ -264,6 +264,16 @@
       );
     }
 
+    (field.contradictorySupports || []).forEach(function (row) {
+      parts.push(
+        '<p class="contradiction">' +
+          '<strong>模型裁决与判据不一致</strong>：模型把这一页判成「支持」，但判据层认定原文值与断言冲突' +
+          (row.matchedValue ? '（原文值 <code>' + escapeHtml(row.matchedValue) + '</code>）' : '') +
+          '。按「判据优先」，这一行不计入支持、也不进累计分；模型原来的裁决与原文都保留在下面，供审计回看。' +
+          '</p>'
+      );
+    });
+
     parts.push('<div class="evidence">');
     if (field.evidence.length === 0) {
       parts.push('<p class="empty">这个字段一条证据行都没有：这批页面查过了，但没有一处提到它。</p>');
@@ -441,6 +451,70 @@
     }
   });
 
+  /**
+   * 按规则推演的对照示例：页面只说"规则会怎么判"，不把它伪装成采集记录。
+   * 数据是构建时用引擎的维度函数与门禁算好写进 demo-data.js 的，页面不再重算。
+   */
+  function renderDerived() {
+    var target = document.getElementById('derived-grid');
+    if (!target) return;
+    var examples = data.derivedExamples || [];
+    var labels = api.DIMENSION_STATE_LABELS || {};
+    target.innerHTML = examples
+      .map(function (example) {
+        var parts = [];
+        parts.push('<article class="derived-card">');
+        parts.push('<h3>' + escapeHtml(example.title) + '</h3>');
+        parts.push(
+          '<div class="derived-pair"><span class="derived-label">你写的</span><span>' +
+            example.claim
+              .map(function (item) {
+                return escapeHtml(item.label + '：' + item.value);
+              })
+              .join(' · ') +
+            '</span></div>'
+        );
+        parts.push(
+          '<div class="derived-pair"><span class="derived-label">证据里写的</span><span>' +
+            example.evidence
+              .map(function (item) {
+                return escapeHtml(item.label + '：' + item.value);
+              })
+              .join(' · ') +
+            '</span></div>'
+        );
+        parts.push('<div class="derived-dims">');
+        example.dimensions.forEach(function (dimension) {
+          parts.push(
+            '<div class="derived-dim"><span>' +
+              escapeHtml(dimension.label) +
+              '</span><span class="dim dim-' +
+              escapeHtml(dimension.state) +
+              '">' +
+              escapeHtml(labels[dimension.state] || dimension.state) +
+              '</span><span class="derived-weight">折算 ' +
+              dimension.weight +
+              '</span></div>'
+          );
+        });
+        parts.push('</div>');
+        parts.push(
+          '<div class="derived-result"><span class="badge badge-' +
+            escapeHtml(example.grade) +
+            '">' +
+            escapeHtml(BUCKET_LABELS[example.grade] || example.grade) +
+            '</span><span>累计 ' +
+            example.score +
+            ' 分</span></div>'
+        );
+        parts.push('<p class="derived-summary">' + escapeHtml(example.summary) + '</p>');
+        parts.push('</article>');
+        return parts.join('');
+      })
+      .join('');
+  }
+
   renderLegend();
+  renderDerived();
   renderAll();
 })();

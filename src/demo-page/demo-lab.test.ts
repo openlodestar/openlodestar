@@ -2,12 +2,15 @@
 /**
  * 小游戏页与冻结组合矩阵的一致性测试（离线、零模型调用）
  *
- * 守四件事：
- * 1. 页面上的每条组合都能在冻结数据里逐条对上：裁决、门禁、共现、坐标、证据条数一致；
- * 2. 「有记录可查」与「这批证据没覆盖」是两种不同状态——没覆盖的组合不许挂任何记录，
- *    更不许显示成「被拒收」；被反驳的组合必须真的有一条 refutes 证据；
- * 3. 换一个槽位就能跨到另一条记录/没覆盖，证明页面没有偷偷继承旧证据；
- * 4. 组合数 × 覆盖数的读数与冻结矩阵一致，且组合总数不超过 100。
+ * 这一版小游戏不再按字面拼四个值，而是拿玩家写的词与冻结证据里的原文值**逐维比对**。
+ * 测试守六件事：
+ *
+ * 1. 每个槽位至少两个候选；标了「演示用词」的值确实不在冻结数据里出现过；
+ * 2. 组合矩阵里每一维的状态都能用引擎自己的维度函数复算出来（页面不另写一套规则）；
+ * 3. 组合级结论取最差的那一维：有一维只到口径相容，就不会被组合级的强坐标盖掉；
+ * 4. 至少两个维度达到「口径相容」及以上才算覆盖，否则不许挂记录、不许继承证据；
+ * 5. 六种维度状态与八种结论在矩阵里都真实可达（各至少一组），「只找到相容证据」不是摆设；
+ * 6. 文案纪律：口径相容不许写成「对/一致/匹配」，边缘相容必须是「没有矛盾，但这不能证明」。
  */
 
 import fs from 'node:fs';
@@ -15,12 +18,25 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import { quoteMatches } from '../lodestar/adjudicate/compare';
+import { compareInstitutionDimension } from '../lodestar/dimensions/institution';
+import { compareTimeDimension } from '../lodestar/dimensions/time';
+import { compareTextDimension } from '../lodestar/dimensions/text';
+import type { EvidenceDimensionState } from '../lodestar/types';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
 const DOCS = path.join(ROOT, 'docs');
 
-type SlotKey = 'auctionHouse' | 'dateText' | 'sessionPrefix' | 'sessionSubtitle';
+type SlotKey = 'auctionHouse' | 'dateText' | 'sessionName';
 type Bucket = 'strong' | 'weak' | 'refuted' | 'not_found';
+type ConclusionCode =
+  | 'strong'
+  | 'weak'
+  | 'caliber'
+  | 'edge'
+  | 'conflict'
+  | 'mismatch'
+  | 'unknown'
+  | 'uncovered';
 
 interface DemoField {
   key: string;
@@ -42,6 +58,9 @@ interface DemoEvidence {
   snapshotFile: string;
   fetchedAt: string;
   note: string | null;
+  dimension: string | null;
+  state: EvidenceDimensionState;
+  matchedValue: string | null;
 }
 
 interface DemoFieldVerdict {
@@ -53,6 +72,8 @@ interface DemoFieldVerdict {
   refuteCount: number;
   notFoundCause: string | null;
   examinedPages: number;
+  dimensionState: EvidenceDimensionState | null;
+  contradictorySupports: Array<{ matchedValue: string | null; quote: string; url: string }>;
 }
 
 interface DemoRecord {
@@ -87,62 +108,44 @@ interface DemoCase {
   records: DemoRecord[];
 }
 
+interface DemoDerivedExample {
+  id: string;
+  title: string;
+  claim: Array<{ label: string; value: string }>;
+  evidence: Array<{ label: string; value: string }>;
+  dimensions: Array<{ label: string; state: EvidenceDimensionState; weight: number; note: string }>;
+  score: number;
+  grade: 'strong' | 'weak';
+  summary: string;
+}
+
 interface DemoData {
   generatedAt: string;
   buckets: Record<Bucket, number>;
+  derivedExamples: DemoDerivedExample[];
   cases: DemoCase[];
 }
 
-interface DemoMatchApi {
-  matchEvidence: (record: DemoRecord, field: DemoField) => DemoEvidence[];
-  buildView: (record: DemoRecord) => RecordView;
-  verdictLabel: (verdict: string | undefined) => string;
-}
-
-interface FieldView {
-  key: string;
-  label: string;
-  role: 'key' | 'secondary';
+interface GameSlotOption {
   value: string;
-  state: 'covered' | 'uncovered';
-  verdict?: string;
-  supportCount?: number;
-  refuteCount?: number;
-  evidenceGrade?: string;
-  notFoundCause?: string | null;
-  examinedPages?: number;
-  evidence: DemoEvidence[];
+  demoOnly: boolean;
+  note: string;
 }
 
-interface RecordView {
-  gate: 'strong' | 'weak' | 'rejected' | 'uncovered';
-  bucket: string;
-  reason: string;
-  fields: FieldView[];
-  cooccurrence: { count: number; pages: string[] };
-  anchor: {
-    grade: string;
-    evidenceGrade: string;
-    urls: string[];
-    searchPhrases: string[];
-    stale: boolean;
-  } | null;
+interface GameSlot {
+  key: SlotKey;
+  label: string;
+  options: GameSlotOption[];
 }
 
-interface GameComputation {
-  gate: 'strong' | 'weak' | 'rejected';
-  bucket: Bucket;
-  keyFieldValues: Record<string, string>;
-  fieldVerdicts: Record<string, DemoFieldVerdict>;
-  cooccurrence: { count: number; pages: string[] };
-  anchor: {
-    grade: 'strong' | 'weak';
-    evidenceGrade: string;
-    urls: string[];
-    searchPhrases: string[];
-    stale: boolean;
-  } | null;
-  evidenceCount: number;
+interface GameDimension {
+  slot: SlotKey;
+  label: string;
+  value: string;
+  evidenceValue: string | null;
+  state: EvidenceDimensionState;
+  note: string;
+  demoOnly: boolean;
 }
 
 interface GameCombo {
@@ -153,79 +156,79 @@ interface GameCombo {
   status: 'covered' | 'uncovered';
   recordId: string | null;
   caseId: string | null;
-  matched: Array<{ recordId: string; caseId: string; gate: string; bucket: Bucket }>;
-  computation: GameComputation | null;
-}
-
-interface GameTriple {
-  auctionHouse: string;
-  sessionPrefix: string;
-  sessionSubtitle: string;
+  recordTitle: string | null;
+  gate: 'strong' | 'weak' | 'rejected' | null;
+  bucket: Bucket | null;
+  dimensions: GameDimension[];
+  conclusion: { code: ConclusionCode; label: string; hint: string; score: number; basis: string };
+  matched: Array<{ recordId: string; caseId: string; bucket: Bucket; score: number }>;
 }
 
 interface GameData {
   generatedAt: string;
   generator: string;
   note: string;
-  slots: Array<{ key: SlotKey; label: string; options: string[] }>;
-  triples: GameTriple[];
+  slots: GameSlot[];
   combos: GameCombo[];
   stats: {
     total: number;
     covered: number;
     uncovered: number;
-    byStatus: Record<Bucket, number>;
+    byConclusion: Record<ConclusionCode, number>;
     maxCombos: number;
   };
 }
 
 interface GameResolveResult {
-  status: Bucket | 'uncovered';
+  status: ConclusionCode;
   label: string;
   hint: string;
   reason: string;
   combo: GameCombo | null;
   record: DemoRecord | null;
-  view: RecordView | null;
+  view: Record<string, unknown> | null;
+  dimensions: GameDimension[];
 }
 
 interface GameApi {
   SLOT_KEYS: SlotKey[];
-  STATUS_LABELS: Record<Bucket | 'uncovered', string>;
-  STATUS_SHORT: Record<Bucket | 'uncovered', string>;
-  STATUS_HINTS: Record<Bucket | 'uncovered', string>;
+  CONCLUSION_LABELS: Record<ConclusionCode, string>;
+  CONCLUSION_SHORT: Record<ConclusionCode, string>;
+  CONCLUSION_HINTS: Record<ConclusionCode, string>;
+  DEMO_ONLY_LEGEND: string;
   comboKey: (values: Record<SlotKey, string>) => string;
-  tripleKeyOf: (triple: GameTriple) => string;
-  slotOptions: (
-    data: GameData,
-    values: Record<SlotKey, string>,
-    slotKey: SlotKey,
-  ) => string[];
   findCombo: (data: GameData, values: Record<SlotKey, string>) => GameCombo | null;
-  recordIndex: (data: DemoData) => Record<string, DemoRecord>;
+  slotOptions: (data: GameData, slotKey: SlotKey) => GameSlotOption[];
+  optionOf: (data: GameData, slotKey: SlotKey, value: string) => GameSlotOption | null;
+  isDemoOnly: (data: GameData, slotKey: SlotKey, value: string) => boolean;
+  dimensionLabel: (state: EvidenceDimensionState) => string;
+  worstDimension: (dimensions: GameDimension[]) => GameDimension | null;
   resolve: (data: GameData, demo: DemoData, values: Record<SlotKey, string>) => GameResolveResult;
-  coverage: (data: GameData) => {
-    total: number;
-    covered: number;
-    uncovered: number;
-    byStatus: Record<Bucket, number>;
-  };
   substitutionStatus: (
     data: GameData,
     demo: DemoData,
     values: Record<SlotKey, string>,
     slotKey: SlotKey,
-    option: string,
-  ) => Bucket | 'uncovered';
-  distanceOf: (a: Record<SlotKey, string>, b: Record<SlotKey, string>) => number;
+    value: string,
+  ) => ConclusionCode;
+  substitutionDimension: (
+    data: GameData,
+    demo: DemoData,
+    values: Record<SlotKey, string>,
+    slotKey: SlotKey,
+    value: string,
+  ) => { state: EvidenceDimensionState | 'uncovered'; conclusion: ConclusionCode; label: string };
+  coverage: (data: GameData) => GameData['stats'];
+  representatives: (data: GameData) => GameCombo[];
   nearbyCovered: (
     data: GameData,
     values: Record<SlotKey, string>,
     limit?: number,
-  ) => Array<{ id: string; values: Record<SlotKey, string>; status: Bucket; distance: number }>;
+  ) => Array<{ id: string; values: Record<SlotKey, string>; status: ConclusionCode }>;
+  recordIndex: (demo: DemoData) => Record<string, DemoRecord>;
 }
 
-function loadPageScripts(): { demo: DemoData; game: GameData; match: DemoMatchApi; api: GameApi } {
+function loadPageScripts(): { demo: DemoData; game: GameData; api: GameApi } {
   const sandbox: { window: Record<string, unknown> } = { window: {} };
   vm.createContext(sandbox);
   for (const file of [
@@ -234,25 +237,21 @@ function loadPageScripts(): { demo: DemoData; game: GameData; match: DemoMatchAp
     'assets/demo-game-data.js',
     'assets/demo-game-match.js',
   ]) {
-    const code = fs.readFileSync(path.join(DOCS, file), 'utf8');
-    vm.runInContext(code, sandbox, { filename: file });
+    vm.runInContext(fs.readFileSync(path.join(DOCS, file), 'utf8'), sandbox, { filename: file });
   }
   return {
     demo: sandbox.window.LODESTAR_DEMO as DemoData,
     game: sandbox.window.LODESTAR_DEMO_GAME as GameData,
-    match: sandbox.window.LODESTAR_MATCH as DemoMatchApi,
     api: sandbox.window.LODESTAR_GAME as GameApi,
   };
 }
 
-const { demo, game, match, api } = loadPageScripts();
+const { demo, game, api } = loadPageScripts();
 
-const SESSION_SEPARATOR = '—';
 const INITIAL_VALUES: Record<SlotKey, string> = {
   auctionHouse: '北京保利',
   dateText: '2021年12月5日',
-  sessionPrefix: '禹贡Ⅰ',
-  sessionSubtitle: '盛清御瓷新风尚',
+  sessionName: '禹贡Ⅰ—盛清御瓷新风尚',
 };
 
 function allRecords(): DemoRecord[] {
@@ -263,47 +262,24 @@ function recordById(): Map<string, DemoRecord> {
   return new Map(allRecords().map((record) => [record.recordId, record]));
 }
 
-/** 记录的四个关键取值（专场名拆成主名与副题） */
-function keyValuesOf(record: DemoRecord): Record<SlotKey, string> | null {
-  const byKey = new Map(record.fields.map((field) => [field.key, field.value]));
-  const house = byKey.get('auctionHouse') ?? '';
-  const date = byKey.get('dateText') ?? '';
-  const session = byKey.get('sessionName') ?? '';
-  const at = session.indexOf(SESSION_SEPARATOR);
-  if (house === '' || date === '' || at <= 0) return null;
-  return {
-    auctionHouse: house,
-    dateText: date,
-    sessionPrefix: session.slice(0, at),
-    sessionSubtitle: session.slice(at + SESSION_SEPARATOR.length),
-  };
-}
-
-function comboKeyOf(values: Record<SlotKey, string>): string {
-  return [
-    values.auctionHouse,
-    values.dateText,
-    values.sessionPrefix,
-    values.sessionSubtitle,
-  ].join('\u0000');
-}
-
 function coveredCombos(): GameCombo[] {
   return game.combos.filter((combo) => combo.status === 'covered');
 }
 
-function uncoveredCombos(): GameCombo[] {
-  return game.combos.filter((combo) => combo.status === 'uncovered');
-}
-
-function comboIn(bucket: Bucket): GameCombo {
-  const combo = coveredCombos().find((item) => item.computation?.bucket === bucket);
-  expect(combo, `没有 ${bucket} 的覆盖组合`).toBeDefined();
+function comboOf(code: ConclusionCode): GameCombo {
+  const combo = game.combos.find((item) => item.conclusion.code === code);
+  expect(combo, `没有任何一组组合走到「${code}」`).toBeDefined();
   return combo as GameCombo;
 }
 
 function edited(values: Partial<Record<SlotKey, string>>): Record<SlotKey, string> {
   return { ...INITIAL_VALUES, ...values };
+}
+
+function compareSlot(slot: SlotKey, claim: string, evidence: string): { state: EvidenceDimensionState } {
+  if (slot === 'auctionHouse') return compareInstitutionDimension(claim, evidence);
+  if (slot === 'dateText') return compareTimeDimension(claim, evidence);
+  return compareTextDimension(claim, evidence);
 }
 
 describe('页面装载与离线约束', () => {
@@ -321,17 +297,16 @@ describe('页面装载与离线约束', () => {
     }
     expect(html).not.toContain('type="module"');
     expect(html).not.toContain('<form');
-    // 内联事件处理器一律不许出现（aria-* 不算）
     expect(/\son[a-z]+\s*=/i.test(html)).toBe(false);
     expect(html).toContain('id="verdict"');
     expect(html).toContain('aria-live="polite"');
-    // 改词即出结论：没有单独的「识别」按钮，也没有第二套词库与拖拽
     expect(html).not.toContain('id="identify"');
     expect(html).not.toContain('word-bank');
     const labSource = fs.readFileSync(path.join(DOCS, 'assets/demo-lab.js'), 'utf8');
     expect(labSource).not.toContain('pointermove');
     expect(labSource).not.toContain('drag');
-    expect(labSource).toContain('substitutionStatus');
+    // 候选小标读"这一维"的判据，不是整句结论——所以要调 substitutionDimension
+    expect(labSource).toContain('substitutionDimension');
     expect(labSource).toContain('nearbyCovered');
     const dataScript = fs.readFileSync(path.join(DOCS, 'assets/demo-game-data.js'), 'utf8');
     expect(/^(?:\/\/[^\n]*\n)*window\.LODESTAR_DEMO_GAME = /.test(dataScript)).toBe(true);
@@ -349,459 +324,441 @@ describe('页面装载与离线约束', () => {
     expect(demoHtml).not.toContain('LODESTAR_DEMO_GAME');
     expect(demoHtml).not.toContain('demo-game');
     expect(demoHtml).not.toContain('demo-lab.js');
-    // demo-lab 只允许作为顶栏里的相对链接出现一次，不能被塞进页面逻辑
     expect((demoHtml.match(/demo-lab/g) ?? []).length).toBe(1);
     expect(demoHtml).toContain('<a href="demo-lab.html">小游戏</a>');
   });
 
-  it('五个结论各有独立的标签，没覆盖不会被写成拒收', () => {
-    expect(api.STATUS_LABELS.strong).toBe('强坐标');
-    expect(api.STATUS_LABELS.weak).toContain('弱坐标');
-    expect(api.STATUS_LABELS.refuted).toBe('被反驳');
-    expect(api.STATUS_LABELS.not_found).toContain('查过');
-    expect(api.STATUS_LABELS.uncovered).toBe('这批证据没覆盖');
-    for (const label of Object.values(api.STATUS_LABELS)) {
+  it('八种结论各有独立标签，没覆盖不会被写成拒收', () => {
+    expect(api.CONCLUSION_LABELS.strong).toBe('强坐标');
+    expect(api.CONCLUSION_LABELS.weak).toBe('弱坐标');
+    expect(api.CONCLUSION_LABELS.caliber).toBe('只找到相容证据');
+    expect(api.CONCLUSION_LABELS.edge).toBe('没有矛盾，但这不能证明');
+    expect(api.CONCLUSION_LABELS.conflict).toBe('冲突候选');
+    expect(api.CONCLUSION_LABELS.uncovered).toBe('这批证据没覆盖');
+    for (const label of Object.values(api.CONCLUSION_LABELS)) {
       expect(label).not.toContain('拒收');
-      expect(label).not.toMatch(/^对$/);
     }
   });
 });
 
-describe('槽位与组合矩阵', () => {
-  it('四个槽位，候选按真实三元组收窄；组合数 = 三元组 × 时间，且不超过 100', () => {
+describe('槽位候选：每个槽至少两个，演示用词必须标出来', () => {
+  it('三个槽位各有至少两个候选，且互不重复', () => {
     expect(game.slots.map((slot) => slot.key)).toEqual(api.SLOT_KEYS);
     for (const slot of game.slots) {
-      expect(slot.options.length).toBeGreaterThanOrEqual(1);
-      expect(slot.options.length).toBeLessThanOrEqual(4);
-      expect(new Set(slot.options).size).toBe(slot.options.length);
+      expect(slot.options.length, `${slot.label} 候选不足 2 个`).toBeGreaterThanOrEqual(2);
+      expect(new Set(slot.options.map((option) => option.value)).size).toBe(slot.options.length);
+      for (const option of slot.options) {
+        expect(option.note.length).toBeGreaterThan(0);
+      }
     }
-    const dates = game.slots.find((slot) => slot.key === 'dateText')?.options ?? [];
-    expect(game.triples.length).toBe(3);
-    expect(game.combos.length).toBe(game.triples.length * dates.length);
-    expect(game.combos.length).toBe(12);
+  });
+
+  it('演示用词确实不在冻结数据里出现过，非演示用词必须能逐字找到', () => {
+    const records = allRecords();
+    for (const slot of game.slots) {
+      for (const option of slot.options) {
+        const appears = records.some((record) =>
+          record.fields.some((field) => field.key === slot.key && field.value === option.value),
+        );
+        if (option.demoOnly) {
+          expect(appears, `「${option.value}」标了演示用词，却真的出现在冻结数据里`).toBe(false);
+        } else {
+          expect(appears, `「${option.value}」不是演示用词，但冻结数据里找不到`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('至少一个槽位带演示用词，且页面写明它是什么', () => {
+    const demoOptions = game.slots.flatMap((slot) =>
+      slot.options.filter((option) => option.demoOnly).map((option) => ({ slot, option })),
+    );
+    expect(demoOptions.length).toBeGreaterThan(0);
+    expect(api.DEMO_ONLY_LEGEND).toContain('演示用词');
+    const html = fs.readFileSync(path.join(DOCS, 'demo-lab.html'), 'utf8');
+    expect(html).toContain('演示用词');
+    const labSource = fs.readFileSync(path.join(DOCS, 'assets', 'demo-lab.js'), 'utf8');
+    expect(labSource).toContain('demoTag()');
+    expect(labSource).toContain('option.demoOnly');
+  });
+});
+
+describe('组合矩阵：逐维状态由引擎复算，结论取最差的那一维', () => {
+  it('组合总量不超过 100，组合键唯一，句子由三个取值拼成', () => {
     expect(game.combos.length).toBeLessThanOrEqual(100);
     expect(game.stats.total).toBe(game.combos.length);
     expect(game.stats.maxCombos).toBe(100);
-  });
-
-  it('每个组合的三元组都真实出现过；嘉德与错配的副题不再进矩阵', () => {
-    const real = new Set(game.triples.map((triple) => api.tripleKeyOf(triple)));
-    for (const combo of game.combos) {
-      expect(real.has(api.tripleKeyOf(combo.values)), `组合 ${combo.id} 的三元组不在真实共现表里`).toBe(
-        true,
-      );
-    }
-    // 三元组本身也必须真的在冻结记录里出现过，不能靠拼接造出来
-    const frozen = allRecords()
-      .map(keyValuesOf)
-      .filter((values): values is Record<SlotKey, string> => values !== null);
-    for (const triple of game.triples) {
-      const seen = frozen.some(
-        (values) =>
-          values.auctionHouse === triple.auctionHouse &&
-          values.sessionPrefix === triple.sessionPrefix &&
-          values.sessionSubtitle === triple.sessionSubtitle,
-      );
-      expect(seen, `三元组 ${api.tripleKeyOf(triple)} 没有在冻结数据里出现过`).toBe(true);
-    }
-    // 机构槽只剩保利：嘉德唯一的真实场次（宸赏—明清御瓷珍玩）时间不在四个时间候选里
-    expect(game.slots.find((slot) => slot.key === 'auctionHouse')?.options).toEqual(['北京保利']);
-    expect(game.combos.some((combo) => combo.values.auctionHouse.includes('嘉德'))).toBe(false);
-    // 禹贡Ⅱ 只能用「郎世宁」、Ⅲ 只能用「盛清」这类错配不许再出现在组合里
-    expect(
-      game.combos.some(
-        (combo) =>
-          combo.values.sessionPrefix === '禹贡Ⅱ' &&
-          combo.values.sessionSubtitle === '盛清御瓷新风尚',
-      ),
-    ).toBe(false);
-    expect(
-      game.combos.some(
-        (combo) =>
-          combo.values.sessionPrefix === '禹贡Ⅲ' &&
-          combo.values.sessionSubtitle.includes('郎世宁'),
-      ),
-    ).toBe(false);
-  });
-
-  it('换某个槽的候选项，必须能和另外两个已选词构成真实三元组', () => {
-    const dates = game.slots.find((slot) => slot.key === 'dateText')?.options ?? [];
-    expect(api.slotOptions(game, INITIAL_VALUES, 'auctionHouse')).toEqual(['北京保利']);
-    expect(api.slotOptions(game, INITIAL_VALUES, 'sessionPrefix')).toEqual(['禹贡Ⅰ', '禹贡Ⅲ']);
-    expect(api.slotOptions(game, INITIAL_VALUES, 'sessionSubtitle')).toEqual(['盛清御瓷新风尚']);
-    expect(api.slotOptions(game, INITIAL_VALUES, 'dateText')).toEqual(dates);
-
-    const weak = comboIn('weak');
-    expect(api.slotOptions(game, weak.values, 'sessionPrefix')).toEqual(['禹贡Ⅱ']);
-    expect(api.slotOptions(game, weak.values, 'sessionSubtitle')).toEqual([
-      weak.values.sessionSubtitle,
-    ]);
-    expect(api.slotOptions(game, weak.values, 'auctionHouse')).toEqual(['北京保利']);
-
-    // 任何状态下给出的候选，拼起来都必须仍是一张真实三元组
-    for (const combo of game.combos) {
-      for (const slot of game.slots) {
-        for (const option of api.slotOptions(game, combo.values, slot.key)) {
-          const probe = { ...combo.values, [slot.key]: option };
-          expect(
-            game.triples.some(
-              (triple) => api.tripleKeyOf(triple) === api.tripleKeyOf(probe),
-            ),
-            `状态 ${combo.id} 的 ${slot.label} 候选「${option}」拼不成真实三元组`,
-          ).toBe(true);
-        }
-      }
-    }
-  });
-
-  it('每个选项都真的在冻结数据里出现过，没有凭空造值', () => {
-    const frozen = allRecords()
-      .map(keyValuesOf)
-      .filter((values): values is Record<SlotKey, string> => values !== null);
-    for (const slot of game.slots) {
-      for (const option of slot.options) {
-        const seen = frozen.some((values) => values[slot.key] === option);
-        expect(seen, `槽位 ${slot.label} 的「${option}」没有在冻结数据里出现过`).toBe(true);
-      }
-    }
-  });
-
-  it('每条组合的取值都来自对应槽位的选项，且组合键唯一', () => {
     const keys = new Set<string>();
     for (const combo of game.combos) {
+      expect(keys.has(combo.key)).toBe(false);
+      keys.add(combo.key);
+      expect(combo.key).toBe(api.comboKey(combo.values));
       for (const slot of game.slots) {
-        expect(slot.options).toContain(combo.values[slot.key]);
+        expect(slot.options.map((option) => option.value)).toContain(combo.values[slot.key]);
       }
-      const key = comboKeyOf(combo.values);
-      expect(combo.key).toBe(key);
-      expect(api.comboKey(combo.values)).toBe(key);
-      expect(keys.has(key), `组合键重复：${combo.id}`).toBe(false);
-      keys.add(key);
       expect(combo.sentence).toContain(combo.values.auctionHouse);
       expect(combo.sentence).toContain(combo.values.dateText);
-      expect(combo.sentence).toContain(
-        `${combo.values.sessionPrefix}${SESSION_SEPARATOR}${combo.values.sessionSubtitle}`,
+      expect(combo.sentence).toContain(combo.values.sessionName);
+    }
+  });
+
+  it('每一维的状态都能用引擎的维度函数复算出来', () => {
+    const records = recordById();
+    for (const combo of game.combos) {
+      expect(combo.dimensions.length).toBe(3);
+      for (const dimension of combo.dimensions) {
+        expect(dimension.demoOnly).toBe(
+          api.isDemoOnly(game, dimension.slot, dimension.value),
+        );
+        if (dimension.evidenceValue === null) {
+          expect(dimension.state).toBe('unknown');
+          continue;
+        }
+        const recomputed = compareSlot(
+          dimension.slot,
+          dimension.value,
+          dimension.evidenceValue,
+        );
+        expect(
+          recomputed.state,
+          `组合 ${combo.id} 的「${dimension.label}」状态与引擎复算不一致`,
+        ).toBe(dimension.state);
+      }
+      for (const dimension of combo.dimensions) {
+        if (dimension.evidenceValue === null) continue;
+        const record = combo.recordId ? records.get(combo.recordId) : null;
+        if (!record) continue;
+        const evidenceValues = record.evidence
+          .filter((row) => row.fieldKey === dimension.slot)
+          .map((row) => row.matchedValue)
+          .filter((value): value is string => typeof value === 'string');
+        const claimValue = record.fields.find((field) => field.key === dimension.slot)?.value;
+        expect(
+          evidenceValues.includes(dimension.evidenceValue) || dimension.evidenceValue === claimValue,
+          `组合 ${combo.id} 的「${dimension.label}」原文值「${dimension.evidenceValue}」既不在证据行里、也不是断言本身`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('结论等于最差那一维：有口径相容就不能写成对上，有冲突就先否决', () => {
+    const severity: EvidenceDimensionState[] = [
+      'conflict',
+      'mismatch',
+      'unknown',
+      'edge',
+      'caliber',
+      'exact',
+    ];
+    for (const combo of game.combos) {
+      if (combo.status !== 'covered') {
+        expect(combo.conclusion.code).toBe('uncovered');
+        continue;
+      }
+      const worst = severity.find((state) =>
+        combo.dimensions.some((dimension) => dimension.state === state),
       );
+      expect(worst).toBeDefined();
+      if (worst === 'exact') {
+        expect(combo.conclusion.code).toBe(combo.gate === 'strong' ? 'strong' : 'weak');
+      } else {
+        expect(combo.conclusion.code).toBe(worst);
+      }
+      expect(api.worstDimension(combo.dimensions)?.state).toBe(worst);
+    }
+  });
+
+  it('至少两个维度到「口径相容」及以上才算覆盖', () => {
+    for (const combo of game.combos) {
+      const positive = combo.dimensions.filter(
+        (dimension) =>
+          dimension.state === 'exact' ||
+          dimension.state === 'caliber' ||
+          dimension.state === 'edge',
+      ).length;
+      expect(combo.status).toBe(positive >= 2 ? 'covered' : 'uncovered');
     }
   });
 });
 
-describe('组合矩阵与冻结数据逐条一致', () => {
-  it('覆盖组合指向的记录、门禁、共现、坐标与证据条数都对得上', () => {
+describe('覆盖组合与冻结记录逐条一致', () => {
+  it('覆盖组合指向的记录、门禁、档位、标题都对得上', () => {
     const records = recordById();
-    const sourceByUrl = new Map(
-      demo.cases.flatMap((item) => item.sources.map((source) => [source.url, source] as const)),
-    );
     for (const combo of coveredCombos()) {
       expect(combo.recordId).not.toBeNull();
-      expect(combo.computation).not.toBeNull();
-      if (!combo.recordId || !combo.computation) continue;
-      const record = records.get(combo.recordId);
+      const record = records.get(combo.recordId ?? '');
       expect(record, `组合 ${combo.id} 指向了不存在的记录 ${combo.recordId}`).toBeDefined();
       if (!record) continue;
       expect(combo.caseId).toBe(record.caseId);
-      expect(combo.computation.gate).toBe(record.computation.gate);
-      expect(combo.computation.bucket).toBe(record.bucket);
-      expect(combo.computation.keyFieldValues).toEqual(record.computation.keyFieldValues);
-      expect(combo.computation.cooccurrence).toEqual(record.computation.cooccurrence);
-      expect(combo.computation.anchor).toEqual(record.computation.anchor);
-      expect(combo.computation.evidenceCount).toBe(record.evidence.length);
+      expect(combo.gate).toBe(record.computation.gate);
+      expect(combo.bucket).toBe(record.bucket);
+      expect(combo.recordTitle).toBe(record.title);
 
-      const values = keyValuesOf(record);
-      expect(values).not.toBeNull();
-      if (values) {
-        expect(comboKeyOf(values)).toBe(combo.key);
-        expect(comboKeyOf(values)).toBe(comboKeyOf(combo.values));
+      const resolved = api.resolve(game, demo, combo.values);
+      expect(resolved.status).toBe(combo.conclusion.code);
+      expect(resolved.label).toBe(api.CONCLUSION_LABELS[combo.conclusion.code]);
+      expect(resolved.record?.recordId).toBe(record.recordId);
+      expect(resolved.view).not.toBeNull();
+    }
+  });
+
+  it('没覆盖的组合不挂任何记录，也不继承任何证据', () => {
+    for (const combo of game.combos.filter((item) => item.status === 'uncovered')) {
+      expect(combo.recordId).toBeNull();
+      expect(combo.caseId).toBeNull();
+      expect(combo.gate).toBeNull();
+      expect(combo.bucket).toBeNull();
+      const resolved = api.resolve(game, demo, combo.values);
+      expect(resolved.status).toBe('uncovered');
+      expect(resolved.record).toBeNull();
+      expect(resolved.view).toBeNull();
+      expect(resolved.combo?.id).toBe(combo.id);
+      expect(resolved.reason).toContain('没有一条冻结记录同时在两个词上');
+    }
+  });
+
+  it('逐字子串校验照旧：原文值必须能在本行引文里逐字找到', () => {
+    for (const record of allRecords()) {
+      for (const row of record.evidence) {
+        expect(row.fetchedAt).toBeTruthy();
+        if (!row.matchedValue) continue;
+        expect(
+          row.quote.replace(/\s+/g, ' ').includes(row.matchedValue.replace(/\s+/g, ' ')),
+          `${row.evidenceId} 的原文值「${row.matchedValue}」不在本行引文里`,
+        ).toBe(true);
       }
+    }
+  });
 
-      for (const [fieldKey, verdict] of Object.entries(record.computation.fieldVerdicts)) {
-        // 组合矩阵里的字段摘要不带 claimId（页面不需要按断言号找证据），其余逐项相等
-        expect(combo.computation.fieldVerdicts[fieldKey]).toEqual({
-          fieldValue: verdict.fieldValue,
-          verdict: verdict.verdict,
-          evidenceGrade: verdict.evidenceGrade,
-          supportCount: verdict.supportCount,
-          refuteCount: verdict.refuteCount,
-          notFoundCause: verdict.notFoundCause,
-          examinedPages: verdict.examinedPages,
-        });
-        expect(verdict.fieldValue).toBe(
-          record.fields.find((field) => field.key === fieldKey)?.value,
-        );
-      }
-
-      for (const field of record.fields) {
-        const verdict = record.computation.fieldVerdicts[field.key];
-        if (!verdict) continue;
-        const rows = match.matchEvidence(record, field);
-        if (verdict.verdict !== 'not_found') {
-          expect(rows.length, `${record.recordId}/${field.key} 没有匹配证据`).toBeGreaterThan(0);
-        }
-        for (const row of rows) {
-          expect(row.fieldValue).toBe(field.value);
-          expect(row.fetchedAt, `${row.evidenceId} 缺抓取时间`).toBeTruthy();
+  it('小游戏引用的原文值所在引文，仍能在快照里找到', () => {
+    const sourceByUrl = new Map(
+      demo.cases.flatMap((item) => item.sources.map((source) => [source.url, source] as const)),
+    );
+    const records = recordById();
+    const checked = new Set<string>();
+    for (const combo of coveredCombos()) {
+      const record = records.get(combo.recordId ?? '');
+      if (!record) continue;
+      for (const dimension of combo.dimensions) {
+        if (dimension.evidenceValue === null) continue;
+        for (const row of record.evidence) {
+          if (row.fieldKey !== dimension.slot || row.matchedValue !== dimension.evidenceValue) continue;
+          if (checked.has(row.evidenceId)) continue;
+          checked.add(row.evidenceId);
           const source = sourceByUrl.get(row.url);
           expect(source, `${row.url} 没有快照节选`).toBeDefined();
           if (source) expect(quoteMatches(row.quote, source.excerpt)).toBe(true);
         }
       }
-
-      const resolved = api.resolve(game, demo, combo.values);
-      expect(resolved.status).toBe(record.bucket);
-      expect(resolved.label).toBe(api.STATUS_LABELS[record.bucket]);
-      expect(resolved.record?.recordId).toBe(record.recordId);
-      expect(resolved.view?.bucket).toBe(record.bucket);
-      expect(resolved.view?.gate).toBe(record.computation.gate);
     }
-  });
-
-  it('没覆盖的组合不挂任何记录，也不继承任何证据', () => {
-    const records = recordById();
-    for (const combo of uncoveredCombos()) {
-      expect(combo.status).toBe('uncovered');
-      expect(combo.recordId).toBeNull();
-      expect(combo.caseId).toBeNull();
-      expect(combo.computation).toBeNull();
-      expect(combo.matched).toEqual([]);
-      const matchedRecord = Array.from(records.values()).find((record) => {
-        const values = keyValuesOf(record);
-        return values !== null && comboKeyOf(values) === combo.key;
-      });
-      expect(matchedRecord, `没覆盖的组合 ${combo.id} 其实有记录`).toBeUndefined();
-
-      const resolved = api.resolve(game, demo, combo.values);
-      expect(resolved.status).toBe('uncovered');
-      expect(resolved.label).toBe('这批证据没覆盖');
-      expect(resolved.record).toBeNull();
-      expect(resolved.view).toBeNull();
-      expect(resolved.combo?.id).toBe(combo.id);
-    }
+    expect(checked.size).toBeGreaterThan(0);
   });
 });
 
-describe('单槽替换：有证据与没覆盖走两条路', () => {
-  it('把时间从 12 月 5 日换成 11 月 15 日，得到「被反驳」且有反驳引文', () => {
-    const values = edited({ dateText: '2021年11月15日' });
-    const combo = api.findCombo(game, values);
-    expect(combo, '这组替换应命中冻结记录').not.toBeNull();
-    expect(combo?.status).toBe('covered');
-    expect(combo?.computation?.bucket).toBe('refuted');
-    const resolved = api.resolve(game, demo, values);
-    expect(resolved.status).toBe('refuted');
-    expect(resolved.label).toBe('被反驳');
-    expect(resolved.view?.gate).toBe('rejected');
-    const refutes = resolved.record?.evidence.filter((row) => row.relation === 'refutes') ?? [];
-    expect(refutes.length).toBeGreaterThan(0);
-    for (const row of refutes) {
-      expect(row.quote.length).toBeGreaterThan(0);
-      expect(row.fetchedAt).toBeTruthy();
-      expect(row.fieldValue).toBeTruthy();
+describe('六种维度状态与八种结论都真实可达', () => {
+  it('六种判据状态各至少出现在一个组合里', () => {
+    for (const state of ['exact', 'caliber', 'edge', 'conflict', 'mismatch', 'unknown'] as const) {
+      const present = game.combos.some((combo) =>
+        combo.dimensions.some((dimension) => dimension.state === state),
+      );
+      expect(present, `判据状态「${api.dimensionLabel(state)}」走不到`).toBe(true);
     }
   });
 
-  it('把时间从 12 月 5 日换成秋季，显示「这批证据没覆盖」而不是拒收', () => {
-    const values = edited({ dateText: '2021年秋季' });
-    const combo = api.findCombo(game, values);
-    expect(combo, '这组替换应在矩阵里').not.toBeNull();
-    expect(combo?.status).toBe('uncovered');
-    const resolved = api.resolve(game, demo, values);
-    expect(resolved.status).toBe('uncovered');
-    expect(resolved.label).toBe('这批证据没覆盖');
-    expect(resolved.record).toBeNull();
-    expect(resolved.view).toBeNull();
-    expect(resolved.reason).toContain('没有任何一条冻结记录同时写着这四个值');
-  });
-
-  it('把时间与专场主名一起换到「查过没找到」，与被反驳、没覆盖都不同', () => {
-    const values = edited({ dateText: '2021年12月', sessionPrefix: '禹贡Ⅲ' });
-    const combo = api.findCombo(game, values);
-    expect(combo?.status).toBe('covered');
-    expect(combo?.computation?.bucket).toBe('not_found');
-    const resolved = api.resolve(game, demo, values);
-    expect(resolved.status).toBe('not_found');
-    expect(resolved.label).toBe('查过，这批证据里没有');
-    const fieldVerdicts = Object.values(resolved.record?.computation.fieldVerdicts ?? {});
-    expect(fieldVerdicts.length).toBeGreaterThan(0);
-    const sessionVerdict = resolved.record?.computation.fieldVerdicts.sessionName;
-    expect(sessionVerdict?.verdict).toBe('not_found');
-    expect(sessionVerdict?.notFoundCause).toBe('coverage');
-    // 查过但没有，与「没查过」是两回事：记录和逐字段裁决都还在
-    expect(resolved.record).not.toBeNull();
-    expect(resolved.view).not.toBeNull();
-  });
-});
-
-describe('组合数 × 覆盖数读数', () => {
-  it('统计数与矩阵现场数出来的一致', () => {
+  it('八种结论各至少有一组，且统计数与矩阵现场数出来的一致', () => {
+    const codes: ConclusionCode[] = [
+      'strong',
+      'weak',
+      'caliber',
+      'edge',
+      'conflict',
+      'mismatch',
+      'unknown',
+      'uncovered',
+    ];
+    for (const code of codes) {
+      const count = game.combos.filter((combo) => combo.conclusion.code === code).length;
+      expect(count, `结论「${api.CONCLUSION_LABELS[code]}」一组都走不到`).toBeGreaterThan(0);
+      expect(game.stats.byConclusion[code]).toBe(count);
+    }
     const stats = api.coverage(game);
     expect(stats.total).toBe(game.combos.length);
     expect(stats.covered).toBe(coveredCombos().length);
-    expect(stats.uncovered).toBe(uncoveredCombos().length);
-    expect(stats.byStatus).toEqual(game.stats.byStatus);
-    expect(stats.total).toBe(stats.covered + stats.uncovered);
+    expect(stats.uncovered).toBe(game.combos.length - coveredCombos().length);
   });
 
-  it('四类结论各有覆盖组合，并被分别断言', () => {
-    expect(game.stats.covered).toBe(4);
-    expect(game.stats.uncovered).toBe(8);
-    for (const bucket of ['strong', 'weak', 'refuted', 'not_found'] as const) {
-      expect(game.stats.byStatus[bucket], `${bucket} 没有覆盖组合`).toBe(1);
-      const combo = comboIn(bucket);
-      const record = api.recordIndex(demo)[combo.recordId ?? ''];
-      expect(record, `${bucket} 组合的记录缺失`).toBeDefined();
-      if (!record) continue;
-      if (bucket === 'refuted') {
-        expect(record.evidence.some((row) => row.relation === 'refutes')).toBe(true);
-      }
-      if (bucket === 'not_found') {
-        expect(
-          Object.values(record.computation.fieldVerdicts).some(
-            (verdict) => verdict.verdict === 'not_found',
-          ),
-        ).toBe(true);
-      }
-      if (bucket === 'strong') {
-        expect(record.computation.anchor?.grade).toBe('strong');
-      }
-      if (bucket === 'weak') {
-        expect(record.computation.cooccurrence.count).toBeGreaterThan(0);
-      }
-    }
+  it('「只找到相容证据」这一组确实有一维是口径相容、且没有任何一维冲突', () => {
+    const combo = comboOf('caliber');
+    expect(combo.dimensions.some((dimension) => dimension.state === 'caliber')).toBe(true);
+    expect(combo.dimensions.every((dimension) => dimension.state !== 'conflict')).toBe(true);
+    const resolved = api.resolve(game, demo, combo.values);
+    expect(resolved.status).toBe('caliber');
+    expect(resolved.reason).toContain('口径相容');
+    expect(resolved.reason).toContain('不能算对上');
   });
 
-  it('矩阵里的组合号不重复，按页面顺序稳定生成', () => {
-    const ids = game.combos.map((combo) => combo.id);
-    expect(new Set(ids).size).toBe(ids.length);
-    expect(ids[0]).toBe('g-01');
-    expect(ids[ids.length - 1]).toBe(`g-${String(ids.length).padStart(2, '0')}`);
+  it('「没有矛盾，但这不能证明」只出现在边缘相容那一组', () => {
+    const combo = comboOf('edge');
+    expect(combo.dimensions.some((dimension) => dimension.state === 'edge')).toBe(true);
+    expect(api.CONCLUSION_LABELS.edge).toBe('没有矛盾，但这不能证明');
+    const resolved = api.resolve(game, demo, combo.values);
+    expect(resolved.reason).toContain('没有矛盾，但这不能证明');
+  });
+
+  it('「没覆盖」不挂记录，「没对上」必须有一维的证据写的是别的值', () => {
+    const mismatch = comboOf('mismatch');
+    expect(mismatch.dimensions.some((dimension) => dimension.state === 'mismatch')).toBe(true);
+    const uncovered = comboOf('uncovered');
+    expect(uncovered.recordId).toBeNull();
   });
 });
 
-function withValue(
-  values: Record<SlotKey, string>,
-  key: SlotKey,
-  option: string,
-): Record<SlotKey, string> {
-  const next = { ...values } as Record<SlotKey, string>;
-  next[key] = option;
-  return next;
-}
-
-describe('改词即出结论：新交互的核心路径', () => {
-  it('四个槽位是可聚焦的行内元素，不是会撑高行盒的行内大盒子', () => {
+describe('改词即出结论：候选小标与真实结论一致', () => {
+  it('四个槽位改成一个词的可聚焦元素，面板是浮层', () => {
     const html = fs.readFileSync(path.join(DOCS, 'demo-lab.html'), 'utf8');
-    expect((html.match(/class="slot"/g) ?? []).length).toBe(4);
-    expect((html.match(/aria-controls="slot-options"/g) ?? []).length).toBe(4);
-    expect((html.match(/role="button" tabindex="0" data-slot=/g) ?? []).length).toBe(4);
+    expect((html.match(/class="slot"/g) ?? []).length).toBe(3);
+    expect((html.match(/aria-controls="slot-options"/g) ?? []).length).toBe(3);
+    expect((html.match(/role="button" tabindex="0" data-slot=/g) ?? []).length).toBe(3);
     expect(html).toContain('data-action="close-options"');
-    // 原生 button 在 Chromium 里 display 恒为 inline-block，它的 margin box 会撑高行盒，
-    // 所以槽位改用带 role 的 span，键盘支持改由脚本自己接
     expect(html).not.toContain('<button type="button" class="slot"');
   });
 
-  it('每个可换词的状态小标都等于真实结论，没有一处靠猜', () => {
-    const states = [
-      INITIAL_VALUES,
-      edited({ dateText: '2021年秋季' }),
-      comboIn('weak').values,
-      comboIn('not_found').values,
-    ];
+  it('每个候选的小标读的是「这一维」的判据，不是整句结论', () => {
+    const states = [INITIAL_VALUES, comboOf('caliber').values, comboOf('edge').values, comboOf('conflict').values];
     for (const values of states) {
       for (const slot of game.slots) {
-        // 只核对页面真的会列出来的候选：收窄后不在候选里的值玩家点不到
-        for (const option of api.slotOptions(game, values, slot.key)) {
-          const next = withValue(values, slot.key, option);
-          const expected = api.resolve(game, demo, next).status;
+        for (const option of slot.options) {
+          const next = { ...values, [slot.key]: option.value };
+          const combo = api.findCombo(game, next);
+          const got = api.substitutionDimension(game, demo, values, slot.key, option.value);
+          expect(got.label.length).toBeGreaterThan(0);
+          if (!combo) {
+            expect(got.state).toBe('uncovered');
+            continue;
+          }
+          const dimension = combo.dimensions.find((item) => item.slot === slot.key);
           expect(
-            api.substitutionStatus(game, demo, values, slot.key, option),
-            `${slot.label} → ${option} 的小标与真实结论不一致`,
-          ).toBe(expected);
+            got.state,
+            `${slot.label} → ${option.value} 的小标不是这一维的状态`,
+          ).toBe(dimension ? dimension.state : 'uncovered');
+          expect(got.conclusion).toBe(combo.conclusion.code);
+          // 整句结论另有出口，小标不能把它顶掉
+          expect(api.substitutionStatus(game, demo, values, slot.key, option.value)).toBe(
+            combo.conclusion.code,
+          );
         }
       }
     }
   });
 
-  it('只改一个词就能分别走到「被反驳」与「没覆盖」，不需要额外确认步骤', () => {
-    expect(api.substitutionStatus(game, demo, INITIAL_VALUES, 'dateText', '2021年11月15日')).toBe(
-      'refuted',
+  it('没覆盖的组合也留着逐维结果，判定卡才能摆出「最接近那条」的各维状态', () => {
+    const uncovered = comboOf('uncovered');
+    expect(uncovered.dimensions.length).toBe(3);
+    const positive = uncovered.dimensions.filter(
+      (dimension) =>
+        dimension.state === 'exact' ||
+        dimension.state === 'caliber' ||
+        dimension.state === 'edge',
     );
-    expect(api.substitutionStatus(game, demo, INITIAL_VALUES, 'dateText', '2021年秋季')).toBe(
-      'uncovered',
-    );
-
-    const refuted = api.resolve(
-      game,
-      demo,
-      withValue(INITIAL_VALUES, 'dateText', '2021年11月15日'),
-    );
-    expect(refuted.status).toBe('refuted');
-    expect(refuted.view?.gate).toBe('rejected');
-    expect(refuted.combo?.id).toBe('g-02');
-
-    const uncovered = api.resolve(
-      game,
-      demo,
-      withValue(INITIAL_VALUES, 'dateText', '2021年秋季'),
-    );
-    expect(uncovered.status).toBe('uncovered');
-    expect(uncovered.record).toBeNull();
-    expect(uncovered.view).toBeNull();
-
-    // 收窄后「禹贡Ⅱ」不再是初始句子的候选（它只能配郎世宁）；「弱坐标」仍能从没覆盖一步跳过去
-    expect(api.slotOptions(game, INITIAL_VALUES, 'sessionPrefix')).not.toContain('禹贡Ⅱ');
-    const weak = comboIn('weak');
-    expect(
-      api
-        .nearbyCovered(game, withValue(INITIAL_VALUES, 'dateText', '2021年秋季'), 3)
-        .some((jump) => jump.id === weak.id),
-    ).toBe(true);
+    expect(positive.length).toBeLessThan(2);
+    const labSource = fs.readFileSync(path.join(DOCS, 'assets', 'demo-lab.js'), 'utf8');
+    expect(labSource).toContain('renderUncoveredDimensions');
   });
 
-  it('「没覆盖」时给出的去处都是冻结矩阵里的真组合，且改动数最少', () => {
-    const states = [edited({ dateText: '2021年秋季' }), edited({ dateText: '2021年12月' })];
-    for (const values of states) {
-      expect(api.resolve(game, demo, values).status).toBe('uncovered');
-      const jumps = api.nearbyCovered(game, values, 3);
-      expect(jumps.length).toBeGreaterThan(0);
+  it('原句是强坐标；把时间换成 2021年8月 就停到「只找到相容证据」', () => {
+    expect(api.resolve(game, demo, INITIAL_VALUES).status).toBe('strong');
+    const values = edited({ dateText: '2021年8月', sessionName: '禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术' });
+    const resolved = api.resolve(game, demo, values);
+    expect(resolved.status).toBe('caliber');
+    const timeDimension = resolved.dimensions.find((dimension) => dimension.slot === 'dateText');
+    expect(timeDimension?.state).toBe('caliber');
+    expect(timeDimension?.evidenceValue).toBe('2021年秋季');
+  });
 
-      const covered = coveredCombos();
-      const minDistance = Math.min(...covered.map((combo) => api.distanceOf(combo.values, values)));
-      expect(jumps[0].distance).toBe(minDistance);
-
-      jumps.forEach((jump, index) => {
-        expect(jump.distance).toBeGreaterThan(0);
-        expect(jump.status).not.toBe('uncovered');
-        expect(api.findCombo(game, jump.values)?.id).toBe(jump.id);
-        expect(api.resolve(game, demo, jump.values).status).toBe(jump.status);
-        if (index > 0) expect(jump.distance).toBeGreaterThanOrEqual(jumps[index - 1].distance);
-      });
+  it('「没覆盖」时给出的去处都是矩阵里的真组合，且至少改两个词能到有结论的', () => {
+    const uncovered = comboOf('uncovered');
+    const jumps = api.nearbyCovered(game, uncovered.values, 3);
+    expect(jumps.length).toBeGreaterThan(0);
+    for (const jump of jumps) {
+      expect(jump.status).not.toBe('uncovered');
+      expect(api.resolve(game, demo, jump.values).status).toBe(jump.status);
+      expect(api.findCombo(game, jump.values)?.id).toBe(jump.id);
     }
   });
 
-  it('选项小标里「没覆盖」与「被反驳」都出现，页面不会只剩一种结论', () => {
-    const seen = new Set<string>();
-    for (const combo of game.combos) {
-      for (const slot of game.slots) {
-        for (const option of api.slotOptions(game, combo.values, slot.key)) {
-          seen.add(api.substitutionStatus(game, demo, combo.values, slot.key, option));
+  it('代表组合覆盖八种结论，页面按它生成跳转按钮', () => {
+    const reps = api.representatives(game);
+    const codes = new Set(reps.map((combo) => combo.conclusion.code));
+    for (const code of Object.keys(api.CONCLUSION_LABELS)) {
+      expect(codes.has(code as ConclusionCode), `代表组合缺「${code}」`).toBe(true);
+    }
+  });
+});
+
+describe('文案纪律', () => {
+  it('口径相容不许写成「对 / 一致 / 匹配」', () => {
+    const label = api.CONCLUSION_SHORT.caliber;
+    expect(label).toBe('口径相容');
+    for (const word of ['对', '一致', '匹配']) {
+      expect(api.CONCLUSION_LABELS.caliber.includes(word)).toBe(false);
+      expect(api.CONCLUSION_HINTS.caliber.includes(`「${word}」`)).toBe(false);
+    }
+    expect(api.CONCLUSION_LABELS.caliber).toBe('只找到相容证据');
+    expect(api.CONCLUSION_HINTS.caliber).toContain('不能算对上');
+  });
+
+  it('边缘相容的说明是「没有矛盾，但这不能证明」', () => {
+    expect(api.CONCLUSION_LABELS.edge).toBe('没有矛盾，但这不能证明');
+    expect(api.CONCLUSION_HINTS.edge).toContain('没有矛盾，但这不能证明');
+  });
+
+  it('冲突只作候选，不压成「反对」', () => {
+    expect(api.CONCLUSION_SHORT.conflict).toBe('冲突候选');
+    expect(api.CONCLUSION_HINTS.conflict).toContain('不压成「反对」');
+  });
+});
+
+describe('判据与裁决不一致的行：不计入支持、页面要写出来', () => {
+  it('模型判支持而判据判冲突的行，支持数被剔掉，且带原文值留档', () => {
+    const flagged: Array<{ recordId: string; fieldKey: string; verdict: DemoFieldVerdict }> = [];
+    for (const record of allRecords()) {
+      for (const [fieldKey, verdict] of Object.entries(record.computation.fieldVerdicts)) {
+        if ((verdict.contradictorySupports ?? []).length > 0) {
+          flagged.push({ recordId: record.recordId, fieldKey, verdict });
         }
       }
     }
-    expect(seen.has('uncovered')).toBe(true);
-    expect(seen.has('refuted')).toBe(true);
-    expect(api.STATUS_SHORT.uncovered).toBe('没覆盖');
-    expect(api.STATUS_SHORT.refuted).toBe('反驳');
-    for (const status of ['strong', 'weak', 'refuted', 'not_found', 'uncovered'] as const) {
-      expect(api.STATUS_SHORT[status]).toBeTruthy();
+    expect(flagged.length, '这批数据里应当仍有「支持 + 冲突候选」的行').toBeGreaterThan(0);
+    for (const item of flagged) {
+      const supports = allRecords()
+        .find((record) => record.recordId === item.recordId)
+        ?.evidence.filter(
+          (row) => row.fieldKey === item.fieldKey && row.relation === 'supports',
+        );
+      expect(supports?.length ?? 0).toBeGreaterThan(0);
+      // 剔掉之后支持数必须严格小于原来的支持行数
+      expect(item.verdict.supportCount).toBeLessThan(supports?.length ?? 0);
+      expect(item.verdict.dimensionState).toBe('conflict');
+      for (const row of item.verdict.contradictorySupports) {
+        expect(row.url).toMatch(/^https?:\/\//);
+        expect(row.quote.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('两页演示都写了「模型裁决与判据不一致」，不是悄悄改数', () => {
+    for (const file of ['assets/demo.js', 'assets/demo-lab.js']) {
+      const source = fs.readFileSync(path.join(DOCS, file), 'utf8');
+      expect(source).toContain('模型裁决与判据不一致');
+      expect(source).toContain('不计入支持');
     }
   });
 });
 
 describe('行距与浮层：不撑高行盒、不推动判定卡', () => {
   const html = fs.readFileSync(path.join(DOCS, 'demo-lab.html'), 'utf8');
-  const labSource = fs.readFileSync(path.join(DOCS, 'assets/demo-lab.js'), 'utf8');
+  const labSource = fs.readFileSync(path.join(DOCS, 'assets', 'demo-lab.js'), 'utf8');
 
-  /** 取某个选择器的 CSS 规则块（页面里每个选择器只出现一次） */
   function cssBlock(selector: string): string {
     const at = html.indexOf(`\n${selector}{`);
     expect(at, `找不到 ${selector} 的样式块`).toBeGreaterThan(-1);
@@ -812,7 +769,6 @@ describe('行距与浮层：不撑高行盒、不推动判定卡', () => {
   it('句子行高只由 line-height 决定，媒体查询里不再有手机端覆盖', () => {
     const sentence = cssBlock('.sentence');
     expect(sentence).toContain('line-height:2.4');
-    // 手机端曾把行高单独调成 2.15，双行与单行的行距因此跳变；这条覆盖必须消失
     const media = html.match(/@media \(max-width:860px\)\{[\s\S]*?\n\}/)?.[0] ?? '';
     expect(media).toBeTruthy();
     expect(media).not.toContain('.sentence');
@@ -825,7 +781,6 @@ describe('行距与浮层：不撑高行盒、不推动判定卡', () => {
     expect(slot).toContain('padding:0 6px');
     expect(slot).toContain('margin:0');
     expect(slot).not.toContain('inline-block');
-    // 只留一条下划线，不能有会在上下方向撑出盒子的边框
     expect(slot).toContain('border-bottom:2px dashed');
     expect(slot).not.toMatch(/border:\s*1px/);
     expect(slot).not.toMatch(/padding:\s*1px/);
@@ -835,31 +790,78 @@ describe('行距与浮层：不撑高行盒、不推动判定卡', () => {
     const options = cssBlock('.options');
     expect(options).toContain('position:fixed');
     expect(options).toContain('max-width:calc(100vw - 16px)');
-    // 浮层不能是句子的子节点，否则句子换行时会把它一起带走或撑开
     const sentence = html.match(/<p class="sentence" id="sentence">[\s\S]*?<\/p>/)?.[0] ?? '';
     expect(sentence).toContain('class="slot"');
     expect(sentence).not.toContain('id="slot-options"');
-    // 定位次序：优先词的上方，上方不够翻到下方，两头都不够才夹进视口
     expect(labSource).toContain('anchorRect.top - panelRect.height - gap');
     expect(labSource).toContain('anchorRect.bottom + gap');
-    expect(labSource).toContain('window.innerWidth');
-    expect(labSource).toContain('window.innerHeight');
     expect(labSource).toContain("'resize'");
     expect(labSource).toContain("'scroll'");
   });
 
-  it('键盘路径：回车打开并进浮层、方向键选、回车确认、Esc 还焦点', () => {
+  it('键盘路径：回车打开并进浮层、方向键选、Esc 还焦点', () => {
     expect(labSource).toContain("element.addEventListener('keydown'");
     expect(labSource).toContain("event.key !== 'Enter'");
     expect(labSource).toContain("event.key !== ' '");
     expect(labSource).toContain('focusOptionByValue(state.values[key])');
     expect(labSource).toContain("event.key === 'ArrowRight'");
     expect(labSource).toContain("event.key === 'Escape'");
-    // Esc 与「收起」都把焦点还回原来那个词
     expect(labSource).toContain('closeOptions(true)');
-    // 点浮层里的词不能顺手把浮层关掉，点别处才关
     expect(labSource).toContain("event.target.closest('#slot-options')");
     expect(labSource).toContain('event.stopPropagation()');
-    expect(labSource).toMatch(/closeOptions\(false\)/);
+  });
+});
+
+describe('旁挂产物与推演示例', () => {
+  it('回填过的专场名不再把整句报道当成专场名', () => {
+    const rows: Array<{ matchedValue?: string | null; dimension?: string | null }> = [];
+    for (const dir of fs.readdirSync(path.join(ROOT, 'examples'))) {
+      const file = path.join(ROOT, 'examples', dir, 'evidence.enriched.jsonl');
+      if (!fs.existsSync(file)) continue;
+      rows.push(
+        ...fs
+          .readFileSync(file, 'utf8')
+          .split(/\r?\n/)
+          .filter((line) => line.trim() !== '')
+          .map((line) => JSON.parse(line) as { matchedValue?: string | null; dimension?: string | null }),
+      );
+    }
+    const sessionRows = rows.filter(
+      (row) => row.dimension === 'porcelain:sessionName' && typeof row.matchedValue === 'string',
+    );
+    expect(sessionRows.length).toBeGreaterThan(0);
+    for (const row of sessionRows) {
+      const value = row.matchedValue as string;
+      expect(value.length, `专场名过长：${value}`).toBeLessThanOrEqual(32);
+      expect(/[。！？；，,]/.test(value), `专场名带句读标点：${value}`).toBe(false);
+      expect(/(圆满|收官|落幕|举行|举办|开拍|落槌|预展)/.test(value), `专场名是报道句：${value}`).toBe(
+        false,
+      );
+      expect(value.endsWith('拍卖会'), `专场名其实是一场拍卖会的名字：${value}`).toBe(false);
+    }
+  });
+
+  it('推演示例与采集记录分开摆：两组档位写在数据里，页面上标明不是采集记录', () => {
+    const examples = demo.derivedExamples;
+    expect(examples.length).toBe(2);
+    const byId = new Map(examples.map((item) => [item.id, item]));
+    const strongExample = byId.get('derived-autumn-jd');
+    const weakExample = byId.get('derived-autumn-dec');
+    expect(strongExample?.grade).toBe('strong');
+    expect(strongExample?.score).toBe(1.7);
+    expect(strongExample?.dimensions.map((dimension) => dimension.state)).toEqual([
+      'caliber',
+      'exact',
+    ]);
+    expect(weakExample?.grade).toBe('weak');
+    expect(weakExample?.score).toBe(0.3);
+    expect(weakExample?.dimensions.map((dimension) => dimension.state)).toEqual(['edge']);
+
+    const demoHtml = fs.readFileSync(path.join(DOCS, 'demo.html'), 'utf8');
+    expect(demoHtml).toContain('id="derived"');
+    expect(demoHtml).toContain('按规则推演的示例，不是采集记录');
+    const demoJs = fs.readFileSync(path.join(DOCS, 'assets', 'demo.js'), 'utf8');
+    expect(demoJs).toContain('renderDerived');
+    expect(demoJs).toContain('derivedExamples');
   });
 });

@@ -235,6 +235,17 @@ export function pickSupportDimensionState(rows: EvidenceRecord[]): EvidenceDimen
   return 'unknown';
 }
 
+/**
+ * 这一行是不是「模型判支持、机械判据判冲突」——两者互相打脸。
+ *
+ * 处理口径：判据优先。这一行不再计入支持，也不进累计分（该维仍然明确冲突，
+ * 门口那道「冲突否决排在算分之前」照旧生效）。模型原来的裁决与原文值留在证据行上，
+ * 页面必须把「模型裁决与判据不一致」写出来，不能悄悄改掉任何一边。
+ */
+export function isContradictorySupport(row: EvidenceRecord): boolean {
+  return row.relation === 'supports' && row.state === 'conflict';
+}
+
 /** 一条断言的全部证据行 → 该维度状态（冲突优先，其次取最强的正向状态） */
 export function pickDimensionState(rows: EvidenceRecord[]): EvidenceDimensionState {
   const withState = rows.filter((row) => row.state !== undefined);

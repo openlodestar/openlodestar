@@ -20,7 +20,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { retallyAndRegate } from '../lodestar/engine';
-import { gradeRecordDimensions, pickSupportDimensionState } from '../lodestar/dimensions';
+import {
+  DIMENSION_STATE_WEIGHT,
+  gradeDimensions,
+  gradeRecordDimensions,
+  isContradictorySupport,
+  pickSupportDimensionState,
+} from '../lodestar/dimensions';
+import { compareTimeDimension } from '../lodestar/dimensions/time';
+import { compareInstitutionDimension } from '../lodestar/dimensions/institution';
 import porcelainPack from '../lodestar/packs/porcelain';
 import { createStore } from '../lodestar/storage/adapter';
 import type {
@@ -63,6 +71,18 @@ export interface DemoFieldVerdict {
    * null 表示这条断言没有任何「支持」行 —— 页面不显示判据，免得把无关页的状态挂在字段旁边。
    */
   dimensionState: EvidenceDimensionState | null;
+  /**
+   * 模型判「支持」、判据判「冲突候选」的证据行。
+   * 这些行不计入支持、也不进累计分；页面要把「模型裁决与判据不一致」显式写出来，
+   * 原文值与出处一并保留，方便审计时回看当时到底发生了什么。
+   */
+  contradictorySupports: DemoContradictorySupport[];
+}
+
+export interface DemoContradictorySupport {
+  matchedValue: string | null;
+  quote: string;
+  url: string;
 }
 
 export interface DemoEvidenceRow {
@@ -138,12 +158,38 @@ export interface DemoCaseData {
   records: DemoRecord[];
 }
 
+export interface DemoDerivedExample {
+  id: string;
+  title: string;
+  /** 一句话的断言（你写的） */
+  claim: Array<{ label: string; value: string }>;
+  /** 证据里写的（对照值） */
+  evidence: Array<{ label: string; value: string }>;
+  dimensions: Array<{
+    label: string;
+    state: EvidenceDimensionState;
+    weight: number;
+    note: string;
+  }>;
+  score: number;
+  grade: 'strong' | 'weak';
+  basis: string;
+  conflictDimensions: string[];
+  /** 一句白话结论，页面直接显示 */
+  summary: string;
+}
+
 export interface DemoData {
   generatedAt: string;
   generator: string;
   note: string;
   fields: Array<{ key: string; label: string; role: FieldRole }>;
   buckets: Record<DemoRecord['bucket'], number>;
+  /**
+   * 按维度规则当场推演的对照示例：不是采集记录，页面上必须与真实记录分开放，
+   * 并且写明「按规则推演的示例，不是采集记录」。
+   */
+  derivedExamples: DemoDerivedExample[];
   cases: DemoCaseData[];
 }
 
@@ -286,16 +332,23 @@ export async function buildCase(exampleName: string): Promise<DemoCaseData> {
         if (!verdict) continue;
         const claimEvidence = evidenceRows.filter((row) => row.claimId === claim.claimId);
         const examinedPages = new Set(claimEvidence.map((row) => row.url)).size;
+        // 判据优先：模型判支持、但机械比对判冲突的行，从支持里剔出去（也不进累计分）
+        const contradictory = claimEvidence.filter(isContradictorySupport);
         fieldVerdicts[claim.fieldKey] = {
           fieldValue: claim.object,
           claimId: claim.claimId,
           verdict: verdict.verdict,
           evidenceGrade: verdict.evidenceGrade,
-          supportCount: verdict.supportCount,
+          supportCount: Math.max(0, verdict.supportCount - contradictory.length),
           refuteCount: verdict.refuteCount,
           notFoundCause: verdict.notFoundCause ?? null,
           examinedPages,
           dimensionState: pickSupportDimensionState(claimEvidence),
+          contradictorySupports: contradictory.map((row) => ({
+            matchedValue: row.matchedValue ?? null,
+            quote: row.quote,
+            url: row.url,
+          })),
         };
       }
 
@@ -391,6 +444,109 @@ export async function listExampleNames(): Promise<string[]> {
   return [...FIXED_EXAMPLES, ...batchDirs.filter((name) => !FIXED_EXAMPLES.includes(name))];
 }
 
+/**
+ * 按维度规则当场推演两组对照示例。
+ *
+ * 它们不是采集记录：没有证据行、没有 URL、没有快照，页面上必须与真实记录分开放，
+ * 并原样写出「按规则推演的示例，不是采集记录」。放这两组是为了让观众看清两件事：
+ * 一是「强坐标」可以由「一维完全对上 + 一维口径相容」叠出来（强坐标不等于每项都对上）；
+ * 二是「只有边缘相容」时累计分够不到线，只能停在弱坐标。
+ */
+function buildDerivedExamples(): DemoDerivedExample[] {
+  const timeOnly = (claim: string, evidence: string) => compareTimeDimension(claim, evidence);
+  const houseOnly = (claim: string, evidence: string) => compareInstitutionDimension(claim, evidence);
+
+  const firstTime = timeOnly('2021年8月', '2021年秋季');
+  const firstHouse = houseOnly('北京嘉德', '北京市的嘉德');
+  const firstGrade = gradeDimensions([
+    {
+      dimension: 'porcelain:dateText',
+      label: '举办时间',
+      state: firstTime.state,
+      cap: 1,
+    },
+    {
+      dimension: 'porcelain:auctionHouse',
+      label: '拍卖机构',
+      state: firstHouse.state,
+      cap: 1,
+    },
+  ]);
+
+  // 方向要对：证据写「秋季」、你写「12月5日」时落在「边缘相容」；
+  // 反过来（你写秋季、证据写 12月5日）窗口不相交，会判成「冲突候选」。这里取前一种，
+  // 因为它是真实记录里出现过的那一向（断言 12月5日、页面写秋季）。
+  const secondTime = timeOnly('2021年12月5日', '2021年秋季');
+  const secondGrade = gradeDimensions([
+    {
+      dimension: 'porcelain:dateText',
+      label: '举办时间',
+      state: secondTime.state,
+      cap: 1,
+    },
+  ]);
+
+  return [
+    {
+      id: 'derived-autumn-jd',
+      title: '秋季＋北京嘉德 对 8月＋北京市的嘉德',
+      claim: [
+        { label: '举办时间', value: '2021年8月' },
+        { label: '拍卖机构', value: '北京嘉德' },
+      ],
+      evidence: [
+        { label: '举办时间', value: '2021年秋季' },
+        { label: '拍卖机构', value: '北京市的嘉德' },
+      ],
+      dimensions: [
+        {
+          label: '举办时间',
+          state: firstTime.state,
+          weight: DIMENSION_STATE_WEIGHT[firstTime.state],
+          note: firstTime.note,
+        },
+        {
+          label: '拍卖机构',
+          state: firstHouse.state,
+          weight: DIMENSION_STATE_WEIGHT[firstHouse.state],
+          note: firstHouse.note,
+        },
+      ],
+      score: firstGrade.score,
+      grade: firstGrade.grade,
+      basis: firstGrade.basis,
+      conflictDimensions: firstGrade.conflictDimensions,
+      summary:
+        '时间这一维只到「口径相容」（很可能是同一场，只是说法不同），机构这一维完全对上；' +
+        '累计 1.7 分、两维都过线，所以是强坐标。要看清楚：强坐标不等于每一项都「完全对上」，' +
+        '这里的时间就只是口径相容。',
+    },
+    {
+      id: 'derived-autumn-dec',
+      title: '秋季 对 12月5日',
+      claim: [{ label: '举办时间', value: '2021年12月5日' }],
+      evidence: [{ label: '举办时间', value: '2021年秋季' }],
+      dimensions: [
+        {
+          label: '举办时间',
+          state: secondTime.state,
+          weight: DIMENSION_STATE_WEIGHT[secondTime.state],
+          note: secondTime.note,
+        },
+      ],
+      score: secondGrade.score,
+      grade: secondGrade.grade,
+      basis: secondGrade.basis,
+      conflictDimensions: secondGrade.conflictDimensions,
+      summary:
+        '只有这一维，且只到「边缘相容」：没有矛盾，但这不能证明。累计 0.3 分，' +
+        '既凑不够 1.2 分、也不满足「至少两维各过 0.7 倍上限」，所以停在弱坐标。' +
+        '方向也有讲究：反过来写（你说「2021年秋季」、证据写「2021年12月5日」），' +
+        '两个时间窗口不相交，会判成「冲突候选」，不是弱坐标。',
+    },
+  ];
+}
+
 async function main(): Promise<void> {
   const examples = await listExampleNames();
 
@@ -425,6 +581,7 @@ async function main(): Promise<void> {
       '证据按「记录号＋字段名＋字段值」匹配，字段值对不上就显示「这批证据没覆盖」。',
     fields: porcelainPack.fields().map((field) => ({ key: field.key, label: field.label, role: field.role })),
     buckets,
+    derivedExamples: buildDerivedExamples(),
     cases,
   };
 

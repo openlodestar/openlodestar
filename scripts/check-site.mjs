@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // 站点静态检查：docs/ 下每个页面都要过同一套红线。
@@ -113,7 +113,18 @@ function checkHtml(fileName) {
     need(!href.startsWith('/') && !href.startsWith('..'), `${label}: link must stay inside docs/ as a relative path: ${href}`);
     const target = href.split('#')[0];
     need(target.length > 0, `${label}: empty link target: ${href}`);
-    need(existsSync(join(siteDir, target)), `${label}: broken relative link: ${href}`);
+    const targetPath = join(siteDir, target);
+    need(existsSync(targetPath), `${label}: broken relative link: ${href}`);
+    // Pages 跑在 Linux 上、区分大小写，而本机 Windows 不区分：按目录里的真实文件名
+    // 逐个比对，避免「本机通过、线上 404」。
+    const parentDir = dirname(targetPath);
+    if (existsSync(parentDir)) {
+      const entries = readdirSync(parentDir);
+      need(
+        entries.includes(basename(targetPath)),
+        `${label}: link case does not match the file on disk: ${href}`,
+      );
+    }
   }
 
   const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));

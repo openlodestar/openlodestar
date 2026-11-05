@@ -14,6 +14,7 @@
 <meta property="og:url" content="https://openlodestar.github.io/openlodestar/">
 <meta property="og:image" content="https://openlodestar.github.io/openlodestar/assets/social-preview-1280x640.png">
 <meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="assets/site-nav.css">
 <style>
 :root{
   --navy:#101E3C;
@@ -45,14 +46,6 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--navy);outline-offse
 }
 .skip:focus{left:0}
 .hero{background:var(--navy);color:var(--cream);padding:0 24px 76px}
-.top{
-  max-width:var(--max);margin:0 auto;padding:22px 0 40px;
-  display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;
-}
-.brand{font-weight:650;letter-spacing:.01em;text-decoration:none;font-size:1.02rem}
-.top nav{display:flex;gap:22px;flex-wrap:wrap}
-.top nav a{color:var(--cream-dim);text-decoration:none;font-size:.94rem}
-.top nav a:hover{color:var(--cream)}
 .hero-inner{max-width:var(--max);margin:0 auto}
 .lockup{display:block;width:min(360px,72vw);height:auto;margin:0 0 40px}
 h1{
@@ -88,6 +81,16 @@ p{margin:0 0 16px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 20px 18px}
 .card h3{margin:0 0 8px;font-size:1.04rem;line-height:1.4}
 .card p{margin:0;color:var(--muted);font-size:.95rem;line-height:1.75}
+.demo-cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}
+.demo-card{
+  display:flex;flex-direction:column;gap:9px;padding:22px 20px;background:var(--card);
+  border:1px solid var(--line);border-radius:14px;text-decoration:none;color:inherit;
+}
+.demo-card:hover{border-color:var(--navy)}
+.demo-kicker{font-size:.8rem;color:var(--muted);letter-spacing:.02em}
+.demo-card strong{font-size:1.06rem;line-height:1.45}
+.demo-card p{margin:0;color:var(--muted);font-size:.95rem;line-height:1.75}
+.demo-go{margin-top:auto;color:var(--navy);font-weight:650;font-size:.92rem}
 .steps{list-style:none;margin:26px 0 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:18px 28px;counter-reset:step}
 .steps li{position:relative;padding-left:48px;counter-increment:step}
 .steps li::before{
@@ -120,7 +123,7 @@ footer a:hover{color:var(--cream)}
   .steps{grid-template-columns:1fr}
   .split{grid-template-columns:1fr}
   .hero{padding-bottom:58px}
-  .top{padding-bottom:28px}
+  .demo-cards{grid-template-columns:1fr}
   .lockup{margin-bottom:28px}
 }
 @media (prefers-reduced-motion:reduce){
@@ -132,13 +135,16 @@ footer a:hover{color:var(--cream)}
 <a class="skip" href="#main">跳到正文</a>
 
 <div class="hero">
-  <header class="top">
-    <a class="brand" href="#top">OpenLodestar</a>
-    <nav aria-label="主导航">
-      <a href="https://github.com/openlodestar/openlodestar">GitHub</a>
-      <a href="https://github.com/openlodestar/openlodestar/releases/tag/v0.1.0">v0.1.0</a>
-      <a href="https://github.com/openlodestar/openlodestar/blob/main/README.md">README</a>
-    </nav>
+  <header class="site-nav">
+    <div class="site-nav-inner">
+      <a class="brand" href="index.html">OpenLodestar</a>
+      <nav aria-label="主导航">
+        <a href="index.html" aria-current="page">主页</a>
+        <a href="demo.html">逐条演示</a>
+        <a href="demo-lab.html">小游戏</a>
+        <a href="https://github.com/openlodestar/openlodestar">GitHub</a>
+      </nav>
+    </div>
   </header>
 
   <div class="hero-inner" id="top">
@@ -149,12 +155,32 @@ footer a:hover{color:var(--cream)}
     <div class="actions">
       <a class="button primary" href="https://github.com/openlodestar/openlodestar">在 GitHub 上看代码</a>
       <a class="button" href="https://github.com/openlodestar/openlodestar/blob/main/README.md">先读 README</a>
+      <a class="button" href="#demos">先看两个演示</a>
     </div>
     <p class="en" lang="en">OpenLodestar is a verification layer for LLM output. Every claim is treated as a lead and checked against public web pages. When evidence is found, the exact quote and its source are kept; when it is not, the result says which kind of not-found it is. Every kept verdict can be re-run step by step.</p>
   </div>
 </div>
 
 <main id="main">
+
+<section class="section" id="demos">
+  <h2>不用装环境，先看两个演示</h2>
+  <p>两页演示都不联网、不调模型：结论是构建时用真引擎对冻结证据算好并冻住的，断网也能打开。它们回答的不是同一个问题——</p>
+  <div class="demo-cards">
+    <a class="demo-card" href="demo.html">
+      <span class="demo-kicker">逐条记录演示</span>
+      <strong>这条结论，凭什么算数？</strong>
+      <p>在冻结批次里切换一条记录，看它被拆成哪几个字段、每个字段的引文与出处、判成强还是弱，以及最后给不给坐标。</p>
+      <span class="demo-go">进入逐条记录演示 →</span>
+    </a>
+    <a class="demo-card" href="demo-lab.html">
+      <span class="demo-kicker">小游戏</span>
+      <strong>换掉一个词，证据还认不认？</strong>
+      <p>自己动手改句子里的机构、时间、专场名，每换一个词结论立刻重算；撞进“这批证据没覆盖”时，它会指出改一两个词就能看到结论的去处。</p>
+      <span class="demo-go">进入小游戏 →</span>
+    </a>
+  </div>
+</section>
 
 <section class="section">
   <h2>它到底在做什么</h2>

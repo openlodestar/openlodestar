@@ -331,10 +331,14 @@ describe('页面装载与离线约束', () => {
     }
   });
 
-  it('原有 demo.html 保持独立，不在小游戏页里被改写', () => {
+  it('原有 demo.html 保持独立：只借顶栏指向小游戏，不引入小游戏的脚本与判定', () => {
     const demoHtml = fs.readFileSync(path.join(DOCS, 'demo.html'), 'utf8');
-    expect(demoHtml).not.toContain('demo-lab');
     expect(demoHtml).not.toContain('LODESTAR_DEMO_GAME');
+    expect(demoHtml).not.toContain('demo-game');
+    expect(demoHtml).not.toContain('demo-lab.js');
+    // demo-lab 只允许作为顶栏里的相对链接出现一次，不能被塞进页面逻辑
+    expect((demoHtml.match(/demo-lab/g) ?? []).length).toBe(1);
+    expect(demoHtml).toContain('<a href="demo-lab.html">小游戏</a>');
   });
 
   it('五个结论各有独立的标签，没覆盖不会被写成拒收', () => {

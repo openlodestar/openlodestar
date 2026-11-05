@@ -227,9 +227,11 @@ plugins/browser-playwright/ playwright 渲染插件（独立包；自带 package
 examples/porcelain/         最小离线底稿（合成数据，契约测试用）
 examples/poly-2021-autumn/  真实案例底稿（公开报道的正文节选 + 抓取档案 + 四条候选记录 + case.json）
 examples/demo-batch-*/      在线采集补出来的冻结批次（页面节选 + 来源声明，供交互演示切换）
+docs/index.html             站点首页：这个项目做什么、现在到哪一步，并直入两个演示
 docs/demo.html              交互演示页：切换记录、看字段引文与判定（断网可开）
 docs/demo-lab.html          小游戏版演示页：改句子的四个槽位，看证据认不认（断网可开）
-docs/demo-lab.md            小游戏玩法、组合矩阵与覆盖读数；本地实时实验服务的边界
+docs/assets/site-nav.css    三页共用的顶栏样式（导航结构只写一份，链接全部相对路径）
+docs/demo-lab.md            小游戏玩法、组合矩阵与覆盖读数；站点地图与本地实时实验服务的边界
 scripts/demo-live-server.mjs 只在本机跑的实时实验服务（不部署，默认拒绝运行）
 scripts/serve-demo.mjs      两页演示的本地静态预览（只绑 127.0.0.1，默认端口 3013）
 docs/demo-design-guide.md   演示方法论：一条演示该证明什么、怎么挑素材、怎么摆证据

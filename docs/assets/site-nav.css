@@ -1,0 +1,37 @@
+/* docs/assets/site-nav.css
+ *
+ * 三个页面（index.html / demo.html / demo-lab.html）共用的顶栏。
+ * 结构、字号、间距、换行规则、焦点样式只在这里写一份，页面只提供
+ * --navy / --cream / --cream-dim 三个颜色变量，别再各写一套。
+ *
+ * 只做静态样式：没有样式引入指令、没有外部字体、没有远程 url()，file:// 与 Pages 都成立。
+ */
+
+.site-nav{display:block}
+.site-nav-inner{
+  max-width:1080px;margin:0 auto;padding:18px 0;
+  display:flex;align-items:center;justify-content:space-between;gap:8px 18px;flex-wrap:wrap;
+}
+.site-nav .brand{
+  font-weight:650;letter-spacing:.01em;text-decoration:none;
+  font-size:1.02rem;color:var(--cream);
+}
+.site-nav nav{display:flex;align-items:center;gap:4px 18px;flex-wrap:wrap}
+.site-nav nav a{
+  color:var(--cream-dim);text-decoration:none;font-size:.92rem;
+  padding:5px 1px;border-bottom:2px solid transparent;
+}
+.site-nav nav a:hover{color:var(--cream)}
+.site-nav nav a[aria-current="page"]{color:var(--cream);border-bottom-color:currentColor}
+.site-nav .brand:focus-visible,.site-nav nav a:focus-visible{
+  outline:2px solid var(--cream);outline-offset:3px;border-radius:2px;
+}
+@media (max-width:560px){
+  .site-nav-inner{padding:10px 0 12px;gap:6px 12px}
+  .site-nav nav{gap:2px 14px}
+  .site-nav nav a{font-size:.88rem;padding:4px 1px}
+  .site-nav .brand{font-size:.98rem}
+}
+@media (max-width:360px){
+  .site-nav nav a{font-size:.84rem}
+}

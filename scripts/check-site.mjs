@@ -91,6 +91,31 @@ function checkHtml(fileName) {
     need(existsSync(join(siteDir, ref)), `${label}: missing asset reference: ${ref}`);
   }
 
+  // 三页共用同一条顶栏：样式只有一份，链接清单也必须齐全，页面之间不能是死路。
+  need(
+    /<link\b[^>]*rel="stylesheet"[^>]*href="assets\/site-nav\.css"/i.test(html),
+    `${label}: missing shared nav stylesheet assets/site-nav.css`,
+  );
+  const navMatch = html.match(/<nav[^>]*aria-label="主导航"[^>]*>([\s\S]*?)<\/nav>/i);
+  need(navMatch !== null, `${label}: missing main nav with aria-label="主导航"`);
+  if (navMatch !== null) {
+    for (const href of ['index.html', 'demo.html', 'demo-lab.html']) {
+      need(navMatch[1].includes(`href="${href}"`), `${label}: main nav is missing ${href}`);
+    }
+  }
+
+  // 站内链接一律相对路径：http:// 在 https 站上会被混合内容拦掉、断网也失效；
+  // 绝对路径 / 与 ../ 在 file:// 与 Pages 下的根不一样，都会跳丢。
+  for (const [, href] of html.matchAll(/<a\b[^>]*\bhref="([^"]*)"/gi)) {
+    need(!/^javascript:/i.test(href), `${label}: javascript: link is not allowed: ${href}`);
+    need(!href.startsWith('http://'), `${label}: http:// link is not allowed: ${href}`);
+    if (/^(?:https:\/\/|mailto:|#)/i.test(href)) continue;
+    need(!href.startsWith('/') && !href.startsWith('..'), `${label}: link must stay inside docs/ as a relative path: ${href}`);
+    const target = href.split('#')[0];
+    need(target.length > 0, `${label}: empty link target: ${href}`);
+    need(existsSync(join(siteDir, target)), `${label}: broken relative link: ${href}`);
+  }
+
   const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
   for (const match of html.matchAll(/href="#([^"]+)"/g)) {
     need(ids.has(match[1]), `${label}: missing anchor target: #${match[1]}`);
@@ -162,9 +187,29 @@ for (const fileName of jsFiles) {
 
 need(existsSync(join(siteDir, '.nojekyll')), 'missing docs/.nojekyll');
 
+// 样式文件也要查：共用顶栏是本地 CSS，不能借它引外部字体、@import 或把体积堆上去。
+const CSS_SIZE_LIMIT = 60 * 1024;
+const cssFiles = existsSync(assetsDir)
+  ? readdirSync(assetsDir)
+      .filter((name) => name.endsWith('.css') && statSync(join(assetsDir, name)).isFile())
+      .sort()
+  : [];
+need(cssFiles.includes('site-nav.css'), 'missing docs/assets/site-nav.css (shared nav stylesheet)');
+for (const fileName of cssFiles) {
+  const path_ = join(assetsDir, fileName);
+  const body = readFileSync(path_, 'utf8');
+  need(!/@import/i.test(body), `docs/assets/${fileName}: CSS @import is not allowed`);
+  need(!/url\(\s*["']?https?:/i.test(body), `docs/assets/${fileName}: remote CSS url() is not allowed`);
+  need(!/https?:\/\//i.test(body), `docs/assets/${fileName}: external URLs are not allowed in the shared stylesheet`);
+  need(
+    statSync(path_).size < CSS_SIZE_LIMIT,
+    `docs/assets/${fileName}: stylesheet is larger than ${CSS_SIZE_LIMIT / 1024} KB`,
+  );
+}
+
 console.log(
   `site check: ${htmlFiles.length} page(s) [${htmlFiles.join(', ')}], ${jsFiles.length} script(s), ` +
-    `${assetRefCount} asset refs`,
+    `${cssFiles.length} stylesheet(s), ${assetRefCount} asset refs`,
 );
 if (errors.length > 0) {
   console.error(errors.map((error) => `- ${error}`).join('\n'));

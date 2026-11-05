@@ -7,6 +7,7 @@
 <meta name="description" content="从冻结批次里切换一条记录，现场看它被拆成哪几个字段、每个字段的引文与出处、判成强或弱或被反驳或查不到，以及最后给不给坐标。断网也能打开。">
 <link rel="canonical" href="https://openlodestar.github.io/openlodestar/demo.html">
 <link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="stylesheet" href="assets/site-nav.css">
 <style>
 :root{
   --navy:#101E3C;
@@ -36,10 +37,6 @@ body{
 a{color:var(--navy)}
 a:focus-visible,button:focus-visible{outline:2px solid var(--navy);outline-offset:3px;border-radius:2px}
 .top{background:var(--navy);color:var(--cream);padding:0 24px 44px}
-.top-inner{max-width:var(--max);margin:0 auto;padding:22px 0 0;display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
-.brand{font-weight:650;text-decoration:none;color:var(--cream)}
-.top nav a{color:var(--cream-dim);text-decoration:none;font-size:.94rem;margin-left:18px}
-.top nav a:hover{color:var(--cream)}
 .headline{max-width:var(--max);margin:26px auto 0}
 .headline h1{margin:0 0 10px;font-size:clamp(1.6rem,3.4vw,2.4rem);line-height:1.25;font-weight:650}
 .headline p{margin:0;max-width:840px;color:var(--cream);opacity:.92}
@@ -130,10 +127,17 @@ code{font-size:.85em;background:var(--paper);border:1px solid var(--line);border
 </head>
 <body>
 <div class="top">
-  <div class="top-inner">
-    <a class="brand" href="index.html">OpenLodestar</a>
-    <nav><a href="index.html">回主页</a></nav>
-  </div>
+  <header class="site-nav">
+    <div class="site-nav-inner">
+      <a class="brand" href="index.html">OpenLodestar</a>
+      <nav aria-label="主导航">
+        <a href="index.html">主页</a>
+        <a href="demo.html" aria-current="page">逐条演示</a>
+        <a href="demo-lab.html">小游戏</a>
+        <a href="https://github.com/openlodestar/openlodestar">GitHub</a>
+      </nav>
+    </div>
+  </header>
   <div class="headline">
     <h1>换一条记录，看它凭什么算数</h1>
     <p>数据来自冻结批次：每条记录都是模型先说出来、再逐条拿去公开网页取证的候选。下面切换记录，就能看到它被拆成哪几个字段、每个字段的引文与出处、判成什么，以及最后给不给坐标。</p>

@@ -7,6 +7,7 @@
 <meta name="description" content="点句子里的任意一个词换掉它，判定与引文立刻更新：对、不对、查过没找到，或者这批证据没覆盖。判定是构建时用真引擎对冻结证据算好的，断网也能打开。">
 <link rel="canonical" href="https://openlodestar.github.io/openlodestar/demo-lab.html">
 <link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="stylesheet" href="assets/site-nav.css">
 <style>
 :root{
   --navy:#101E3C;
@@ -36,10 +37,6 @@ body{
 a{color:var(--navy)}
 a:focus-visible,button:focus-visible,summary:focus-visible,.slot:focus-visible{outline:2px solid var(--navy);outline-offset:3px;border-radius:2px}
 .top{background:var(--navy);color:var(--cream);padding:0 24px 30px}
-.top-inner{max-width:var(--max);margin:0 auto;padding:20px 0 0;display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
-.brand{font-weight:650;text-decoration:none;color:var(--cream)}
-.top nav a{color:var(--cream-dim);text-decoration:none;font-size:.94rem;margin-left:18px}
-.top nav a:hover{color:var(--cream)}
 .headline{max-width:var(--max);margin:18px auto 0}
 .headline h1{margin:0 0 6px;font-size:clamp(1.5rem,3.2vw,2.1rem);line-height:1.3;font-weight:650}
 .headline p{margin:0;max-width:760px;color:var(--cream);opacity:.92;font-size:.95rem}
@@ -169,10 +166,17 @@ code{font-size:.84em;background:var(--paper);border:1px solid var(--line);border
 </head>
 <body>
 <div class="top">
-  <div class="top-inner">
-    <a class="brand" href="index.html">OpenLodestar</a>
-    <nav><a href="demo.html">逐条记录演示</a><a href="index.html">回主页</a></nav>
-  </div>
+  <header class="site-nav">
+    <div class="site-nav-inner">
+      <a class="brand" href="index.html">OpenLodestar</a>
+      <nav aria-label="主导航">
+        <a href="index.html">主页</a>
+        <a href="demo.html">逐条演示</a>
+        <a href="demo-lab.html" aria-current="page">小游戏</a>
+        <a href="https://github.com/openlodestar/openlodestar">GitHub</a>
+      </nav>
+    </div>
+  </header>
   <div class="headline">
     <h1>换掉一个词，看证据认不认</h1>
     <p>点句子里任意一个带下划线的词，再点一个新词——结论和引文立刻出现在下面，不用再按“识别”。判定是构建时用真引擎对冻结证据算好并冻住的，页面不联网。</p>

@@ -1,6 +1,6 @@
 // 由 src/demo-page/build-demo-data.ts 从 examples/ 生成，不要手改；改数据请改冻结批次后重跑 pnpm run demo:data。
 window.LODESTAR_DEMO = {
-  "generatedAt": "2026-11-04T12:17:18.336Z",
+  "generatedAt": "2026-11-05T12:20:23.847Z",
   "generator": "src/demo-page/build-demo-data.ts",
   "note": "判定由引擎在构建时算好并冻结：页面只切换展示，不重算计票、门禁与坐标。证据按「记录号＋字段名＋字段值」匹配，字段值对不上就显示「这批证据没覆盖」。",
   "fields": [
@@ -279,7 +279,7 @@ window.LODESTAR_DEMO = {
                 "https://hk.thevalue.com/articles/poly-auction-beijing-qianlong-yangcai-elephant-robin-egg-glaze-revolving-vase-result"
               ],
               "searchPhrases": [
-                "北京保利 2021秋季拍卖会 禹贡Ⅰ 盛清御瓷新风尚",
+                "北京保利 2021冬季拍卖会 禹贡Ⅰ 盛清御瓷新风尚",
                 "北京保利 禹贡Ⅰ 盛清御瓷新风尚"
               ],
               "stale": false
@@ -1226,7 +1226,7 @@ window.LODESTAR_DEMO = {
                 "https://m-news.artron.net/news/20260915/n1940787.html"
               ],
               "searchPhrases": [
-                "北京保利 2021秋季拍卖会 禹贡Ⅰ 盛清御瓷新风尚",
+                "北京保利 2021冬季拍卖会 禹贡Ⅰ 盛清御瓷新风尚",
                 "北京保利 禹贡Ⅰ 盛清御瓷新风尚"
               ],
               "stale": false
@@ -1520,7 +1520,7 @@ window.LODESTAR_DEMO = {
                 "https://m-news.artron.net/news/20260915/n1940787.html"
               ],
               "searchPhrases": [
-                "北京保利 2021秋季拍卖会 禹贡Ⅰ 盛清御瓷新风尚",
+                "北京保利 2021冬季拍卖会 禹贡Ⅰ 盛清御瓷新风尚",
                 "北京保利 禹贡Ⅰ 盛清御瓷新风尚"
               ],
               "stale": false

@@ -739,7 +739,15 @@ async function applyRecordGate(input: {
 
     if (keyClaimIds.length === 0) continue;
 
-    const claims = keyClaimIds.map((id) => syntheticClaim(id, record.recordId, input.queryId));
+    const claims = fieldClaimIds.map((id) => {
+      const variant = primary.find((item) => deterministicClaimId(record.recordId, item.fieldKey) === id);
+      const claim = syntheticClaim(id, record.recordId, input.queryId);
+      return {
+        ...claim,
+        fieldKey: variant?.fieldKey ?? null,
+        fieldRole: variant && keyFieldKeys.has(variant.fieldKey) ? ('key' as const) : ('secondary' as const),
+      };
+    });
     const outcome = decideGate({
       recordId: record.recordId,
       queryId: claims[0]?.queryId ?? null,

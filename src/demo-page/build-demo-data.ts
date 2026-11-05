@@ -20,11 +20,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { retallyAndRegate } from '../lodestar/engine';
+import { gradeRecordDimensions, pickDimensionState } from '../lodestar/dimensions';
 import porcelainPack from '../lodestar/packs/porcelain';
 import { createStore } from '../lodestar/storage/adapter';
 import type {
   AnchorRecord,
   ClaimRecord,
+  EvidenceDimensionState,
   EvidenceRecord,
   FieldRole,
   RecordSummary,
@@ -56,6 +58,8 @@ export interface DemoFieldVerdict {
   notFoundCause: string | null;
   /** 这条断言实际比对过的页面数（按证据行里的不同 URL 计） */
   examinedPages: number;
+  /** 该字段在证据上落到哪个维度状态（老证据缺列读作 unknown） */
+  dimensionState: EvidenceDimensionState;
 }
 
 export interface DemoEvidenceRow {
@@ -73,6 +77,12 @@ export interface DemoEvidenceRow {
   /** 这次抓取的时间（底稿 evidence.jsonl 的 fetchedAt）：证据卡上要能写出"何时抓的" */
   fetchedAt: string;
   note: string | null;
+  /** 判据维度（形如 porcelain:dateText）；老证据没有这一列 → null */
+  dimension: string | null;
+  /** 该证据在本维度上的状态；老证据缺列 → unknown */
+  state: EvidenceDimensionState;
+  /** 页面里逐字摘出的原文值；老证据没有这一列 → null */
+  matchedValue: string | null;
 }
 
 export interface DemoSource {
@@ -97,6 +107,15 @@ export interface DemoRecord {
     fieldVerdicts: Record<string, DemoFieldVerdict>;
     keyFieldValues: Record<string, string>;
     cooccurrence: { count: number; pages: string[] };
+    /** 判据维度汇总：分数、依据、冲突候选（老证据全 unknown 时不改写门禁） */
+    dimensionGrade: {
+      grade: 'strong' | 'weak';
+      score: number;
+      basis: string;
+      allUnknown: boolean;
+      conflictDimensions: string[];
+      entries: Array<{ dimension: string; label: string; state: EvidenceDimensionState; cap: number }>;
+    };
     anchor: {
       grade: AnchorRecord['anchorGrade'];
       evidenceGrade: AnchorRecord['evidenceGrade'];
@@ -257,9 +276,8 @@ export async function buildCase(exampleName: string): Promise<DemoCaseData> {
         const verdict = verdictByClaim.get(claim.claimId);
         if (claim.fieldRole === 'key') keyFieldValues[claim.fieldKey] = claim.object;
         if (!verdict) continue;
-        const examinedPages = new Set(
-          evidenceRows.filter((row) => row.claimId === claim.claimId).map((row) => row.url),
-        ).size;
+        const claimEvidence = evidenceRows.filter((row) => row.claimId === claim.claimId);
+        const examinedPages = new Set(claimEvidence.map((row) => row.url)).size;
         fieldVerdicts[claim.fieldKey] = {
           fieldValue: claim.object,
           claimId: claim.claimId,
@@ -269,6 +287,7 @@ export async function buildCase(exampleName: string): Promise<DemoCaseData> {
           refuteCount: verdict.refuteCount,
           notFoundCause: verdict.notFoundCause ?? null,
           examinedPages,
+          dimensionState: pickDimensionState(claimEvidence),
         };
       }
 
@@ -276,6 +295,15 @@ export async function buildCase(exampleName: string): Promise<DemoCaseData> {
         .map((evidenceId) => evidenceRows.find((row) => row.evidenceId === evidenceId))
         .filter((row) => row !== undefined);
       const cooccurringPages = [...new Set(cooccurring.map((row) => row.url))];
+
+      const recordEvidence = evidenceRows.filter((row) => row.recordId === summary.recordId);
+      const evidenceByClaim = new Map<string, EvidenceRecord[]>();
+      for (const row of recordEvidence) {
+        const bucket = evidenceByClaim.get(row.claimId);
+        if (bucket) bucket.push(row);
+        else evidenceByClaim.set(row.claimId, [row]);
+      }
+      const dimensionGrade = gradeRecordDimensions(summary.fieldClaimIds, claimById, evidenceByClaim);
 
       const anchor = anchorByRecord.get(summary.recordId);
 
@@ -285,32 +313,41 @@ export async function buildCase(exampleName: string): Promise<DemoCaseData> {
         title: recordTitle(fields, summary.recordId),
         bucket: bucketOf(summary, verdictByClaim),
         fields,
-        evidence: evidenceRows
-          .filter((row) => row.recordId === summary.recordId)
-          .map((row) => {
-            const claim = claimById.get(row.claimId);
-            return {
-              evidenceId: row.evidenceId,
-              fieldKey: row.fieldKey ?? '',
-              // 断言编号里没有字段值：这一个值就是页面匹配证据的唯一钥匙
-              fieldValue: claim?.object ?? '',
-              relation: row.relation,
-              quote: row.quote,
-              url: row.url,
-              domain: row.domain,
-              family: row.sourceFamily,
-              tier: row.tier,
-              snapshotFile: row.snapshotRef,
-              fetchedAt: row.fetchedAt,
-              note: row.note ?? null,
-            };
-          }),
+        evidence: recordEvidence.map((row) => {
+          const claim = claimById.get(row.claimId);
+          return {
+            evidenceId: row.evidenceId,
+            fieldKey: row.fieldKey ?? '',
+            // 断言编号里没有字段值：这一个值就是页面匹配证据的唯一钥匙
+            fieldValue: claim?.object ?? '',
+            relation: row.relation,
+            quote: row.quote,
+            url: row.url,
+            domain: row.domain,
+            family: row.sourceFamily,
+            tier: row.tier,
+            snapshotFile: row.snapshotRef,
+            fetchedAt: row.fetchedAt,
+            note: row.note ?? null,
+            dimension: row.dimension ?? null,
+            state: row.state ?? 'unknown',
+            matchedValue: row.matchedValue ?? null,
+          };
+        }),
         computation: {
           gate: summary.gate,
           reason: summary.reason,
           fieldVerdicts,
           keyFieldValues,
           cooccurrence: { count: cooccurringPages.length, pages: cooccurringPages },
+          dimensionGrade: {
+            grade: dimensionGrade.grade,
+            score: dimensionGrade.score,
+            basis: dimensionGrade.basis,
+            allUnknown: dimensionGrade.allUnknown,
+            conflictDimensions: dimensionGrade.conflictDimensions,
+            entries: dimensionGrade.entries,
+          },
           anchor: anchor
             ? {
                 grade: anchor.anchorGrade,

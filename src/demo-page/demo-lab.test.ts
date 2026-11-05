@@ -355,13 +355,14 @@ describe('页面装载与离线约束', () => {
   });
 
   it('五个结论各有独立的标签，没覆盖不会被写成拒收', () => {
-    expect(api.STATUS_LABELS.strong).toBe('对');
-    expect(api.STATUS_LABELS.weak).toContain('单一独立来源');
+    expect(api.STATUS_LABELS.strong).toBe('强坐标');
+    expect(api.STATUS_LABELS.weak).toContain('弱坐标');
     expect(api.STATUS_LABELS.refuted).toBe('不对');
     expect(api.STATUS_LABELS.not_found).toContain('查过');
     expect(api.STATUS_LABELS.uncovered).toBe('这批证据没覆盖');
     for (const label of Object.values(api.STATUS_LABELS)) {
       expect(label).not.toContain('拒收');
+      expect(label).not.toMatch(/^对$/);
     }
   });
 });

@@ -26,6 +26,11 @@ import type { ClaimRecord, EvidenceRelation } from '../types';
 export interface ComparisonOutcome {
   relation: EvidenceRelation;
   quote: string;
+  /**
+   * 页面里写出该字段值的逐字原文片段（抽取层只摘值，不判这个值算不算对上）。
+   * 空串表示页面没给出这个字段的值，或被裁字段没有接维度实现。
+   */
+  matchedValue: string;
   contentWeight: number;
   pageTopic: string | null;
   rationale: string;
@@ -155,6 +160,7 @@ export function parseComparison(
   return {
     relation,
     quote,
+    matchedValue: typeof parsed.matchedValue === 'string' ? stripControlChars(parsed.matchedValue).trim() : '',
     contentWeight,
     pageTopic:
       typeof parsed.pageTopic === 'string'
@@ -252,6 +258,17 @@ export async function compareClaimToPage(input: {
       const hint = describeQuoteMismatch(outcome.quote, input.page.text);
       lastRejection = `引文未逐字命中快照${hint ? `（${hint}）` : ''}：${outcome.quote.slice(0, 60)}`;
       continue;
+    }
+    /**
+     * 抽取层只摘值：`matchedValue` 必须是本行引文的逐字子串。
+     * 不是就清空并降为「无从判断」——不拒收整条证据（引文本身仍然有效），
+     * 也绝不允许用改写后的值去比较（那会把"说法不同"偷偷算成"对上了"）。
+     */
+    if (outcome.matchedValue !== '' && !quoteMatches(outcome.matchedValue, outcome.quote)) {
+      log.dev.warn(
+        `[${input.claim.claimId}] matchedValue 不是引文的逐字子串，降为 unknown：${outcome.matchedValue.slice(0, 40)}`,
+      );
+      outcome.matchedValue = '';
     }
     // 第二道：逐字命中只证明"这串字在页面上"，不证明它说的是被裁的那个字段
     if (outcome.relation !== 'irrelevant') {

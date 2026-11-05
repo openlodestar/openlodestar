@@ -223,6 +223,10 @@
     parts.push(
       '<span class="stat">比对过 ' + field.examinedPages + ' 页</span>'
     );
+    if (field.state === 'covered' && field.dimensionLabel) {
+      // 判据维度状态：口径相容不许写成"对/一致"，冲突只作候选
+      parts.push('<span class="stat">判据：' + escapeHtml(field.dimensionLabel) + '</span>');
+    }
     parts.push('</div>');
 
     if (field.verdict === 'not_found') {

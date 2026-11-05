@@ -1,6 +1,6 @@
 // 由 src/demo-page/build-demo-data.ts 从 examples/ 生成，不要手改；改数据请改冻结批次后重跑 pnpm run demo:data。
 window.LODESTAR_DEMO = {
-  "generatedAt": "2026-11-05T12:20:23.847Z",
+  "generatedAt": "2026-11-05T16:06:50.321Z",
   "generator": "src/demo-page/build-demo-data.ts",
   "note": "判定由引擎在构建时算好并冻结：页面只切换展示，不重算计票、门禁与坐标。证据按「记录号＋字段名＋字段值」匹配，字段值对不上就显示「这批证据没覆盖」。",
   "fields": [
@@ -127,7 +127,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/amma-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": null
+              "note": null,
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0002",
@@ -141,7 +144,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/amma-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": null
+              "note": null,
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0003",
@@ -155,7 +161,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/amma-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": null
+              "note": null,
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0004",
@@ -169,7 +178,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/thevalue-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": null
+              "note": null,
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0005",
@@ -183,7 +195,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/thevalue-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": null
+              "note": null,
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0006",
@@ -197,7 +212,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/thevalue-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": null
+              "note": null,
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0007",
@@ -211,7 +229,10 @@ window.LODESTAR_DEMO = {
               "tier": "unlisted",
               "snapshotFile": "snapshots/chinanews-2021-11-25.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": "页面说的是预展在北京开启；按本包 location 规则，预展地命中即 supports"
+              "note": "页面说的是预展在北京开启；按本包 location 规则，预展地命中即 supports",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             }
           ],
           "computation": {
@@ -226,7 +247,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 2,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 2
+                "examinedPages": 2,
+                "dimensionState": "unknown"
               },
               "dateText": {
                 "fieldValue": "2021年12月5日",
@@ -236,7 +258,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 2,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 2
+                "examinedPages": 2,
+                "dimensionState": "unknown"
               },
               "sessionName": {
                 "fieldValue": "禹贡Ⅰ—盛清御瓷新风尚",
@@ -246,7 +269,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 2,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 2
+                "examinedPages": 2,
+                "dimensionState": "unknown"
               },
               "location": {
                 "fieldValue": "北京",
@@ -256,7 +280,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 1,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 1
+                "examinedPages": 1,
+                "dimensionState": "unknown"
               }
             },
             "keyFieldValues": {
@@ -269,6 +294,39 @@ window.LODESTAR_DEMO = {
               "pages": [
                 "https://amma.artron.net/observation_shownews.php?newid=1104807",
                 "https://hk.thevalue.com/articles/poly-auction-beijing-qianlong-yangcai-elephant-robin-egg-glaze-revolving-vase-result"
+              ]
+            },
+            "dimensionGrade": {
+              "grade": "weak",
+              "score": 0,
+              "basis": "没有任何维度给出正向线索",
+              "allUnknown": true,
+              "conflictDimensions": [],
+              "entries": [
+                {
+                  "dimension": "field:auctionHouse",
+                  "label": "auctionHouse",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:dateText",
+                  "label": "dateText",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:location",
+                  "label": "location",
+                  "state": "unknown",
+                  "cap": 0.5
+                },
+                {
+                  "dimension": "field:sessionName",
+                  "label": "sessionName",
+                  "state": "unknown",
+                  "cap": 1
+                }
               ]
             },
             "anchor": {
@@ -324,7 +382,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/amma-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": null
+              "note": null,
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0012",
@@ -338,7 +399,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/amma-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": null
+              "note": null,
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0013",
@@ -352,7 +416,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/thevalue-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": null
+              "note": null,
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0014",
@@ -366,7 +433,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/thevalue-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": null
+              "note": null,
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0015",
@@ -380,7 +450,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/amma-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": "页面明确写 2021 年 12 月 5 日，与 11 月 15 日冲突"
+              "note": "页面明确写 2021 年 12 月 5 日，与 11 月 15 日冲突",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0016",
@@ -394,7 +467,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/thevalue-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": "第二个独立来源给出同一日期，反对票达到 E2"
+              "note": "第二个独立来源给出同一日期，反对票达到 E2",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             }
           ],
           "computation": {
@@ -409,7 +485,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 2,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 2
+                "examinedPages": 2,
+                "dimensionState": "unknown"
               },
               "dateText": {
                 "fieldValue": "2021年11月15日",
@@ -419,7 +496,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 0,
                 "refuteCount": 2,
                 "notFoundCause": null,
-                "examinedPages": 2
+                "examinedPages": 2,
+                "dimensionState": "unknown"
               },
               "sessionName": {
                 "fieldValue": "禹贡Ⅰ—盛清御瓷新风尚",
@@ -429,7 +507,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 2,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 2
+                "examinedPages": 2,
+                "dimensionState": "unknown"
               }
             },
             "keyFieldValues": {
@@ -440,6 +519,33 @@ window.LODESTAR_DEMO = {
             "cooccurrence": {
               "count": 0,
               "pages": []
+            },
+            "dimensionGrade": {
+              "grade": "weak",
+              "score": 0,
+              "basis": "没有任何维度给出正向线索",
+              "allUnknown": true,
+              "conflictDimensions": [],
+              "entries": [
+                {
+                  "dimension": "field:auctionHouse",
+                  "label": "auctionHouse",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:dateText",
+                  "label": "dateText",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:sessionName",
+                  "label": "sessionName",
+                  "state": "unknown",
+                  "cap": 1
+                }
+              ]
             },
             "anchor": null
           }
@@ -482,7 +588,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/thepaper-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": "澎湃号「雅昌艺术网」官方账号转载原创稿（作者李保兴，雅昌艺术网）；sourceFamily 按原创方归并，转载不增加独立来源"
+              "note": "澎湃号「雅昌艺术网」官方账号转载原创稿（作者李保兴，雅昌艺术网）；sourceFamily 按原创方归并，转载不增加独立来源",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0009",
@@ -496,7 +605,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/thepaper-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": "页面只写到 2021 年秋季，没有具体日期；断言也只写到季度，精度相符"
+              "note": "页面只写到 2021 年秋季，没有具体日期；断言也只写到季度，精度相符",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0010",
@@ -510,7 +622,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/thepaper-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": "澎湃号「雅昌艺术网」官方账号转载原创稿；家族归并后仍只有一条独立来源"
+              "note": "澎湃号「雅昌艺术网」官方账号转载原创稿；家族归并后仍只有一条独立来源",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             }
           ],
           "computation": {
@@ -525,7 +640,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 1,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 1
+                "examinedPages": 1,
+                "dimensionState": "unknown"
               },
               "dateText": {
                 "fieldValue": "2021年秋季",
@@ -535,7 +651,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 1,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 1
+                "examinedPages": 1,
+                "dimensionState": "unknown"
               },
               "sessionName": {
                 "fieldValue": "禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
@@ -545,7 +662,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 1,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 1
+                "examinedPages": 1,
+                "dimensionState": "unknown"
               }
             },
             "keyFieldValues": {
@@ -557,6 +675,33 @@ window.LODESTAR_DEMO = {
               "count": 1,
               "pages": [
                 "https://m.thepaper.cn/newsDetail_forward_15697852"
+              ]
+            },
+            "dimensionGrade": {
+              "grade": "weak",
+              "score": 0,
+              "basis": "没有任何维度给出正向线索",
+              "allUnknown": true,
+              "conflictDimensions": [],
+              "entries": [
+                {
+                  "dimension": "field:auctionHouse",
+                  "label": "auctionHouse",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:dateText",
+                  "label": "dateText",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:sessionName",
+                  "label": "sessionName",
+                  "state": "unknown",
+                  "cap": 1
+                }
               ]
             },
             "anchor": {
@@ -611,7 +756,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/amma-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": "仅证明北京保利在该季办拍；本行不涉及「禹贡Ⅲ」，专场字段另由 sessionName 断言裁决"
+              "note": "仅证明北京保利在该季办拍；本行不涉及「禹贡Ⅲ」，专场字段另由 sessionName 断言裁决",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0018",
@@ -625,7 +773,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/amma-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": "该季拍卖确实在 2021 年 12 月举行；日期成立不等于这个专场存在"
+              "note": "该季拍卖确实在 2021 年 12 月举行；日期成立不等于这个专场存在",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0019",
@@ -639,7 +790,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/amma-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": "页面只列「禹贡Ⅰ」，没有「禹贡Ⅲ」；判 irrelevant 不是判假"
+              "note": "页面只列「禹贡Ⅰ」，没有「禹贡Ⅲ」；判 irrelevant 不是判假",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0020",
@@ -653,7 +807,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/thevalue-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": null
+              "note": null,
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0021",
@@ -667,7 +824,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/thevalue-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": null
+              "note": null,
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-poly-0022",
@@ -681,7 +841,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/thevalue-2021-12-05.txt",
               "fetchedAt": "2026-10-29T00:00:00.000Z",
-              "note": "页面只列「禹贡Ⅰ」，没有「禹贡Ⅲ」；检索到了相关页面，但没有这条专场的任何说法"
+              "note": "页面只列「禹贡Ⅰ」，没有「禹贡Ⅲ」；检索到了相关页面，但没有这条专场的任何说法",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             }
           ],
           "computation": {
@@ -696,7 +859,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 2,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 2
+                "examinedPages": 2,
+                "dimensionState": "unknown"
               },
               "dateText": {
                 "fieldValue": "2021年12月",
@@ -706,7 +870,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 2,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 2
+                "examinedPages": 2,
+                "dimensionState": "unknown"
               },
               "sessionName": {
                 "fieldValue": "禹贡Ⅲ—盛清御瓷新风尚",
@@ -716,7 +881,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 0,
                 "refuteCount": 0,
                 "notFoundCause": "coverage",
-                "examinedPages": 2
+                "examinedPages": 2,
+                "dimensionState": "unknown"
               }
             },
             "keyFieldValues": {
@@ -727,6 +893,33 @@ window.LODESTAR_DEMO = {
             "cooccurrence": {
               "count": 0,
               "pages": []
+            },
+            "dimensionGrade": {
+              "grade": "weak",
+              "score": 0,
+              "basis": "没有任何维度给出正向线索",
+              "allUnknown": true,
+              "conflictDimensions": [],
+              "entries": [
+                {
+                  "dimension": "field:auctionHouse",
+                  "label": "auctionHouse",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:dateText",
+                  "label": "dateText",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:sessionName",
+                  "label": "sessionName",
+                  "state": "unknown",
+                  "cap": 1
+                }
+              ]
             },
             "anchor": null
           }
@@ -828,7 +1021,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/page-704f73.txt",
               "fetchedAt": "2026-11-04T09:14:20.974Z",
-              "note": "页面主题：该页面报道的是北京保利2024年春季艺术品拍卖会的收官战报及成交详情。"
+              "note": "页面主题：该页面报道的是北京保利2024年春季艺术品拍卖会的收官战报及成交详情。",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-84e44a",
@@ -842,7 +1038,10 @@ window.LODESTAR_DEMO = {
               "tier": "aggregator",
               "snapshotFile": "snapshots/page-84e44a.txt",
               "fetchedAt": "2026-11-04T09:14:50.697Z",
-              "note": "页面主题：该页面为北京保利国际拍卖有限公司的机构简介与业务范围介绍。"
+              "note": "页面主题：该页面为北京保利国际拍卖有限公司的机构简介与业务范围介绍。",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-c29d0f",
@@ -856,7 +1055,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/page-704f73.txt",
               "fetchedAt": "2026-11-04T09:14:20.974Z",
-              "note": "页面主题：该页面是一篇报道北京保利2024年春季艺术品拍卖会圆满收官及各板块成交情况的新闻战报。"
+              "note": "页面主题：该页面是一篇报道北京保利2024年春季艺术品拍卖会圆满收官及各板块成交情况的新闻战报。",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-6bfad1",
@@ -870,7 +1072,10 @@ window.LODESTAR_DEMO = {
               "tier": "unlisted",
               "snapshotFile": "snapshots/page-6bfad1.txt",
               "fetchedAt": "2026-11-04T09:15:51.383Z",
-              "note": "页面主题：盘点2022年度艺术品拍卖市场高价成交瓷器及相关信息的行业回顾文章"
+              "note": "页面主题：盘点2022年度艺术品拍卖市场高价成交瓷器及相关信息的行业回顾文章",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-ddbb3b",
@@ -884,7 +1089,10 @@ window.LODESTAR_DEMO = {
               "tier": "unlisted",
               "snapshotFile": "snapshots/page-ddbb3b.txt",
               "fetchedAt": "2026-11-04T09:16:38.166Z",
-              "note": "页面主题：介绍北京保利拍卖2022年春季拍卖会精品展启幕情况及各品类拍品亮点"
+              "note": "页面主题：介绍北京保利拍卖2022年春季拍卖会精品展启幕情况及各品类拍品亮点",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-d00dcc",
@@ -898,7 +1106,10 @@ window.LODESTAR_DEMO = {
               "tier": "unlisted",
               "snapshotFile": "snapshots/page-d00dcc.txt",
               "fetchedAt": "2026-11-04T09:17:13.079Z",
-              "note": "页面主题：介绍保利拍卖（香港）的公司背景及其2021至2022年间的拍卖市场动态与新闻摘要"
+              "note": "页面主题：介绍保利拍卖（香港）的公司背景及其2021至2022年间的拍卖市场动态与新闻摘要",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-d92ad2",
@@ -912,7 +1123,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/page-704f73.txt",
               "fetchedAt": "2026-11-04T09:14:20.974Z",
-              "note": "页面主题：介绍北京保利2024年春季艺术品拍卖会的整体成交情况及各专场拍品详情"
+              "note": "页面主题：介绍北京保利2024年春季艺术品拍卖会的整体成交情况及各专场拍品详情",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-eff79b",
@@ -926,7 +1140,10 @@ window.LODESTAR_DEMO = {
               "tier": "unlisted",
               "snapshotFile": "snapshots/page-6bfad1.txt",
               "fetchedAt": "2026-11-04T09:15:51.383Z",
-              "note": "页面主题：盘点2022年度艺术品市场高价成交瓷器排行榜及相关拍品来源信息"
+              "note": "页面主题：盘点2022年度艺术品市场高价成交瓷器排行榜及相关拍品来源信息",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-00903b",
@@ -940,7 +1157,10 @@ window.LODESTAR_DEMO = {
               "tier": "unlisted",
               "snapshotFile": "snapshots/page-00903b.txt",
               "fetchedAt": "2026-11-04T09:18:55.473Z",
-              "note": "页面主题：该页面讲的是北京保利2022年秋季艺术品拍卖会（含中国古董珍玩专场）的日程安排与拍品介绍"
+              "note": "页面主题：该页面讲的是北京保利2022年秋季艺术品拍卖会（含中国古董珍玩专场）的日程安排与拍品介绍",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             }
           ],
           "computation": {
@@ -955,7 +1175,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 0,
                 "refuteCount": 0,
                 "notFoundCause": "coverage",
-                "examinedPages": 2
+                "examinedPages": 2,
+                "dimensionState": "unknown"
               },
               "dateText": {
                 "fieldValue": "2022年7月14日",
@@ -965,7 +1186,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 1,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 4
+                "examinedPages": 4,
+                "dimensionState": "unknown"
               },
               "sessionName": {
                 "fieldValue": "中國古董珍玩專場",
@@ -975,7 +1197,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 1,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 3
+                "examinedPages": 3,
+                "dimensionState": "unknown"
               }
             },
             "keyFieldValues": {
@@ -986,6 +1209,33 @@ window.LODESTAR_DEMO = {
             "cooccurrence": {
               "count": 0,
               "pages": []
+            },
+            "dimensionGrade": {
+              "grade": "weak",
+              "score": 0,
+              "basis": "没有任何维度给出正向线索",
+              "allUnknown": true,
+              "conflictDimensions": [],
+              "entries": [
+                {
+                  "dimension": "field:auctionHouse",
+                  "label": "auctionHouse",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:dateText",
+                  "label": "dateText",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:sessionName",
+                  "label": "sessionName",
+                  "state": "unknown",
+                  "cap": 1
+                }
+              ]
             },
             "anchor": null
           }
@@ -1071,7 +1321,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/page-b03445.txt",
               "fetchedAt": "2026-11-04T10:10:12.803Z",
-              "note": "页面主题：介绍北京保利2021秋季拍卖会中国古董珍玩板块的专场设置与重点拍品"
+              "note": "页面主题：介绍北京保利2021秋季拍卖会中国古董珍玩板块的专场设置与重点拍品",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-6897fd",
@@ -1085,7 +1338,10 @@ window.LODESTAR_DEMO = {
               "tier": "aggregator",
               "snapshotFile": "snapshots/page-6897fd.txt",
               "fetchedAt": "2026-11-04T10:10:54.345Z",
-              "note": "页面主题：北京保利拍卖2021秋季艺术品拍卖会的整体成交总结与部分重点拍品回顾。"
+              "note": "页面主题：北京保利拍卖2021秋季艺术品拍卖会的整体成交总结与部分重点拍品回顾。",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-8e90b7",
@@ -1099,7 +1355,10 @@ window.LODESTAR_DEMO = {
               "tier": "official",
               "snapshotFile": "snapshots/page-8e90b7.txt",
               "fetchedAt": "2026-11-04T10:10:05.695Z",
-              "note": "页面主题：苏富比2021年10月在香港举办的“一德堂藏康熙、雍正、乾隆朝御瓷”拍卖专场结果页"
+              "note": "页面主题：苏富比2021年10月在香港举办的“一德堂藏康熙、雍正、乾隆朝御瓷”拍卖专场结果页",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-fb0344",
@@ -1113,7 +1372,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/page-b03445.txt",
               "fetchedAt": "2026-11-04T10:10:12.803Z",
-              "note": "页面主题：介绍北京保利2021年秋季拍卖会中国古董珍玩板块各专场亮点及拍品信息的资讯页面"
+              "note": "页面主题：介绍北京保利2021年秋季拍卖会中国古董珍玩板块各专场亮点及拍品信息的资讯页面",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-3b6162",
@@ -1127,7 +1389,10 @@ window.LODESTAR_DEMO = {
               "tier": "aggregator",
               "snapshotFile": "snapshots/page-6897fd.txt",
               "fetchedAt": "2026-11-04T10:10:54.345Z",
-              "note": "页面主题：北京保利2021年秋季艺术品拍卖会的整体成交额与主要专场回顾"
+              "note": "页面主题：北京保利2021年秋季艺术品拍卖会的整体成交额与主要专场回顾",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-0646fe",
@@ -1141,7 +1406,10 @@ window.LODESTAR_DEMO = {
               "tier": "unlisted",
               "snapshotFile": "snapshots/page-0646fe.txt",
               "fetchedAt": "2026-11-04T10:13:13.708Z",
-              "note": "页面主题：2021年度瓷器拍卖市场回顾及高价拍品成交记录"
+              "note": "页面主题：2021年度瓷器拍卖市场回顾及高价拍品成交记录",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-992d5c",
@@ -1155,7 +1423,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/page-b03445.txt",
               "fetchedAt": "2026-11-04T10:10:12.803Z",
-              "note": "页面主题：该页面详细报道了北京保利2021年秋季拍卖会中国古董珍玩板块的各专场设置、重点拍品及预展信息。"
+              "note": "页面主题：该页面详细报道了北京保利2021年秋季拍卖会中国古董珍玩板块的各专场设置、重点拍品及预展信息。",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-2418e5",
@@ -1169,7 +1440,10 @@ window.LODESTAR_DEMO = {
               "tier": "unlisted",
               "snapshotFile": "snapshots/page-0646fe.txt",
               "fetchedAt": "2026-11-04T10:13:13.708Z",
-              "note": "页面主题：2021年度瓷器市场成交TOP50榜单及拍品详情"
+              "note": "页面主题：2021年度瓷器市场成交TOP50榜单及拍品详情",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             }
           ],
           "computation": {
@@ -1184,7 +1458,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 1,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 2
+                "examinedPages": 2,
+                "dimensionState": "unknown"
               },
               "dateText": {
                 "fieldValue": "2021年12月5日",
@@ -1194,7 +1469,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 2,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 4
+                "examinedPages": 4,
+                "dimensionState": "unknown"
               },
               "sessionName": {
                 "fieldValue": "禹贡Ⅰ—盛清御瓷新风尚",
@@ -1204,7 +1480,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 2,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 2
+                "examinedPages": 2,
+                "dimensionState": "unknown"
               }
             },
             "keyFieldValues": {
@@ -1216,6 +1493,33 @@ window.LODESTAR_DEMO = {
               "count": 1,
               "pages": [
                 "https://m-news.artron.net/news/20260915/n1940787.html"
+              ]
+            },
+            "dimensionGrade": {
+              "grade": "weak",
+              "score": 0,
+              "basis": "没有任何维度给出正向线索",
+              "allUnknown": true,
+              "conflictDimensions": [],
+              "entries": [
+                {
+                  "dimension": "field:auctionHouse",
+                  "label": "auctionHouse",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:dateText",
+                  "label": "dateText",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:sessionName",
+                  "label": "sessionName",
+                  "state": "unknown",
+                  "cap": 1
+                }
               ]
             },
             "anchor": {
@@ -1322,7 +1626,10 @@ window.LODESTAR_DEMO = {
               "tier": "official",
               "snapshotFile": "snapshots/page-07e788.txt",
               "fetchedAt": "2026-11-04T10:17:35.901Z",
-              "note": "页面主题：介绍菲利普斯与保利拍卖合作于2021年6月在北京和香港联合举办现当代艺术及设计专场的文章"
+              "note": "页面主题：介绍菲利普斯与保利拍卖合作于2021年6月在北京和香港联合举办现当代艺术及设计专场的文章",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-6e02cd",
@@ -1336,7 +1643,10 @@ window.LODESTAR_DEMO = {
               "tier": "official",
               "snapshotFile": "snapshots/page-6e02cd.txt",
               "fetchedAt": "2026-11-04T10:18:09.307Z",
-              "note": "页面主题：保利拍卖二十周年春季艺术品拍卖会（2025年6月）的专场排期与基本信息"
+              "note": "页面主题：保利拍卖二十周年春季艺术品拍卖会（2025年6月）的专场排期与基本信息",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-e2f1d2",
@@ -1350,7 +1660,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/page-e2f1d2.txt",
               "fetchedAt": "2026-11-04T10:18:40.357Z",
-              "note": "页面主题：北京保利2021秋季拍卖会中国古董珍玩板块专场预览与重点拍品介绍"
+              "note": "页面主题：北京保利2021秋季拍卖会中国古董珍玩板块专场预览与重点拍品介绍",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-6b5480",
@@ -1364,7 +1677,10 @@ window.LODESTAR_DEMO = {
               "tier": "aggregator",
               "snapshotFile": "snapshots/page-6b5480.txt",
               "fetchedAt": "2026-11-04T10:19:16.312Z",
-              "note": "页面主题：该页面是一篇汇总北京保利2021年秋季拍卖会整体成交额及各主要专场亮点的新闻报道。"
+              "note": "页面主题：该页面是一篇汇总北京保利2021年秋季拍卖会整体成交额及各主要专场亮点的新闻报道。",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-706f14",
@@ -1378,7 +1694,10 @@ window.LODESTAR_DEMO = {
               "tier": "unlisted",
               "snapshotFile": "snapshots/page-706f14.txt",
               "fetchedAt": "2026-11-04T10:20:13.891Z",
-              "note": "页面主题：2021年度中国瓷器拍卖市场回顾与TOP50高价拍品成交明细"
+              "note": "页面主题：2021年度中国瓷器拍卖市场回顾与TOP50高价拍品成交明细",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-80500a",
@@ -1392,7 +1711,10 @@ window.LODESTAR_DEMO = {
               "tier": "official",
               "snapshotFile": "snapshots/page-07e788.txt",
               "fetchedAt": "2026-11-04T10:17:35.901Z",
-              "note": "页面主题：该页面是一则关于菲利普斯与保利拍卖合作于2021年春季举办两地同步当代艺术与设计专场的新闻报道。"
+              "note": "页面主题：该页面是一则关于菲利普斯与保利拍卖合作于2021年春季举办两地同步当代艺术与设计专场的新闻报道。",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-ebb520",
@@ -1406,7 +1728,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/page-e2f1d2.txt",
               "fetchedAt": "2026-11-04T10:18:40.357Z",
-              "note": "页面主题：介绍北京保利2021年秋季拍卖会中国古董珍玩板块的专场安排及重点拍品"
+              "note": "页面主题：介绍北京保利2021年秋季拍卖会中国古董珍玩板块的专场安排及重点拍品",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-3029b5",
@@ -1420,7 +1745,10 @@ window.LODESTAR_DEMO = {
               "tier": "aggregator",
               "snapshotFile": "snapshots/page-6b5480.txt",
               "fetchedAt": "2026-11-04T10:19:16.312Z",
-              "note": "页面主题：北京保利2021年秋季艺术品拍卖会的总体成交情况与主要专场回顾"
+              "note": "页面主题：北京保利2021年秋季艺术品拍卖会的总体成交情况与主要专场回顾",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-a9a316",
@@ -1434,7 +1762,10 @@ window.LODESTAR_DEMO = {
               "tier": "unlisted",
               "snapshotFile": "snapshots/page-706f14.txt",
               "fetchedAt": "2026-11-04T10:20:13.891Z",
-              "note": "页面主题：2021年度瓷器拍卖市场回顾及高价拍品成交记录"
+              "note": "页面主题：2021年度瓷器拍卖市场回顾及高价拍品成交记录",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-05aef5",
@@ -1448,7 +1779,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/page-e2f1d2.txt",
               "fetchedAt": "2026-11-04T10:18:40.357Z",
-              "note": "页面主题：介绍北京保利2021秋拍中国古董珍玩板块各专场及重点拍品的资讯"
+              "note": "页面主题：介绍北京保利2021秋拍中国古董珍玩板块各专场及重点拍品的资讯",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-03f23d",
@@ -1462,7 +1796,10 @@ window.LODESTAR_DEMO = {
               "tier": "unlisted",
               "snapshotFile": "snapshots/page-706f14.txt",
               "fetchedAt": "2026-11-04T10:20:13.891Z",
-              "note": "页面主题：盘点2021年度瓷器市场成交TOP50的拍品及其所属拍卖行与专场信息"
+              "note": "页面主题：盘点2021年度瓷器市场成交TOP50的拍品及其所属拍卖行与专场信息",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             }
           ],
           "computation": {
@@ -1477,7 +1814,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 2,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 5
+                "examinedPages": 5,
+                "dimensionState": "unknown"
               },
               "dateText": {
                 "fieldValue": "2021年12月5日",
@@ -1487,7 +1825,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 2,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 4
+                "examinedPages": 4,
+                "dimensionState": "unknown"
               },
               "sessionName": {
                 "fieldValue": "禹贡Ⅰ—盛清御瓷新风尚",
@@ -1497,7 +1836,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 2,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 2
+                "examinedPages": 2,
+                "dimensionState": "unknown"
               }
             },
             "keyFieldValues": {
@@ -1510,6 +1850,33 @@ window.LODESTAR_DEMO = {
               "pages": [
                 "http://wx.ttp.51bidlive.com/news/detail?id=4516",
                 "https://m-news.artron.net/news/20260915/n1940787.html"
+              ]
+            },
+            "dimensionGrade": {
+              "grade": "weak",
+              "score": 0,
+              "basis": "没有任何维度给出正向线索",
+              "allUnknown": true,
+              "conflictDimensions": [],
+              "entries": [
+                {
+                  "dimension": "field:auctionHouse",
+                  "label": "auctionHouse",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:dateText",
+                  "label": "dateText",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:sessionName",
+                  "label": "sessionName",
+                  "state": "unknown",
+                  "cap": 1
+                }
               ]
             },
             "anchor": {
@@ -1608,7 +1975,10 @@ window.LODESTAR_DEMO = {
               "tier": "official",
               "snapshotFile": "snapshots/page-5be883.txt",
               "fetchedAt": "2026-11-04T09:24:40.409Z",
-              "note": "页面主题：中国嘉德2026年秋季拍卖会日程及精品赏析页面"
+              "note": "页面主题：中国嘉德2026年秋季拍卖会日程及精品赏析页面",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-a05723",
@@ -1622,7 +1992,10 @@ window.LODESTAR_DEMO = {
               "tier": "aggregator",
               "snapshotFile": "snapshots/page-a05723.txt",
               "fetchedAt": "2026-11-04T09:27:10.956Z",
-              "note": "页面主题：该页面主要报道了2021年中国嘉德香港春拍的专访内容及各专场日程安排。"
+              "note": "页面主题：该页面主要报道了2021年中国嘉德香港春拍的专访内容及各专场日程安排。",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-16465e",
@@ -1636,7 +2009,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/page-16465e.txt",
               "fetchedAt": "2026-11-04T09:25:47.222Z",
-              "note": "页面主题：雅昌艺术网关于中国嘉德2021春季拍卖会“宸赏—明清御瓷珍玩”专场的资讯与拍品介绍页面"
+              "note": "页面主题：雅昌艺术网关于中国嘉德2021春季拍卖会“宸赏—明清御瓷珍玩”专场的资讯与拍品介绍页面",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-e4eb15",
@@ -1650,7 +2026,10 @@ window.LODESTAR_DEMO = {
               "tier": "official",
               "snapshotFile": "snapshots/page-5be883.txt",
               "fetchedAt": "2026-11-04T09:24:40.409Z",
-              "note": "页面主题：该页面展示的是中国嘉德2026年秋季拍卖会的各专场日程与拍品信息。"
+              "note": "页面主题：该页面展示的是中国嘉德2026年秋季拍卖会的各专场日程与拍品信息。",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-eaf075",
@@ -1664,7 +2043,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/page-16465e.txt",
               "fetchedAt": "2026-11-04T09:25:47.222Z",
-              "note": "页面主题：该页面介绍的是中国嘉德2021年春季拍卖会“宸赏—明清御瓷珍玩”专场的预展安排与部分拍品详情。"
+              "note": "页面主题：该页面介绍的是中国嘉德2021年春季拍卖会“宸赏—明清御瓷珍玩”专场的预展安排与部分拍品详情。",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-ac7935",
@@ -1678,7 +2060,10 @@ window.LODESTAR_DEMO = {
               "tier": "unlisted",
               "snapshotFile": "snapshots/page-ac7935.txt",
               "fetchedAt": "2026-11-04T09:30:48.418Z",
-              "note": "页面主题：该页面主要盘点2021年度瓷器市场成交TOP50的拍品及其所属专场信息。"
+              "note": "页面主题：该页面主要盘点2021年度瓷器市场成交TOP50的拍品及其所属专场信息。",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             }
           ],
           "computation": {
@@ -1693,7 +2078,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 0,
                 "refuteCount": 0,
                 "notFoundCause": "coverage",
-                "examinedPages": 2
+                "examinedPages": 2,
+                "dimensionState": "unknown"
               },
               "dateText": {
                 "fieldValue": "2021年11月26日至12月13日",
@@ -1703,7 +2089,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 0,
                 "refuteCount": 1,
                 "notFoundCause": null,
-                "examinedPages": 1
+                "examinedPages": 1,
+                "dimensionState": "unknown"
               },
               "sessionName": {
                 "fieldValue": "宸赏—明清御瓷珍玩",
@@ -1713,7 +2100,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 1,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 3
+                "examinedPages": 3,
+                "dimensionState": "unknown"
               }
             },
             "keyFieldValues": {
@@ -1724,6 +2112,33 @@ window.LODESTAR_DEMO = {
             "cooccurrence": {
               "count": 0,
               "pages": []
+            },
+            "dimensionGrade": {
+              "grade": "weak",
+              "score": 0,
+              "basis": "没有任何维度给出正向线索",
+              "allUnknown": true,
+              "conflictDimensions": [],
+              "entries": [
+                {
+                  "dimension": "field:auctionHouse",
+                  "label": "auctionHouse",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:dateText",
+                  "label": "dateText",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:sessionName",
+                  "label": "sessionName",
+                  "state": "unknown",
+                  "cap": 1
+                }
+              ]
             },
             "anchor": null
           }
@@ -1817,7 +2232,10 @@ window.LODESTAR_DEMO = {
               "tier": "official",
               "snapshotFile": "snapshots/page-d88a91.txt",
               "fetchedAt": "2026-11-04T10:00:28.106Z",
-              "note": "页面主题：该页面展示了中国嘉德2026年秋季拍卖会的详细日程与拍品场次安排"
+              "note": "页面主题：该页面展示了中国嘉德2026年秋季拍卖会的详细日程与拍品场次安排",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-8ba8fd",
@@ -1831,7 +2249,10 @@ window.LODESTAR_DEMO = {
               "tier": "primary",
               "snapshotFile": "snapshots/page-8ba8fd.txt",
               "fetchedAt": "2026-11-04T10:00:52.832Z",
-              "note": "页面主题：该页面为中国嘉德国际拍卖有限公司的机构主页，主要展示了其2026年秋季拍卖会的日程、地点及包含的22个专场信息。"
+              "note": "页面主题：该页面为中国嘉德国际拍卖有限公司的机构主页，主要展示了其2026年秋季拍卖会的日程、地点及包含的22个专场信息。",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-91cbce",
@@ -1845,7 +2266,10 @@ window.LODESTAR_DEMO = {
               "tier": "unlisted",
               "snapshotFile": "snapshots/page-91cbce.txt",
               "fetchedAt": "2026-11-04T10:01:42.728Z",
-              "note": "页面主题：该页面主要介绍中国嘉德2025年春季拍卖会的启幕时间、分阶段预展与拍卖日程以及各门类专场的拍品情况。"
+              "note": "页面主题：该页面主要介绍中国嘉德2025年春季拍卖会的启幕时间、分阶段预展与拍卖日程以及各门类专场的拍品情况。",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-525b77",
@@ -1859,7 +2283,10 @@ window.LODESTAR_DEMO = {
               "tier": "unlisted",
               "snapshotFile": "snapshots/page-525b77.txt",
               "fetchedAt": "2026-11-04T10:02:07.375Z",
-              "note": "页面主题：北京市文物局关于同意中国嘉德举办第68期文物艺术品线上拍卖会的批复文件"
+              "note": "页面主题：北京市文物局关于同意中国嘉德举办第68期文物艺术品线上拍卖会的批复文件",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-ff625a",
@@ -1873,7 +2300,10 @@ window.LODESTAR_DEMO = {
               "tier": "unlisted",
               "snapshotFile": "snapshots/page-ff625a.txt",
               "fetchedAt": "2026-11-04T10:02:34.746Z",
-              "note": "页面主题：该页面是一篇关于中国嘉德2025年春季拍卖会圆满收官及亮点的新闻报道。"
+              "note": "页面主题：该页面是一篇关于中国嘉德2025年春季拍卖会圆满收官及亮点的新闻报道。",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             },
             {
               "evidenceId": "ev-20261104-a85101",
@@ -1887,7 +2317,10 @@ window.LODESTAR_DEMO = {
               "tier": "unlisted",
               "snapshotFile": "snapshots/page-525b77.txt",
               "fetchedAt": "2026-11-04T10:02:07.375Z",
-              "note": "页面主题：北京市文物局批复中国嘉德举办第68期文物艺术品线上拍卖会的官方文件"
+              "note": "页面主题：北京市文物局批复中国嘉德举办第68期文物艺术品线上拍卖会的官方文件",
+              "dimension": null,
+              "state": "unknown",
+              "matchedValue": null
             }
           ],
           "computation": {
@@ -1902,7 +2335,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 0,
                 "refuteCount": 0,
                 "notFoundCause": "coverage",
-                "examinedPages": 2
+                "examinedPages": 2,
+                "dimensionState": "unknown"
               },
               "dateText": {
                 "fieldValue": "2025年8月16日20时—8月22日24时",
@@ -1912,7 +2346,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 1,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 3
+                "examinedPages": 3,
+                "dimensionState": "unknown"
               },
               "sessionName": {
                 "fieldValue": "递藏之趣专场",
@@ -1922,7 +2357,8 @@ window.LODESTAR_DEMO = {
                 "supportCount": 1,
                 "refuteCount": 0,
                 "notFoundCause": null,
-                "examinedPages": 1
+                "examinedPages": 1,
+                "dimensionState": "unknown"
               }
             },
             "keyFieldValues": {
@@ -1933,6 +2369,33 @@ window.LODESTAR_DEMO = {
             "cooccurrence": {
               "count": 0,
               "pages": []
+            },
+            "dimensionGrade": {
+              "grade": "weak",
+              "score": 0,
+              "basis": "没有任何维度给出正向线索",
+              "allUnknown": true,
+              "conflictDimensions": [],
+              "entries": [
+                {
+                  "dimension": "field:auctionHouse",
+                  "label": "auctionHouse",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:dateText",
+                  "label": "dateText",
+                  "state": "unknown",
+                  "cap": 1
+                },
+                {
+                  "dimension": "field:sessionName",
+                  "label": "sessionName",
+                  "state": "unknown",
+                  "cap": 1
+                }
+              ]
             },
             "anchor": null
           }

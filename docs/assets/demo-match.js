@@ -37,6 +37,8 @@
         role: field.role,
         value: field.value,
         state: 'uncovered',
+        dimensionState: 'unknown',
+        dimensionLabel: DIMENSION_STATE_LABELS.unknown,
         reason: '这个字段的值与构建时参与计算的值不一致，证据不覆盖当前值。',
         evidence: []
       };
@@ -50,6 +52,8 @@
         role: field.role,
         value: field.value,
         state: 'uncovered',
+        dimensionState: 'unknown',
+        dimensionLabel: DIMENSION_STATE_LABELS.unknown,
         reason: '找不到与「' + field.value + '」匹配的证据行，不沿用旧结论。',
         evidence: []
       };
@@ -66,15 +70,32 @@
       refuteCount: computed.refuteCount,
       notFoundCause: computed.notFoundCause,
       examinedPages: computed.examinedPages,
+      dimensionState: computed.dimensionState || 'unknown',
+      dimensionLabel: DIMENSION_STATE_LABELS[computed.dimensionState] || DIMENSION_STATE_LABELS.unknown,
       evidence: evidence
     };
   }
 
+  /**
+   * 判据维度状态（六态）。呈现约束：
+   * 口径相容只能说"很可能是同一件，只是说法不同"，不许写成"对"或"一致"；
+   * 边缘相容只能说"没有矛盾，但这不能证明"；冲突只挂候选，不许压成"反对"。
+   */
+  var DIMENSION_STATE_LABELS = {
+    exact: '完全对上',
+    caliber: '口径相容（很可能是同一件，只是说法不同）',
+    edge: '边缘相容（没有矛盾，但这不能证明）',
+    conflict: '冲突候选（不是"反对"）',
+    mismatch: '没对上',
+    unknown: '无从判断'
+  };
+
+  /** 对外只发三档：强坐标 / 弱坐标 / 无坐标 */
   var GATE_LABELS = {
-    strong: '强',
-    weak: '弱',
-    rejected: '拒收',
-    uncovered: '这批证据没覆盖'
+    strong: '强坐标',
+    weak: '弱坐标',
+    rejected: '无坐标',
+    uncovered: '无坐标（这批证据没覆盖）'
   };
 
   var VERDICT_LABELS = {
@@ -113,11 +134,22 @@
       bucket: bucket,
       gate: gate,
       gateLabel: GATE_LABELS[gate],
+      coordinate: gate === 'strong' ? 'strong' : gate === 'weak' ? 'weak' : 'none',
+      coordinateLabel: gate === 'strong' ? '强坐标' : gate === 'weak' ? '弱坐标' : '无坐标',
+      // 冲突只作候选单独挂标记，绝不压成"反对"
+      conflictCandidates: fields
+        .filter(function (field) {
+          return field.dimensionState === 'conflict';
+        })
+        .map(function (field) {
+          return { key: field.key, label: field.label, dimensionLabel: field.dimensionLabel };
+        }),
       bucketLabel: gate === 'uncovered' ? GATE_LABELS.uncovered : record.bucket,
       reason: reason,
       fields: fields,
       keyFieldValues: record.computation.keyFieldValues,
       cooccurrence: record.computation.cooccurrence,
+      dimensionGrade: record.computation.dimensionGrade || null,
       anchor: anchor,
       keyFieldsCovered: fields
         .filter(function (field) {
@@ -138,6 +170,7 @@
     fieldView: fieldView,
     buildView: buildView,
     verdictLabel: verdictLabel,
-    GATE_LABELS: GATE_LABELS
+    GATE_LABELS: GATE_LABELS,
+    DIMENSION_STATE_LABELS: DIMENSION_STATE_LABELS
   };
 })(typeof window !== 'undefined' ? window : globalThis);

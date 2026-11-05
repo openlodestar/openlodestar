@@ -1,7 +1,7 @@
 // 由 src/demo-page/build-demo-game.ts 从 examples/ 与 demo-data.js 生成，不要手改；改槽位或批次后重跑 pnpm run demo:game。
 // 组合矩阵只冻结"哪组取值命中哪条冻结记录"与引擎摘要；逐条证据、引文与快照在 demo-data.js，页面按记录号引用。
 window.LODESTAR_DEMO_GAME = {
-  "generatedAt": "2026-11-05T12:20:37.838Z",
+  "generatedAt": "2026-11-05T16:06:56.374Z",
   "generator": "src/demo-page/build-demo-game.ts",
   "note": "组合矩阵在构建时算好：机构 + 专场主名 + 副题只取冻结记录里真实出现过的三元组，每个三元组再与四个时间候选组合；匹配不到记录就是「这批证据没覆盖」，不继承旧证据，也不判成被拒收。裁决、共现、坐标随记录冻结，逐条引文在 demo-data.js。",
   "slots": [

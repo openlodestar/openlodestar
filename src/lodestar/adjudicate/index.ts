@@ -21,10 +21,12 @@ import type { DomainPack, FieldSpec } from '../packs/pack';
 import type { LodestarStore } from '../storage/adapter';
 import type {
   ClaimRecord,
+  EvidenceDimensionState,
   EvidenceRecord,
   SearchFootprint,
   VerdictRecord,
 } from '../types';
+import { dimensionForField } from '../dimensions';
 import { createHash } from 'node:crypto';
 import { getRoleModelName } from '../../llm';
 import { routeClaim } from './routing';
@@ -370,6 +372,19 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
       continue;
     }
 
+    /**
+     * 判据层：值的比较交给该字段注册的维度实现（纯函数）。
+     * 没接实现、页面没给出可回链的值、或值不是引文子串而被打回 → unknown，
+     * 老证据缺这两列同样按 unknown 读，绝不因为"没提到"就降分。
+     */
+    const dimension = claim.fieldKey ? dimensionForField(pack.id, claim.fieldKey) : undefined;
+    const matchedValue = outcome.matchedValue;
+    let dimensionState: EvidenceDimensionState | undefined;
+    if (dimension) {
+      dimensionState =
+        matchedValue === '' ? 'unknown' : dimension.compare({ claimValue: claim.object, matchedValue }).state;
+    }
+
     const row: EvidenceRecord = {
       evidenceId,
       claimId: claim.claimId,
@@ -386,6 +401,8 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
       traceId: input.traceId,
       fieldKey: claim.fieldKey,
       recordId: claim.recordId,
+      ...(dimension ? { dimension: dimension.id, state: dimensionState } : {}),
+      ...(matchedValue !== '' ? { matchedValue } : {}),
       ...(outcome.pageTopic ? { note: `页面主题：${outcome.pageTopic}` } : {}),
     };
     await store.append('evidence', row);
@@ -393,7 +410,12 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
     fetched.push({ url: candidate.url, relation: outcome.relation, pageTopic: outcome.pageTopic });
     events.push({
       name: 'source-comparison',
-      attributes: { url: candidate.url, tier: candidate.tier, relation: outcome.relation },
+      attributes: {
+        url: candidate.url,
+        tier: candidate.tier,
+        relation: outcome.relation,
+        ...(dimension ? { dimension: dimension.id, dimensionState } : {}),
+      },
     });
 
     if (

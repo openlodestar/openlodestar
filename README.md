@@ -215,6 +215,7 @@ src/
     engine.ts               编排：提问 → 裁决 → 门禁 → 坐标
     intake/                 提问环（允许弃权 → 稳定性复问 → 具体化追问）与答案解析
     adjudicate/             路由、双语检索、抓取与快照、逐源比对、计票
+    dimensions/             判据维度：注册表、跨维度汇总，以及时间/机构两份纯函数实现
     record-gate/            记录级共现门禁与坐标导出
     storage/                文件底稿适配器（唯一的写入路径）
     packs/                  领域策略包接口 + porcelain（中国古玩拍卖，含域名清单与无效页判据）
@@ -236,6 +237,7 @@ scripts/demo-live-server.mjs 只在本机跑的实时实验服务（不部署，
 scripts/serve-demo.mjs      两页演示的本地静态预览（只绑 127.0.0.1，默认端口 3013）
 docs/demo-design-guide.md   演示方法论：一条演示该证明什么、怎么挑素材、怎么摆证据
 docs/time-window-rules.md   时间窗口的两条口径：断言侧不扩、证据侧上下各放宽一个月
+docs/evidence-grading-proposal.md 证据分级的架构：抽取 → 逐维比较 → 汇总，加维度＝注册一份实现
 .env.example                在线链路的环境变量模板（复制为 .env；离线命令不需要）
 .github/                    CI 与 issue 模板
 CONTRIBUTING.md             参与方式、硬规矩与 PR 检查单

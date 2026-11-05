@@ -15,8 +15,8 @@
   var SLOT_KEYS = ['auctionHouse', 'dateText', 'sessionPrefix', 'sessionSubtitle'];
 
   var STATUS_LABELS = {
-    strong: '对',
-    weak: '对，但只有单一独立来源',
+    strong: '强坐标',
+    weak: '弱坐标（只有单一独立来源或判据维度不够）',
     refuted: '不对',
     not_found: '查过，这批证据里没有',
     uncovered: '这批证据没覆盖'
@@ -24,7 +24,7 @@
 
   /** 选项上的短标签：只够放两三个字，长标签留给结论本身 */
   var STATUS_SHORT = {
-    strong: '对',
+    strong: '强',
     weak: '弱',
     refuted: '不对',
     not_found: '查过没找到',
@@ -32,8 +32,8 @@
   };
 
   var STATUS_HINTS = {
-    strong: '两个以上独立来源支持，关键字段在同一个页面上同时出现。',
-    weak: '关键字段都成立，但同一件事只有一篇原创来源，撑不起强档。',
+    strong: '关键维度各自对上、累计分过线，且关键字段在同一个页面上同时出现。',
+    weak: '关键字段都成立，但同一件事只有一篇原创来源或判据维度不够，撑不起强档。',
     refuted: '有独立来源直接反驳其中某个字段，整条记录拒收。',
     not_found: '这些字段都查过了，但这批页面里没有任何一处提到它——这是「这批证据里没有」，不是「世界上不存在」。',
     uncovered: '冻结数据里没有任何一条记录同时写着这四个值，所以没查过。没查过不等于被反驳：既不能说对，也不能说不对。'

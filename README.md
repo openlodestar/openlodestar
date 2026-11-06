@@ -175,7 +175,7 @@ pnpm exec tsx src/cli.ts demo --example poly-2021-autumn --report .openlodestar-
 
 状态同样**不是页面算的**：`pnpm run demo:sort`（`src/demo-page/build-sort-data.ts`）读 `docs/assets/demo-game-data.js`，用引擎的维度纯函数把 20 条说法的状态与说明算好，冻结进 `docs/assets/demo-sort-data.js`；页面只查表。题库是四个内容不同的牌局（每局两件器物、六种牌序），抽局时排除最近两局，连打三局不会撞回同一副牌；教学约束不变：第一拍必是完全对上、收尾三拍不发命中。第二轮换一个日期精度，让同一条「2021年秋季」从边缘相容变成口径相容——同一个词，断言精度不同，判据就不同。六种状态在一局里都会出现，缺一种构建就失败；两局之间同写法重合超过 20 张、连答案也一样的超过 9 张也构建失败。`src/demo-page/demo-sort.test.ts` 用引擎逐条复算守着这条界线。
 
-触屏用真实指针事件（上下甩，甩不够会立刻提示），键盘 `↑`/`↓` 或 `W`/`S` 打完整局，`prefers-reduced-motion` 下特效整层隐藏、结算逻辑不变。玩法、计分表与实测读数见 [docs/demo-sort.md](docs/demo-sort.md)。旧的 `docs/demo-lab.html` 一个字没改，仍在导航里，可以两页对比着玩。
+触屏用真实指针事件（上下甩，甩不够会立刻提示），键盘 `↑`/`↓` 或 `W`/`S` 打完整局；局中随时可按 `P` / `Esc` 或进度行右侧的「暂停」按钮，暂停后整屏不透明遮罩盖住牌面、分数与计时，并冻结答题时钟与判定停留，继续时先倒数 3、2、1 再接着走；暂停页里可以「重来一局」，要过一次内联确认，牌序走与结算页「再来一局」同一套随机抽局。`prefers-reduced-motion` 下特效整层隐藏、结算逻辑不变。玩法、计分表与实测读数见 [docs/demo-sort.md](docs/demo-sort.md)。旧的 `docs/demo-lab.html` 一个字没改，仍在导航里，可以两页对比着玩。
 
 三页演示都可以直接双击本地文件打开。要在浏览器里用 `http://127.0.0.1:3013/demo-lab.html` 这种地址看，起一个只绑本机的静态预览：
 

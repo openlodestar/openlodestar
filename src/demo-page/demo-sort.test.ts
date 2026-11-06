@@ -222,7 +222,17 @@ function loadRules(): {
     best: number,
     clean: boolean,
   ) => { grade: string; ratio: number; label: string; requiresClean?: boolean };
-  state: () => { runId: string | null; orderId: string | null; recentRuns: string[] };
+  state: () => {
+    runId: string | null;
+    orderId: string | null;
+    recentRuns: string[];
+    phase: string;
+    paused: boolean;
+    clockFrozen: boolean;
+    pauseKind: string;
+    timerRemaining: number;
+    waitRemaining: number;
+  };
 } {
   const body = fakeElement('body');
   const nodes = new Map<string, Record<string, unknown>>();
@@ -836,5 +846,87 @@ describe('文案说对了', () => {
     // 再长的文案封顶 1.8 秒加时
     expect(RULES.beatMsFor(1, true, 6, 80)).toBe(2300 + 800 + RULES.maxTextExtraMs);
     expect(RULES.beatMsFor(1, true, 8, 120)).toBe(2300 + 800 + RULES.maxTextExtraMs);
+  });
+});
+
+describe('暂停与重来', () => {
+  const html = fs.readFileSync(path.join(DOCS, 'demo-sort.html'), 'utf8');
+  const source = fs.readFileSync(SORT_SCRIPT, 'utf8');
+
+  it('局中入口清楚：按钮写明键位，开始页也列了 P / Esc', () => {
+    expect(html).toContain('id="btn-pause"');
+    expect(html).toContain('暂停（P 或 Esc）');
+    expect(html).toContain('<b>P</b> / <b>Esc</b> 暂停');
+    expect(html).toContain('id="btn-resume"');
+    expect(html).toContain('id="btn-restart"');
+    expect(source).toContain("key === 'Escape'");
+    expect(source).toContain("key === 'p'");
+  });
+
+  it('遮罩是不透明的整屏层，不是半透明蒙一层', () => {
+    const css = html.slice(html.indexOf('.overlay.is-pause{'), html.indexOf('.pause-card{'));
+    expect(css).toContain('background:linear-gradient(180deg,#0C1A33 0%,#070E1C 100%)');
+    expect(css).not.toContain('rgba(6,12,24,.86)');
+    expect(css).not.toContain('backdrop-filter:blur');
+    // 遮罩打开时把游戏壳与顶栏一起从可访问树摘掉
+    expect(source).toContain("setAttribute('aria-hidden', 'true')");
+    expect(source).toContain("setAttribute('inert'");
+    // 连绘制都不参与：浏览器查找 / 选中也拿不到牌面
+    expect(html).toContain('body.is-paused .shell,body.is-paused .topbar{visibility:hidden}');
+    expect(source).toContain("classList.toggle('is-paused', on)");
+  });
+
+  it('tips 是写死的通用规则，不能读当前牌面', () => {
+    const list = html.slice(html.indexOf('<ul class="pause-tips">'), html.indexOf('</ul>', html.indexOf('<ul class="pause-tips">')));
+    expect((list.match(/<li>/g) || []).length).toBeGreaterThanOrEqual(5);
+    for (const word of ['完全对上', '旁证', '冲突候选', '连击', '最后三拍']) {
+      expect(list).toContain(word);
+    }
+    // 脚本从不写这块列表：它没有拿到当前拍次/牌面的入口，也就无法因局而异
+    expect(source).not.toContain('pauseTips');
+    expect(source).not.toContain('pause-tips');
+  });
+
+  it('答题计时与判定停留都记了冻结点，恢复从同一个读数接着走', () => {
+    expect(source).toContain('function freezeClock');
+    expect(source).toContain("SORT.pauseKind = 'timer'");
+    expect(source).toContain("SORT.pauseKind = 'wait'");
+    expect(source).toContain('SORT.waitDeadline = now() + waitMs');
+    expect(source).toContain('SORT.waitTimer = window.setTimeout(nextBeat, waitMs)');
+    // 恢复时用冻结的剩余量重开，而不是重新发一整拍
+    expect(source).toContain('SORT.deadline = now() + left');
+    expect(source).toContain('window.setTimeout(nextBeat, left)');
+  });
+
+  it('恢复前先倒数，倒数期间遮罩不撤、时钟不走', () => {
+    expect(source).toContain('function beginResume');
+    expect(source).toContain('SORT.countdownLeft = reduced() ? 2 : 3');
+    expect(source).toContain('function finishCountdown');
+    expect(source).toContain('SORT.phase = \'playing\';\n    resumeClock();');
+    // 倒数没结束前不调 resumeClock，答案与计时都不往前走
+    const begin = source.slice(source.indexOf('function beginResume'), source.indexOf('function finishCountdown'));
+    expect(begin).not.toContain('resumeClock');
+  });
+
+  it('重来有二次确认，并且复用结算页那一套开局', () => {
+    expect(html).toContain('id="pause-confirm"');
+    expect(html).toContain('id="btn-cancel-restart"');
+    expect(html).toContain('id="btn-confirm-restart"');
+    expect(html).toContain('牌序也会重新抽');
+    expect(source).toContain('function requestRestart');
+    expect(source).toContain('function cancelRestart');
+    const restart = source.slice(source.indexOf('function restartGame'), source.indexOf('// ---- 一拍的结算 ----'));
+    expect(restart).toContain('startGame()');
+    expect(restart).not.toContain('pickRun()');
+  });
+
+  it('暂停时 game 状态对外可读：时钟冻结、冻结的是哪一段', () => {
+    const state = RULES.state();
+    expect(state.phase).toBe('idle');
+    expect(state.paused).toBe(false);
+    expect(state.clockFrozen).toBe(false);
+    expect(state.pauseKind).toBe('');
+    expect(typeof state.timerRemaining).toBe('number');
+    expect(typeof state.waitRemaining).toBe('number');
   });
 });

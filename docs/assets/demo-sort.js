@@ -193,6 +193,15 @@
     duration: 0,
     remaining: 0,
     raf: 0,
+    /** 判定停留也受暂停/切页控制：到点该发下一拍的时刻与定时器 */
+    waitDeadline: 0,
+    waitTimer: 0,
+    /** 恢复前的 3-2-1 倒数 */
+    countdownTimer: 0,
+    countdownLeft: 0,
+    /** 暂停时冻结的那一段：'timer'＝答题计时，'wait'＝判定停留 */
+    pauseKind: '',
+    pauseRemaining: 0,
     startedAt: 0,
     endedAt: 0,
     chip: null,
@@ -202,6 +211,8 @@
   };
 
   var dom = {
+    shell: document.getElementById('shell'),
+    topbar: document.querySelector ? document.querySelector('.topbar') : null,
     score: document.getElementById('score'),
     mult: document.getElementById('combo-mult'),
     comboCount: document.getElementById('combo-count'),
@@ -248,6 +259,16 @@
     reviewToggle: document.getElementById('review-toggle'),
     reviewBody: document.getElementById('review-body'),
     again: document.getElementById('btn-again'),
+    pause: document.getElementById('pause'),
+    pauseMain: document.getElementById('pause-main'),
+    pauseConfirm: document.getElementById('pause-confirm'),
+    pauseCountdown: document.getElementById('pause-countdown'),
+    pauseCountdownNum: document.getElementById('pause-countdown-num'),
+    pauseBtn: document.getElementById('btn-pause'),
+    resume: document.getElementById('btn-resume'),
+    restart: document.getElementById('btn-restart'),
+    cancelRestart: document.getElementById('btn-cancel-restart'),
+    confirmRestart: document.getElementById('btn-confirm-restart'),
   };
 
   var SLOT_IDS = ['auctionHouse', 'dateText', 'sessionName'];
@@ -431,12 +452,14 @@
   }
 
   /** 判定停留的这一秒多不是空白：卡片下面一条进度线走完，说明马上发下一拍 */
-  function armWaitBar() {
+  function armWaitBar(ms) {
     dom.waitFill.style.transition = 'none';
     dom.waitFill.style.width = '0%';
     void dom.waitFill.offsetWidth;
-    var ms = reduced() ? VERDICT_MS_REDUCED : VERDICT_MS;
-    dom.waitFill.style.transition = 'width ' + ms + 'ms linear';
+    var wait = typeof ms === 'number' && ms > 0
+      ? ms
+      : reduced() ? VERDICT_MS_REDUCED : VERDICT_MS;
+    dom.waitFill.style.transition = 'width ' + wait + 'ms linear';
     dom.waitFill.style.width = '100%';
   }
 
@@ -579,6 +602,204 @@
     SORT.raf = window.requestAnimationFrame(tick);
   }
 
+  // ---- 暂停与重来 ----
+  // 暂停只做两件事：把正在跑的那一段时钟冻结、用不透明遮罩盖住整个画面。
+  // 冻结的是「这一次还剩多少」——恢复时从同一个读数接着走，不补时间也不扣时间。
+
+  var PAUSE_STEP = 600;
+  var PAUSE_STEP_REDUCED = 400;
+
+  /** 遮罩打开时把壳和顶栏从可访问树里摘掉：读屏也不能把下面的分数念出来 */
+  function setShellInert(on) {
+    if (document.body && document.body.classList) {
+      document.body.classList.toggle('is-paused', on);
+    }
+    var nodes = [dom.shell, dom.topbar];
+    for (var i = 0; i < nodes.length; i += 1) {
+      var el = nodes[i];
+      if (!el) continue;
+      if (on) {
+        if (el.setAttribute) el.setAttribute('inert', '');
+        if (el.setAttribute) el.setAttribute('aria-hidden', 'true');
+        el.inert = true;
+      } else {
+        if (el.removeAttribute) el.removeAttribute('inert');
+        if (el.removeAttribute) el.removeAttribute('aria-hidden');
+        el.inert = false;
+      }
+    }
+  }
+
+  function clearDrag() {
+    SORT.drag = null;
+    dom.chip.classList.remove('is-dragging', 'is-settling');
+    dom.chip.style.transition = 'none';
+    dom.chip.style.transform = 'translateY(0)';
+  }
+
+  function showPauseMain() {
+    if (dom.pauseMain) dom.pauseMain.hidden = false;
+    if (dom.pauseConfirm) dom.pauseConfirm.hidden = true;
+    if (dom.pauseCountdown) dom.pauseCountdown.hidden = true;
+  }
+
+  /** 停掉所有「还会自己往前走」的定时器：答题时钟、判定停留、恢复倒数 */
+  function clearPending() {
+    stopTimer();
+    if (SORT.waitTimer) {
+      window.clearTimeout(SORT.waitTimer);
+      SORT.waitTimer = 0;
+    }
+    if (SORT.countdownTimer) {
+      window.clearTimeout(SORT.countdownTimer);
+      SORT.countdownTimer = 0;
+    }
+    SORT.pauseKind = '';
+    SORT.pauseRemaining = 0;
+  }
+
+  function freezeClock() {
+    if (SORT.phase !== 'playing') return;
+    if (SORT.locked) {
+      // 判定已经落账，正在停留：停住「下一拍」的倒计时，恢复后把剩余时间走完
+      SORT.pauseKind = 'wait';
+      SORT.pauseRemaining = Math.max(0, SORT.waitDeadline - now());
+      if (SORT.waitTimer) {
+        window.clearTimeout(SORT.waitTimer);
+        SORT.waitTimer = 0;
+      }
+      return;
+    }
+    SORT.pauseKind = 'timer';
+    SORT.pauseRemaining = Math.max(0, SORT.deadline - now());
+    SORT.remaining = SORT.pauseRemaining;
+    stopTimer();
+  }
+
+  function resumeClock() {
+    var kind = SORT.pauseKind;
+    var left = SORT.pauseRemaining;
+    SORT.pauseKind = '';
+    SORT.pauseRemaining = 0;
+    if (kind === 'wait') {
+      if (left <= 0) {
+        nextBeat();
+        return;
+      }
+      SORT.waitDeadline = now() + left;
+      armWaitBar(left);
+      SORT.waitTimer = window.setTimeout(nextBeat, left);
+      return;
+    }
+    if (kind === 'timer') {
+      SORT.remaining = left;
+      SORT.deadline = now() + left;
+      tick();
+    }
+  }
+
+  function pauseGame() {
+    if (SORT.phase !== 'playing') return;
+    freezeClock();
+    SORT.phase = 'paused';
+    clearDrag();
+    showPauseMain();
+    dom.pause.hidden = false;
+    setShellInert(true);
+    if (dom.resume && dom.resume.focus) dom.resume.focus({ preventScroll: true });
+  }
+
+  function renderCountdown(value) {
+    if (dom.pauseCountdownNum) dom.pauseCountdownNum.textContent = String(value);
+  }
+
+  function cancelCountdownToPaused() {
+    if (SORT.countdownTimer) {
+      window.clearTimeout(SORT.countdownTimer);
+      SORT.countdownTimer = 0;
+    }
+    SORT.phase = 'paused';
+    showPauseMain();
+    dom.pause.hidden = false;
+    setShellInert(true);
+    if (dom.resume && dom.resume.focus) dom.resume.focus({ preventScroll: true });
+  }
+
+  /** 继续：先倒数 3-2-1，倒数期间遮罩不撤、时钟不走，数完才接着计时 */
+  function beginResume() {
+    if (SORT.phase !== 'paused') return;
+    SORT.phase = 'resuming';
+    if (dom.pauseMain) dom.pauseMain.hidden = true;
+    if (dom.pauseConfirm) dom.pauseConfirm.hidden = true;
+    if (dom.pauseCountdown) dom.pauseCountdown.hidden = false;
+    SORT.countdownLeft = reduced() ? 2 : 3;
+    renderCountdown(SORT.countdownLeft);
+
+    function step() {
+      if (SORT.phase !== 'resuming') return;
+      SORT.countdownLeft -= 1;
+      if (SORT.countdownLeft <= 0) {
+        finishCountdown();
+        return;
+      }
+      renderCountdown(SORT.countdownLeft);
+      SORT.countdownTimer = window.setTimeout(
+        step,
+        reduced() ? PAUSE_STEP_REDUCED : PAUSE_STEP,
+      );
+    }
+
+    SORT.countdownTimer = window.setTimeout(
+      step,
+      reduced() ? PAUSE_STEP_REDUCED : PAUSE_STEP,
+    );
+  }
+
+  function finishCountdown() {
+    if (SORT.countdownTimer) {
+      window.clearTimeout(SORT.countdownTimer);
+      SORT.countdownTimer = 0;
+    }
+    // 倒数期间切走了标签页：不要让人回来时发现计时已经跑掉，重新停在暂停页
+    if (document.hidden) {
+      cancelCountdownToPaused();
+      return;
+    }
+    dom.pause.hidden = true;
+    setShellInert(false);
+    SORT.phase = 'playing';
+    resumeClock();
+    if (dom.chip && dom.chip.focus) dom.chip.focus({ preventScroll: true });
+  }
+
+  function requestRestart() {
+    if (SORT.phase !== 'paused') return;
+    if (dom.pauseMain) dom.pauseMain.hidden = true;
+    if (dom.pauseCountdown) dom.pauseCountdown.hidden = true;
+    if (dom.pauseConfirm) dom.pauseConfirm.hidden = false;
+    if (dom.cancelRestart && dom.cancelRestart.focus) {
+      dom.cancelRestart.focus({ preventScroll: true });
+    }
+  }
+
+  function cancelRestart() {
+    if (SORT.phase !== 'paused') return;
+    showPauseMain();
+    if (dom.restart && dom.restart.focus) dom.restart.focus({ preventScroll: true });
+  }
+
+  /** 重来：清掉残留定时器，走与结算页「再来一局」同一个 startGame（同一套随机牌序） */
+  function restartGame() {
+    clearPending();
+    SORT.locked = false;
+    SORT.phase = 'idle';
+    dom.pause.hidden = true;
+    setShellInert(false);
+    showPauseMain();
+    startGame();
+    if (dom.chip && dom.chip.focus) dom.chip.focus({ preventScroll: true });
+  }
+
   // ---- 一拍的结算 ----
 
   function decide(action) {
@@ -658,10 +879,15 @@
       dom.chip.style.transform = 'translateY(' + (action === 'accept' ? -6 : 6) + 'px) scale(.985)';
     }
 
-    window.setTimeout(nextBeat, reduced() ? VERDICT_MS_REDUCED : VERDICT_MS);
+    var waitMs = reduced() ? VERDICT_MS_REDUCED : VERDICT_MS;
+    SORT.waitDeadline = now() + waitMs;
+    SORT.waitTimer = window.setTimeout(nextBeat, waitMs);
   }
 
   function nextBeat() {
+    if (SORT.phase !== 'playing') return;
+    SORT.waitTimer = 0;
+    SORT.waitDeadline = 0;
     SORT.locked = false;
     if (SORT.lives <= 0) {
       finish('心掉光了');
@@ -720,6 +946,12 @@
 
   function startGame() {
     if (SORT.phase === 'playing') return;
+    clearPending();
+    if (dom.pause) {
+      dom.pause.hidden = true;
+      showPauseMain();
+      setShellInert(false);
+    }
     pickRun();
     SORT.phase = 'playing';
     SORT.roundIndex = 0;
@@ -749,6 +981,10 @@
   function finish(reason) {
     SORT.phase = 'over';
     stopTimer();
+    if (dom.pause) {
+      dom.pause.hidden = true;
+      setShellInert(false);
+    }
     SORT.endedAt = now();
     dom.accept.disabled = true;
     dom.reject.disabled = true;
@@ -1079,6 +1315,38 @@
     if (event.defaultPrevented) return;
     if (event.altKey || event.ctrlKey || event.metaKey) return;
     var key = event.key;
+
+    // 暂停 / 继续：P 与 Esc 等价；确认框开着时 Esc 先收回确认框
+    if (key === 'Escape' || key === 'p' || key === 'P') {
+      event.preventDefault();
+      if (SORT.phase === 'playing') {
+        pauseGame();
+        return;
+      }
+      if (SORT.phase === 'paused') {
+        if (dom.pauseConfirm && !dom.pauseConfirm.hidden) cancelRestart();
+        else beginResume();
+        return;
+      }
+      // 倒数期间再按一次：退回暂停页（时钟本来就没走，不算重新暂停一次）
+      if (SORT.phase === 'resuming') cancelCountdownToPaused();
+      return;
+    }
+    if (SORT.phase === 'paused' || SORT.phase === 'resuming') {
+      if (key === 'r' || key === 'R') {
+        event.preventDefault();
+        if (SORT.phase === 'resuming') cancelCountdownToPaused();
+        if (dom.pauseConfirm && !dom.pauseConfirm.hidden) cancelRestart();
+        else requestRestart();
+        return;
+      }
+      if (key === 'ArrowUp' || key === 'ArrowDown' || key === 'w' || key === 'W' ||
+          key === 's' || key === 'S') {
+        event.preventDefault();
+      }
+      return;
+    }
+
     if (key === 'ArrowUp' || key === 'w' || key === 'W') {
       event.preventDefault();
       if (SORT.phase === 'playing') decide('accept');
@@ -1090,24 +1358,20 @@
       return;
     }
     if (key === ' ' || key === 'Enter') {
-      if (SORT.phase === 'playing') return;
+      if (SORT.phase !== 'idle' && SORT.phase !== 'over') return;
       event.preventDefault();
       startGame();
     }
   }
 
+  /**
+   * 切走标签页＝自动暂停：答题计时与判定停留都不许在后台继续。
+   * 回来时不自动接着走，由玩家自己点「继续」或按 P/Esc，倒数之后再计时。
+   */
   function onVisibility() {
-    if (document.hidden) {
-      if (SORT.phase === 'playing' && !SORT.locked) {
-        SORT.remaining = Math.max(0, SORT.deadline - now());
-        stopTimer();
-      }
-      return;
-    }
-    if (SORT.phase === 'playing' && !SORT.locked && !SORT.raf) {
-      SORT.deadline = now() + SORT.remaining;
-      tick();
-    }
+    if (!document.hidden) return;
+    if (SORT.phase === 'playing') pauseGame();
+    else if (SORT.phase === 'resuming') cancelCountdownToPaused();
   }
 
   // ---- 绑定 ----
@@ -1124,6 +1388,15 @@
   });
   dom.startBtn.addEventListener('click', startGame);
   dom.again.addEventListener('click', startGame);
+  if (dom.pauseBtn) {
+    dom.pauseBtn.addEventListener('click', function () {
+      if (SORT.phase === 'playing') pauseGame();
+    });
+  }
+  if (dom.resume) dom.resume.addEventListener('click', beginResume);
+  if (dom.restart) dom.restart.addEventListener('click', requestRestart);
+  if (dom.cancelRestart) dom.cancelRestart.addEventListener('click', cancelRestart);
+  if (dom.confirmRestart) dom.confirmRestart.addEventListener('click', restartGame);
   if (dom.startScroll) dom.startScroll.addEventListener('scroll', updateScrollHint);
   if (dom.startDetails) {
     dom.startDetails.addEventListener('toggle', function () {
@@ -1174,6 +1447,21 @@
         recentRuns: SORT.recentRuns.slice(),
         sequence: SORT.sequence.slice(),
         log: SORT.log.slice(),
+        paused: SORT.phase === 'paused' || SORT.phase === 'resuming',
+        clockFrozen: SORT.phase === 'paused' || SORT.phase === 'resuming',
+        pauseKind: SORT.pauseKind,
+        pauseRemaining: Math.round(SORT.pauseRemaining),
+        verdictLocked: SORT.locked,
+        timerRemaining:
+          SORT.phase === 'paused' && SORT.pauseKind === 'timer'
+            ? Math.round(SORT.pauseRemaining)
+            : Math.round(SORT.remaining),
+        waitRemaining:
+          SORT.phase === 'paused' && SORT.pauseKind === 'wait'
+            ? Math.round(SORT.pauseRemaining)
+            : SORT.locked
+              ? Math.max(0, Math.round(SORT.waitDeadline - now()))
+              : 0,
       };
     },
   };

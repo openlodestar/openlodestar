@@ -76,8 +76,17 @@ a{color:var(--gold)}
 .combo-track .notch{position:absolute;top:0;bottom:0;width:1px;background:rgba(8,16,32,.65)}
 .hearts{display:flex;gap:3px;font-size:1.05rem;line-height:1;color:var(--mismatch);letter-spacing:.02em}
 .hearts .is-lost{color:rgba(244,238,226,.18)}
-.round-tag{flex:0 0 auto;margin:0;font-size:.7rem;color:rgba(244,238,226,.62);text-align:center;letter-spacing:.04em}
+/* 进度行右侧就是暂停入口：局中随时可按，不占舞台高度 */
+.round-line{flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:10px;min-height:34px}
+.round-tag{flex:1 1 auto;margin:0;font-size:.7rem;color:rgba(244,238,226,.62);text-align:center;letter-spacing:.04em}
 .round-tag.is-window{color:var(--gold)}
+.tool-pause{
+  flex:0 0 auto;min-height:34px;padding:4px 14px;border-radius:99px;
+  border:1px solid rgba(244,238,226,.3);background:rgba(244,238,226,.08);color:rgba(244,238,226,.86);
+  font:inherit;font-size:.72rem;font-weight:600;letter-spacing:.08em;cursor:pointer;
+}
+.tool-pause:hover{background:rgba(244,238,226,.16);border-color:rgba(233,196,106,.55);color:var(--cream)}
+.tool-pause:active{transform:scale(.97)}
 /* 换件提示：占位高度从 0 展开，不把牌面顶飞 */
 .switch-note{
   flex:0 0 auto;margin:0;height:0;overflow:hidden;text-align:center;
@@ -295,6 +304,50 @@ a{color:var(--gold)}
 }
 .result-actions button:hover,.result-actions a:hover{background:rgba(244,238,226,.16)}
 
+/* ---- 暂停：整屏不透明，牌面 / 分数 / 连击 / 计时全部在下面看不见 ---- */
+.overlay.is-pause{
+  z-index:30;align-items:flex-start;padding:20px 16px;overflow-y:auto;
+  background:linear-gradient(180deg,#0C1A33 0%,#070E1C 100%);
+  backdrop-filter:none;
+}
+/* 不光盖住：暂停期间游戏壳连绘制都不参与，浏览器查找、选中、截图都拿不到牌面 */
+body.is-paused .shell,body.is-paused .topbar{visibility:hidden}
+.pause-card{
+  width:100%;max-width:520px;margin:auto;display:flex;flex-direction:column;gap:12px;
+  border-radius:18px;padding:20px;border:1px solid rgba(244,238,226,.2);
+  background:linear-gradient(180deg,#16294A,#0B162C);box-shadow:0 24px 60px rgba(0,0,0,.55);
+}
+#pause-main{display:flex;flex-direction:column;gap:12px}
+.pause-card h2{margin:0;font-size:clamp(1.2rem,4.6vw,1.55rem);line-height:1.3}
+.pause-sub{margin:0;font-size:.82rem;line-height:1.55;color:rgba(244,238,226,.72)}
+.pause-tips{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.pause-tips li{position:relative;padding-left:18px;font-size:.8rem;line-height:1.5;color:rgba(244,238,226,.85)}
+.pause-tips li::before{content:"";position:absolute;left:4px;top:.55em;width:6px;height:6px;border-radius:50%;background:var(--gold)}
+.pause-tips b{color:var(--cream);font-weight:680}
+.pause-actions{display:flex;gap:10px}
+.pause-actions button{
+  flex:1;min-height:48px;border-radius:12px;border:1px solid rgba(244,238,226,.24);
+  background:rgba(244,238,226,.08);color:var(--cream);font:inherit;font-size:.92rem;font-weight:650;cursor:pointer;
+}
+.pause-actions button:hover{background:rgba(244,238,226,.16)}
+.pause-actions .is-primary{
+  border-color:rgba(233,196,106,.6);
+  background:linear-gradient(180deg,rgba(233,196,106,.3),rgba(233,196,106,.12));
+}
+.pause-actions .is-primary:hover{background:linear-gradient(180deg,rgba(233,196,106,.42),rgba(233,196,106,.18))}
+.pause-actions .is-danger{border-color:rgba(226,112,95,.55);color:#FFD9D0}
+.pause-actions .is-danger:hover{background:rgba(226,112,95,.2)}
+.pause-hint{margin:0;font-size:.72rem;letter-spacing:.03em;text-align:center;color:rgba(244,238,226,.6)}
+.pause-hint b{color:var(--cream)}
+.pause-confirm{
+  display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:12px;
+  border:1px solid rgba(226,112,95,.45);background:rgba(226,112,95,.1);
+}
+.pause-confirm p{margin:0;font-size:.82rem;line-height:1.5;color:#FFE2DB}
+.pause-countdown{display:flex;flex-direction:column;align-items:center;gap:2px;padding:16px 0 6px}
+.pause-countdown strong{font-size:clamp(3.4rem,16vw,5rem);line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}
+.pause-countdown span{font-size:.78rem;letter-spacing:.12em;color:rgba(244,238,226,.7)}
+
 /* ---- 宽屏：纵向铺开，不是把内容挤在中间 ---- */
 @media (min-width:900px){
   :root{--max:900px}
@@ -331,6 +384,13 @@ a{color:var(--gold)}
   .lot-kicker{display:none}
   .stage{gap:8px}
   .beat-dots{display:none}
+  .pause-card{padding:14px;gap:9px}
+  .pause-card h2{font-size:1.12rem}
+  .pause-sub{font-size:.76rem;line-height:1.45}
+  .pause-tips{gap:5px}
+  .pause-tips li{font-size:.74rem;line-height:1.42;padding-left:16px}
+  .pause-actions button{min-height:42px}
+  .pause-hint{font-size:.68rem}
 }
 @media (max-height:600px){
   .overlay{padding:10px}
@@ -374,7 +434,10 @@ a{color:var(--gold)}
     </div>
     <div class="hearts" id="hearts" aria-label="剩三颗心"><span>♥</span><span>♥</span><span>♥</span></div>
   </section>
-  <p class="round-tag" id="round-tag">第 1/2 件 · 第 1/10 拍</p>
+  <div class="round-line">
+    <p class="round-tag" id="round-tag">第 1/2 件 · 第 1/10 拍</p>
+    <button class="tool-pause" id="btn-pause" type="button" title="暂停（P 或 Esc）" aria-label="暂停游戏（P 或 Esc）">暂停</button>
+  </div>
   <p class="switch-note" id="switch-note" aria-live="polite"></p>
   <div class="beat-dots" id="beat-dots" aria-hidden="true"></div>
 
@@ -421,7 +484,7 @@ a{color:var(--gold)}
       <p class="sheet-kicker">OpenLodestar</p>
       <h1 id="start-title">证据分拣</h1>
       <p class="lead">两件器物、二十条说法，每局从四个内容不同的牌局里抽一副。完全对上就收下，连击会翻倍；说法不同（口径/边缘相容）中段先放走，等每件器物的最后三拍再收——那三拍里收旁证分值翻倍，节拍也多给 0.8 秒。收下冲突/没对上倒扣 6 分、掉一颗心，S 档要求整局没有这种误收；长专场名会按排版行数自动加时。换下一件器物时连击清零。</p>
-      <div class="keys"><span><b>↑</b> 收下</span><span><b>↓</b> 放走</span><span>触屏：上甩 / 下甩（34px 以上）</span><span><b>空格</b> 开始</span><span>点卡片不算数</span></div>
+      <div class="keys"><span><b>↑</b> 收下</span><span><b>↓</b> 放走</span><span>触屏：上甩 / 下甩（34px 以上）</span><span><b>空格</b> 开始</span><span><b>P</b> / <b>Esc</b> 暂停</span><span>点卡片不算数</span></div>
       <button class="start-btn" id="btn-start" type="button">开始</button>
       <details id="start-details">
         <summary>分值怎么算的</summary>
@@ -461,6 +524,40 @@ a{color:var(--gold)}
     <div class="result-actions">
       <button id="btn-again" type="button">再来一局</button>
       <a href="demo-lab.html">旧版小游戏</a>
+    </div>
+  </div>
+</div>
+
+<div class="overlay is-pause" id="pause" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden>
+  <div class="pause-card">
+    <div id="pause-main">
+      <p class="sheet-kicker">已暂停</p>
+      <h2 id="pause-title">牌面已收起，计时停住了</h2>
+      <p class="pause-sub">继续会先倒数再接着计时；暂停不补时间，也不会替你做判断。</p>
+      <ul class="pause-tips">
+        <li><b>先看器物卡，再读这张牌。</b>「本件」是这件器物的实际字段，「这条」是待判断的说法。</li>
+        <li><b>字面完全对上就收下。</b>这是最硬的支撑，收下得分；漏掉会断连击。</li>
+        <li><b>口径相容 / 边缘相容只是旁证。</b>中段收会断连击；每件最后三拍收，分值翻倍。</li>
+        <li><b>冲突候选 / 没对上要放走。</b>它们指向别的值，收下倒扣分、掉一颗心。</li>
+        <li><b>每件器物单独记连击。</b>换件时连击清零；时间到等于没判，0 分且断连击。</li>
+        <li><b>最后三拍与长文案会自动加时。</b>这几拍要判断「相容还是冲突」，所以放得更宽。</li>
+      </ul>
+      <div class="pause-actions">
+        <button id="btn-resume" class="is-primary" type="button">继续</button>
+        <button id="btn-restart" class="is-danger" type="button">重来一局</button>
+      </div>
+      <p class="pause-hint">按 <b>P</b> 或 <b>Esc</b> 继续 · 按 <b>R</b> 重来</p>
+    </div>
+    <div class="pause-confirm" id="pause-confirm" hidden>
+      <p>重来会丢掉这一局的分数与进度，牌序也会重新抽。确定要重来？</p>
+      <div class="pause-actions">
+        <button id="btn-cancel-restart" type="button">先不重来</button>
+        <button id="btn-confirm-restart" class="is-danger" type="button">确定重来</button>
+      </div>
+    </div>
+    <div class="pause-countdown" id="pause-countdown" hidden aria-live="assertive">
+      <strong id="pause-countdown-num">3</strong>
+      <span>马上继续</span>
     </div>
   </div>
 </div>

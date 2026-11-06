@@ -2,7 +2,7 @@
 /**
  * 本地实时演算服务（只给开发机用，**不部署**）
  *
- * 静态小游戏 (`docs/demo-lab.html`) 只切换构建时冻结的组合；这个服务是另一件事：
+ * 静态演示页（`docs/demo.html` 与 `docs/demo-sort.html`）只切换构建时冻结的组合；这个服务是另一件事：
  * 输入任意一句拍卖会记忆，现场调用真引擎跑检索、抓页、比对、门禁与坐标。
  *
  * 三条硬规矩：
@@ -12,8 +12,8 @@
  * 3. 密钥只从 `.env` 或当前进程环境读取，只存在于服务端内存，不写日志、不回传前端。
  *
  * 用法（在仓库根目录）：
- *   pnpm run demo:lab-server              # 只验证拒绝逻辑，不花钱
- *   pnpm run demo:lab-server -- --allow-spend
+ *   pnpm run demo:live-server              # 只验证拒绝逻辑，不花钱
+ *   pnpm run demo:live-server -- --allow-spend
  *   curl -s http://127.0.0.1:3014/verify \
  *     -H 'content-type: application/json' \
  *     -d '{"sentence":"北京保利在2021年12月5日举办了一场名为「禹贡Ⅰ—盛清御瓷新风尚」的拍卖会。","confirm":true}'
@@ -71,7 +71,7 @@ function estimateSpend(sentence) {
 function refuseWithoutFlag() {
   console.error('拒绝启动：这个服务会真实调用模型与搜索接口（计费）。');
   console.error('如果确认要花这笔钱，请显式加上 --allow-spend：');
-  console.error('  pnpm run demo:lab-server -- --allow-spend');
+  console.error('  pnpm run demo:live-server -- --allow-spend');
   console.error('这个服务只作本机实验，不部署、不对公网开放。');
   console.error(`（未启动时的预估规则：${estimateSpend('（示例句子）')}）`);
   process.exitCode = 1;

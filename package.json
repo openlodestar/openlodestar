@@ -55,7 +55,7 @@
     "demo:data": "tsx src/demo-page/build-demo-data.ts",
     "demo:game": "tsx src/demo-page/build-demo-game.ts",
     "demo:sort": "tsx src/demo-page/build-sort-data.ts",
-    "demo:lab-server": "tsx scripts/demo-live-server.mjs",
+    "demo:live-server": "tsx scripts/demo-live-server.mjs",
     "demo:serve": "node scripts/serve-demo.mjs",
     "demo:freeze": "tsx src/demo-page/freeze-batch.ts",
     "backfill:evidence": "tsx scripts/backfill-evidence-dimensions.ts",

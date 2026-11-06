@@ -325,6 +325,7 @@ a{color:var(--gold)}
 }
 @keyframes record-pop{0%{transform:scale(.96);opacity:.55}50%{transform:scale(1.018)}100%{transform:scale(1);opacity:1}}
 .start-history{margin:0;font-size:.76rem;line-height:1.5;color:rgba(233,196,106,.86)}
+.start-case{margin:12px 0 0;font-size:.76rem;text-align:center}
 /* 矮屏优先把空间留给复盘：历史只留「本局 vs 最好」两行 */
 @media (max-height:700px){
   .history-card{gap:3px;padding:7px 10px}
@@ -446,7 +447,6 @@ body.is-paused .shell,body.is-paused .topbar{visibility:hidden}
       <nav aria-label="主导航">
         <a href="index.html">主页</a>
         <a href="demo.html">逐条演示</a>
-        <a href="demo-lab.html">小游戏</a>
         <a href="demo-sort.html" aria-current="page">证据分拣</a>
         <a href="https://github.com/openlodestar/openlodestar">GitHub</a>
       </nav>
@@ -526,6 +526,7 @@ body.is-paused .shell,body.is-paused .topbar{visibility:hidden}
         <p>每条说法属于哪种判据，是构建时用引擎自己那套维度函数算出来的；一局结束逐条列出来，可以自己核。</p>
         <p>标了「语料外写法」徽章的，只是冻结记录里没有这一种写法；判定仍然由引擎把这条字面值与器物卡比对，不是假数据。</p>
       </details>
+      <p class="start-case"><a href="demo-sort-case.html">旧版为什么被重做 →</a></p>
     </div>
     <p class="scroll-hint" id="start-scroll-hint" hidden>↕ 上下滑动查看完整规则</p>
   </div>
@@ -559,7 +560,7 @@ body.is-paused .shell,body.is-paused .topbar{visibility:hidden}
     </div>
     <div class="result-actions">
       <button id="btn-again" type="button">再来一局</button>
-      <a href="demo-lab.html">旧版小游戏</a>
+      <a href="demo-sort-case.html">旧版为什么被重做</a>
     </div>
   </div>
 </div>

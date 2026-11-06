@@ -8,7 +8,7 @@
  *
  *   compareInstitutionDimension / compareTimeDimension / compareTextDimension
  *
- * 与门禁、与 `demo-lab.html` 读的是同一份实现——页面不重算、也不放宽，
+ * 与门禁、与 `docs/assets/demo-game-data.js` 读的是同一份实现——页面不重算、也不放宽，
  * 只把这里冻结的状态查出来展示。六个状态：
  *
  *   exact    完全对上     这条能直接当支撑

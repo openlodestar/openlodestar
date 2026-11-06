@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>一次分值结构事故：最省力的打法就是最高档 — OpenLodestar</title>
+<meta name="description" content="证据分拣第一版复盘：为什么盲测者只按“两边字面一样就收”就能拿到最高档，为什么改文字停留时长、按钮大小和空白都救不了它，以及重做时怎样把“必须读懂才能拿最高档”写成构建期可校验的不等式。">
+<link rel="canonical" href="https://openlodestar.github.io/openlodestar/demo-sort-case.html">
+<link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="stylesheet" href="assets/site-nav.css">
+<style>
+:root{--navy:#101E3C;--cream:#F4EEE2;--cream-dim:#C9C2B4;--gold:#E9C46A;--board:#081020;--max:760px}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--board);color:var(--cream);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.75;-webkit-font-smoothing:antialiased;background-image:radial-gradient(820px 420px at 16% -10%,#24436F 0%,rgba(8,16,32,0) 62%),radial-gradient(620px 380px at 92% -6%,#3B2E58 0%,rgba(8,16,32,0) 58%),linear-gradient(180deg,#0C1A33 0%,#070E1C 100%)}
+a{color:var(--gold)}
+.topbar{padding:0 14px;background:rgba(6,13,28,.6);border-bottom:1px solid rgba(244,238,226,.09)}
+.topbar .site-nav-inner{padding:7px 0;max-width:var(--max);margin:0 auto}
+.topbar .brand{font-size:.96rem}
+.topbar .site-nav nav a{font-size:.82rem;padding:3px 1px}
+main{max-width:var(--max);margin:0 auto;padding:40px 18px 64px}
+.kicker{margin:0 0 10px;font-size:.72rem;letter-spacing:.22em;color:rgba(244,238,226,.55);text-transform:uppercase}
+h1{margin:0 0 14px;font-size:clamp(1.7rem,5vw,2.5rem);line-height:1.25;letter-spacing:-.01em}
+.lede{margin:0 0 12px;font-size:1.02rem;color:var(--cream-dim)}
+h2{margin:44px 0 12px;font-size:1.28rem;line-height:1.4;color:var(--gold)}
+h3{margin:26px 0 8px;font-size:1rem;color:var(--cream)}
+p{margin:0 0 12px}
+ul,ol{margin:0 0 14px;padding-left:1.25em}
+li{margin:0 0 7px}
+b,strong{color:var(--cream)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;background:rgba(244,238,226,.1);padding:1px 5px;border-radius:4px}
+table{width:100%;border-collapse:collapse;margin:14px 0 18px;font-size:.88rem}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid rgba(244,238,226,.12);vertical-align:top}
+th{color:rgba(244,238,226,.62);font-weight:600;font-size:.76rem;letter-spacing:.06em}
+.callout{margin:18px 0;padding:12px 14px;border-left:3px solid var(--gold);background:rgba(233,196,106,.1);border-radius:0 10px 10px 0}
+.callout p:last-child{margin-bottom:0}
+.formula{margin:14px 0;padding:12px 14px;border-radius:10px;background:rgba(6,13,28,.72);border:1px solid rgba(244,238,226,.14);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.84rem;line-height:1.8;overflow-x:auto}
+.figure{margin:20px 0 26px}
+.figure img{display:block;width:100%;height:auto;border-radius:12px;border:1px solid rgba(244,238,226,.18);box-shadow:0 12px 30px rgba(0,0,0,.34)}
+.figure figcaption{margin-top:7px;font-size:.76rem;color:rgba(244,238,226,.6)}
+.back{display:inline-block;margin-top:36px;padding:9px 16px;border-radius:99px;border:1px solid rgba(233,196,106,.5);text-decoration:none;font-weight:600}
+.back:hover{background:rgba(233,196,106,.14)}
+@media (max-width:520px){main{padding:28px 15px 52px}h2{margin-top:34px}}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="site-nav">
+    <div class="site-nav-inner">
+      <a class="brand" href="index.html">OpenLodestar</a>
+      <nav aria-label="主导航">
+        <a href="index.html">主页</a>
+        <a href="demo.html">逐条演示</a>
+        <a href="demo-sort.html">证据分拣</a>
+        <a href="https://github.com/openlodestar/openlodestar">GitHub</a>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<main>
+  <p class="kicker">复盘 · 一个小游戏的分值结构事故</p>
+  <h1>最省力的打法，恰好就是最高档</h1>
+  <p class="lede">「证据分拣」第一版上线后，盲测里有一批人根本没读规则，只按“两边字面一样就收、其余全放走”打，稳定拿到最高档。问题不在画面、不在手感，在分值结构的数学。</p>
+
+  <div class="callout">
+    <p><b>一句话结论：</b>当“不读内容也能拿最高档”的策略在数学上严格优于“读懂再判”，这个交互就已经没有内容价值了。改文案、调时长、放大按钮都只是在给一个错误的最优解做美化。</p>
+  </div>
+
+  <h2>一、症状：盲测者不看原理，反而打得最好</h2>
+  <p>第一版的意图是让人分清六种判据：完全对上、口径相容、边缘相容、冲突候选、没对上、无从判断。设计上希望玩家读器物卡、读待判的说法，再决定收下还是放走。</p>
+  <p>盲测结果正好相反。几位测试者给出的打法可以压缩成一句话：</p>
+  <div class="formula">字面完全一样 → 收下；其余全部 → 放走。</div>
+  <p>他们不需要知道“口径相容”和“边缘相容”差在哪，也不需要判断冲突候选指向哪个值。按这句话打，两件器物二十拍拿 <b>146 分</b>——正好是这一版标称的“满分”，而 S 线只要求 131。认真读、试着把旁证也收下的人拿 <b>139 分</b>，分数更低，但同样是 S。也就是说，多读的那一眼不但没有回报，还要倒扣几分。</p>
+  <p>这不是玩家钻空子。他们只是找到了这个分值表里真正的最优解——而那个最优解与设计意图相反。</p>
+
+  <h2>二、根因：收下旁证是一步数学上的劣着</h2>
+  <p>第一版的计分可以简化成下面这张表。关键不在单张牌给多少分，而在<b>连击会不会继续涨</b>：</p>
+  <table>
+    <thead>
+      <tr><th>这一拍</th><th>收下</th><th>放走</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>完全对上</td><td>+10 × 连击倍率，连击 +1</td><td>0，连击归零</td></tr>
+      <tr><td>口径相容 / 边缘相容</td><td>+3 / +1，<b>连击冻结</b></td><td>+2，<b>连击 +1</b></td></tr>
+      <tr><td>冲突候选 / 没对上</td><td>0，掉一颗心，连击归零</td><td>+2，连击 +1</td></tr>
+      <tr><td>无从判断</td><td>0，连击冻结</td><td>+1，连击 +1</td></tr>
+    </tbody>
+  </table>
+  <p>连击倍率是阶梯式的：连击 0–2 是 ×1，3–5 是 ×1.5，6–8 是 ×2，9–11 是 ×2.5，12 起封顶 ×3。于是“收下一张旁证”看起来白拿 3 分，实际付出的是<b>把整条连击按住不动</b>——而放走它不但有 2 分，还让下一次命中更早进入更高的倍率档。</p>
+  <p>把账算到具体一拍。假设当前连击是 8，倍率 ×2：</p>
+  <div class="formula">收下这张“口径相容”：+3，连击仍是 8 → 下一张命中仍是 ×2 = 20 分
+放走这张“口径相容”：+2，连击变 9 → 下一张命中 ×2.5 = 25 分</div>
+  <p>放走立刻多 2 分，下一拍还多 5 分，而且不掉心、不吃任何惩罚。只要后面还有命中，“收下旁证”就被“放走旁证”严格支配——唯一例外是全场最后几拍，那时后面不再有命中，收下 +3 反而多 1 分。把整局按真正的最优解算一遍是 148 分（字面打法 146），差距小到不改变档位，但足以说明“读不读”在这张表里几乎没有分量。冲突候选和没对上更不用说：收下 0 分、掉一颗心、断连击，放走却是 +2 并继续涨连击。</p>
+  <p>更糟的是，这一版的构建脚本把“满分”直接定义成了字面打法。生成数据时算 <code>perfectScore</code> 的那段代码就是“完全对上就收、其余全放走”，逐拍累加得到 146；S 线再按满分的 90% 取整，得到 131。也就是说，最高档的分母本身就是最笨打法能拿到的分数——只要字面比对做得准，S 档在数学上就一定是你的。</p>
+  <p>六种判据里，四种在最优策略下根本不参与决策。游戏嘴上让人分辨“相容”和“对上”，分值却告诉玩家：别分辨，放走就对了。最高档因此不再证明“读懂了”，只证明“会按字面做字符串比较”。</p>
+
+  <h2>三、为什么修了很多轮细节，仍然不好玩</h2>
+  <p>那段时间的改动几乎全在体验层：换词小游戏前后修了五轮——减字（首屏可见文字从 376 字降到 209 字）、居中开箱、点击爽感、把换词改成贴着词的浮层、调行距与按钮尺寸；分拣这一版也调过判定文字的停留时长（305 毫秒改到 1.2 秒）、按钮大小与首屏空白。每一轮都让页面更顺，但没有一轮回答“最高档到底需不需要读懂”。</p>
+  <p>这些改动本身没有错，页面确实更好用了，可它们一个都没有碰到那行式子：</p>
+  <div class="formula">最优策略 ≈ 只收字面完全相同，其余全放走</div>
+  <p>只要这行式子还成立，手感越好，玩家越快地把这套错误策略执行完；动效越顺，错误策略越像“正确玩法”。修细节修的是症状，症状背后是一个稳定占优的解。</p>
+  <p>后来回看，真正该停下来的信号很清楚：</p>
+  <ul>
+    <li><b>盲测里“不读规则”的人稳定拿到最高档。</b>这不是难度问题，是激励方向反了。</li>
+    <li><b>最优策略可以用一句完全不涉及内容的话说完。</b>如果这句话成立，游戏考的就不是它声称要考的东西。</li>
+    <li><b>认真读的人反而更容易掉档。</b>当“更懂”变成劣势，继续调手感只会让错误更舒服。</li>
+  </ul>
+  <p>这三个信号出现任意一个，就该停下来重写分值表，而不是再改一轮按钮大小。</p>
+
+  <h2>四、重做时做对了什么：把“必须读懂”写成构建期的不等式</h2>
+  <p>重做没有靠文案劝玩家“要认真读”，而是改了分值关系，让错误打法在数学上不再占优：</p>
+  <ul>
+    <li><b>中段收旁证要付代价。</b>收下相容/边缘仍然给固定分，但会<b>把连击清零</b>，不再“冻结”。想保住连击，就得先把旁证放走。</li>
+    <li><b>旁证只在最后三拍翻倍。</b>每件器物的收尾窗口里，收旁证的分值翻倍；窗口里放走，等于把翻倍的分白丢。于是“什么时候收旁证”变成真取舍，而不是一律放走。</li>
+    <li><b>误收冲突/没对上更贵。</b>除了掉心、断连击，还倒扣 6 分；S 档另要求整局没有这种误收。想拿最高档，必须真的分清“指向别的值”和“只是说法不同”。</li>
+  </ul>
+  <p>更重要的是，这些关系不是写在说明里就算数，而是在构建数据时逐牌序验算。只要有一条不成立，构建直接失败：</p>
+  <div class="formula">S 线 = ceil(理论最高分 × 0.9) = ceil(199 × 0.9) = 180
+只认字面（收完全对上、其余全放走） = 127 ＜ 180
+逢旁证就收（不看窗口）           = 175 ＜ 180
+读懂规则并在窗口收旁证（稳健打法）= 199 = 理论最高分
+漏收一条窗口旁证                 ≥ 180（S 线容忍一次手滑）
+漏收两条窗口旁证                 ＜ 180
+误收一条冲突/没对上              ＜ 180</div>
+  <p>这几条不等式被写进了数据构建脚本：字面打法只要摸到 S 线，构建就报错；稳健打法不等于理论最高分，也报错；S 线严到“漏一条就掉档”或松到“漏两条还是 S”，同样报错。于是“必须读懂才能拿最高档”不再是一句设计口号，而是每次构建都会重新验算的硬约束。</p>
+  <p>错误打法没有变笨，是它在数学上不再是最优。这才是重做与“再调一版手感”的区别。</p>
+
+  <h2>五、可迁移的结论</h2>
+  <div class="callout">
+    <p><b>一个小游戏、一个交互设计的最高档，能不能被“不看规则的人”用更笨的策略拿到，是它有没有内容价值的判据。</b></p>
+  </div>
+  <p>把这个判据带去做别的交互，可以落成三个可执行的问题：</p>
+  <ol>
+    <li><b>把最优策略写成一句话。</b>如果这句话不涉及你想教的内容，说明内容没有进入激励结构。</li>
+    <li><b>让“更懂”在分数上严格占优。</b>不是高一点，而是严格占优；否则玩家没有理由多读那一眼。</li>
+    <li><b>把这条关系做成构建期断言。</b>文案会漂、手感会变，只有每次构建都验算的不等式能防止它悄悄退回去。</li>
+  </ol>
+
+  <h2>附：被删掉的旧换词小游戏留档</h2>
+  <p>仓库里还曾有一版完全不同的玩法：把一句话拆成机构、时间、专场三个槽位，玩家自己换词，换完开宝箱领分，收齐八种结论通关。它和现在的限时分拣不是同一条玩法线，产品最后只保留一条，旧页连同它的脚本、数据和测试一起删除了。下面两张图留档，说明那一版长什么样。</p>
+  <figure class="figure">
+    <img src="assets/demo-lab-first-screen.png" alt="旧版换词小游戏的开始画面：中间是一只宝箱，背后是待换词的句子和分数进度">
+    <figcaption>旧版首屏：中间是“点一下开箱”的宝箱，背后能看到待换词的句子与分数进度。截图摄于删除前。</figcaption>
+  </figure>
+  <figure class="figure">
+    <img src="assets/demo-lab-board.png" alt="旧版换词小游戏开箱后的界面：句子三个槽位、分数线和八个结论槽位">
+    <figcaption>开箱后的棋盘：三个可换的槽位、顶部分数线，以及需要逐个收齐的八种结论。截图摄于删除前。</figcaption>
+  </figure>
+  <p>留档的目的不是怀念这一版，而是记住它的教训：一个演示页只要还在维护，就会持续消耗测试、文档与导航的注意力；当它服务的那条玩法线被取代，正确动作是删掉并留下可讲的经验，而不是让两套玩法长期并排。</p>
+
+  <a class="back" href="demo-sort.html">回到证据分拣，自己打一局 →</a>
+</main>
+</body>
+</html>

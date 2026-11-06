@@ -11,6 +11,7 @@
  */
 
 import type { ClaimRecord, EvidenceRecord, RecordSummary, VerdictRecord } from '../types';
+import { gradeRecordDimensions } from '../dimensions';
 
 /** 门禁输入：一条记录的字段断言 + 各自的证据与裁决 */
 export interface GateInput {
@@ -114,8 +115,19 @@ export function decideGate(input: GateInput): GateOutcome {
     gate = 'weak';
     reason = `有共现命中页面，但最低证据等级只到 ${weakest}（单一独立来源）——不给强坐标`;
   } else {
-    gate = 'strong';
-    reason = `关键字段全部 supported、共现命中 ${urls.length} 个页面、最低证据等级 ${weakest}`;
+    /**
+     * 最后一道：判据维度是否够得上强坐标。
+     * 冲突否决先于算分（任一维明确冲突直接降弱）；没有任何维度给出状态的行
+     * 就是"无从判断"，它不升坐标——老数据由回填脚本补齐状态，不在这里留兼容分支。
+     */
+    const dimensional = gradeRecordDimensions(input.fieldClaimIds, input.claims, input.evidenceByClaim);
+    if (dimensional.grade === 'strong') {
+      gate = 'strong';
+      reason = `关键字段全部 supported、共现命中 ${urls.length} 个页面、最低证据等级 ${weakest}`;
+    } else {
+      gate = 'weak';
+      reason = `共现命中 ${urls.length} 个页面、最低证据等级 ${weakest}，但判据维度不够强坐标：${dimensional.basis}`;
+    }
   }
 
   const cooccurringEvidenceIds = collectEvidenceIdsAtUrls(input.keyClaimIds, input.evidenceByClaim, urls);

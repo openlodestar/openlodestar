@@ -155,9 +155,16 @@ async function commandDemo(flags: Map<string, string>): Promise<number> {
   // 重置工作副本，但**跳过 live/**：默认示例的工作目录就是 .openlodestar-demo 根，
   // 在线实验的产物在它下面，一次免费的 demo 不许把花钱换来的不可复现材料抹掉。
   await resetDemoWorkDir(workDir);
-  for (const file of ['claims.jsonl', 'evidence.jsonl', 'query.txt']) {
+  for (const file of ['claims.jsonl', 'query.txt']) {
     await fs.copyFile(path.join(exampleDir, file), path.join(workDir, file));
   }
+  // 回填产物优先（旁挂文件，冻结底稿不动）：维度状态是判据汇总的输入，
+  // 原始 evidence.jsonl 没有这三列，按新口径一律算无从判断、撑不起强坐标。
+  const enriched = await fs
+    .access(path.join(exampleDir, 'evidence.enriched.jsonl'))
+    .then(() => 'evidence.enriched.jsonl')
+    .catch(() => 'evidence.jsonl');
+  await fs.copyFile(path.join(exampleDir, enriched), path.join(workDir, 'evidence.jsonl'));
   await copyDir(path.join(exampleDir, 'snapshots'), path.join(workDir, 'snapshots'));
   const query = (await fs.readFile(path.join(workDir, 'query.txt'), 'utf8')).trim();
 

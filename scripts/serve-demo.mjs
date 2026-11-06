@@ -1,6 +1,6 @@
 /* scripts/serve-demo.mjs
  *
- * 演示页的本地静态预览服务：把仓库里的 docs/ 目录原样端出来，给 docs/demo-lab.html
+ * 演示页的本地静态预览服务：把仓库里的 docs/ 目录原样端出来，给 docs/demo-sort.html
  * 与 docs/demo.html 用。
  *
  * 只做这一件事，所以边界写死：
@@ -133,7 +133,7 @@ server.on('error', (error) => {
 
 server.listen(port, HOST, () => {
   console.log('演示页本地预览已启动（只监听本机，局域网与公网都访问不到）：');
-  console.log(`  http://${HOST}:${port}/demo-lab.html   小游戏页`);
+  console.log(`  http://${HOST}:${port}/demo-sort.html  证据分拣`);
   console.log(`  http://${HOST}:${port}/demo.html       逐条记录演示`);
   console.log('按 Ctrl+C 停止。换端口：pnpm run demo:serve -- --port 3014');
 });

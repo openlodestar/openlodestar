@@ -36,6 +36,8 @@ interface DemoEvidence {
   fieldValue: string;
   quote: string;
   url: string;
+  relation?: 'supports' | 'refutes' | 'irrelevant';
+  state?: string;
 }
 
 interface DemoFieldVerdict {
@@ -44,6 +46,7 @@ interface DemoFieldVerdict {
   verdict: string;
   supportCount: number;
   refuteCount: number;
+  contradictorySupports?: Array<{ matchedValue: string | null; quote: string; url: string }>;
 }
 
 interface DemoRecord {
@@ -116,7 +119,12 @@ async function recomputeExample(exampleId: string): Promise<Awaited<ReturnType<t
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `lodestar-demo-test-${exampleId}-`));
   TEMP_DIRS.push(tempDir);
   fs.copyFileSync(path.join(sourceDir, 'claims.jsonl'), path.join(tempDir, 'claims.jsonl'));
-  fs.copyFileSync(path.join(sourceDir, 'evidence.jsonl'), path.join(tempDir, 'evidence.jsonl'));
+  // 回填产物优先，与 `build-demo-data` 保持同一条读取口径（冻结底稿不动）
+  const enriched = path.join(sourceDir, 'evidence.enriched.jsonl');
+  fs.copyFileSync(
+    fs.existsSync(enriched) ? enriched : path.join(sourceDir, 'evidence.jsonl'),
+    path.join(tempDir, 'evidence.jsonl'),
+  );
   fs.mkdirSync(path.join(tempDir, 'snapshots'), { recursive: true });
   for (const name of fs.readdirSync(path.join(sourceDir, 'snapshots'))) {
     if (name.endsWith('.txt')) {
@@ -187,7 +195,18 @@ describe('数据与引擎不漂移', () => {
           expect(recomputed, `${record.recordId}/${fieldKey} 重算没有裁决`).toBeDefined();
           if (!recomputed) continue;
           expect(fieldVerdict.verdict).toBe(recomputed.verdict);
-          expect(fieldVerdict.supportCount).toBe(recomputed.supportCount);
+          // 模型判「支持」、判据判「冲突」的行不计入支持：支持数 = 引擎票数 − 这类行数
+          const contradictoryRows = record.evidence.filter(
+            (row) =>
+              row.fieldKey === fieldKey &&
+              row.fieldValue === fieldVerdict.fieldValue &&
+              row.relation === 'supports' &&
+              row.state === 'conflict',
+          ).length;
+          expect(fieldVerdict.contradictorySupports?.length ?? 0).toBe(contradictoryRows);
+          expect(fieldVerdict.supportCount).toBe(
+            Math.max(0, recomputed.supportCount - contradictoryRows),
+          );
           expect(fieldVerdict.refuteCount).toBe(recomputed.refuteCount);
         }
         for (const field of record.fields) {
@@ -240,7 +259,7 @@ describe('字段值一变，证据就不许被继承', () => {
     };
     const view = api.buildView(tampered);
     expect(view.gate).toBe('uncovered');
-    expect(view.gateLabel).toBe('这批证据没覆盖');
+    expect(view.gateLabel).toBe('无坐标（这批证据没覆盖）');
     expect(view.bucket).toBe('uncovered');
     expect(view.anchor).toBeNull();
     for (const field of original.fields.filter((item) => item.role === 'key')) {

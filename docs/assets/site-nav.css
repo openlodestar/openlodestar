@@ -1,6 +1,6 @@
 /* docs/assets/site-nav.css
  *
- * 三个页面（index.html / demo.html / demo-lab.html）共用的顶栏。
+ * 各页面（index.html / demo.html / demo-sort.html / demo-sort-case.html）共用的顶栏。
  * 结构、字号、间距、换行规则、焦点样式只在这里写一份，页面只提供
  * --navy / --cream / --cream-dim 三个颜色变量，别再各写一套。
  *
@@ -33,5 +33,6 @@
   .site-nav .brand{font-size:.98rem}
 }
 @media (max-width:360px){
-  .site-nav nav a{font-size:.84rem}
+  .site-nav nav{gap:2px 10px}
+  .site-nav nav a{font-size:.8rem}
 }

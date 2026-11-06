@@ -1,0 +1,1775 @@
+// docs/assets/demo-sort.js
+/**
+ * 证据分拣 · 玩法层（零依赖、无模块、无网络、无存档）
+ *
+ * 这一页只做三件事：发牌、按动作结算、把每条说法的真实判据摆出来。
+ * **判定不在这里**：每条说法属于哪种状态，是构建时由引擎的维度函数算好、写进
+ * `demo-sort-data.js` 的。本文件只查表，不改判、不放宽。
+ *
+ * 结算表全部来自数据里的 scoring：
+ *   收下「完全对上」= 10 × 倍率（倍率只看连续命中：连击 0 是 ×1、1 是 ×2、2 起 ×3）
+ *   收下相容/边缘 = 固定分，但连击归零（中段收会打断冲锋）
+ *   每件器物的最后三拍不发命中，这三拍收旁证分值翻倍（兑现窗口）
+ *   收下冲突/没对上 = 掉一颗心、连击归零；放走 = +1
+ *   超时 = 0 分且连击归零；换下一件器物时连击清零
+ *
+ * 题库不是一副牌：`DATA.runs` 里有若干「内容不同」的牌局，每局抽一个，
+ * 且排除最近两局——连打三局不会撞回同一副牌。
+ *
+ * 历史成绩存在浏览器本地存档（键 lodestar.sort.history），只留最近若干局与历史最高；
+ * 归档里带一枚「可比性指纹」，分值结构、档位线、题库或牌序上限一变就整份作废重记。
+ * 不能写本地存档时（file:// 的某些浏览器、隐私模式、配额满）只退到内存，
+ * 页面照常结算，并明说「关掉页面就没了」。
+ */
+(function () {
+  'use strict';
+
+  var DATA = window.LODESTAR_SORT;
+
+  function runList() {
+    if (!DATA) return [];
+    if (DATA.runs && DATA.runs.length) return DATA.runs;
+    // 只有一副牌的旧数据结构也照样能跑（不为了兼容而写分支逻辑，只兜这一处）
+    return DATA.rounds ? [{ id: 'run-legacy', label: '', rounds: DATA.rounds, orders: DATA.orders }] : [];
+  }
+
+  var RUNS = runList();
+  if (!RUNS.length) return;
+
+  var R = DATA.scoring;
+  /** 基础节拍：第一件 2.6 秒、第二件 2.3 秒（长文案与收尾窗口另加） */
+  var CHIP_MS = [2600, 2300];
+  /** 收尾三拍要判「相容还是冲突」，比中段费脑，统一多给 0.8 秒 */
+  var WINDOW_EXTRA_MS = 800;
+  /** 长文案加时：按实际排版行数（两行以内不加）与字符数取较大者，封顶 1.8 秒 */
+  var LINE_MS = 800;
+  var CHAR_MS = 80;
+  var IDLE_CHARS = 14;
+  var MAX_TEXT_EXTRA_MS = 1800;
+  var SWIPE = 34;
+  /** 判定文字至少停留这么久，再发下一张牌（读得完一行再走） */
+  var VERDICT_MS = 1200;
+  var VERDICT_MS_REDUCED = 900;
+  var reduceQuery =
+    window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  function reduced() {
+    return !!(reduceQuery && reduceQuery.matches);
+  }
+
+  function multiplierOf(combo) {
+    var m = R.multiplier;
+    return Math.min(m.cap, 1 + Math.floor(combo / m.per) * m.step);
+  }
+
+  /** 收下这一档时，除了状态名还要说的半句话（状态名本身不重复） */
+  var ACCEPT_TEXT = {
+    caliber: '只算旁证',
+    edge: '不能当支撑',
+    conflict: '它指向别的值',
+    mismatch: '写的不是这个',
+    unknown: '判不了',
+  };
+
+  function isSideState(state) {
+    return state === 'caliber' || state === 'edge';
+  }
+
+  /**
+   * 一条说法 + 一个动作 = 这一拍的结果。
+   * 纯函数：传入当前连击与「是否在兑现窗口里」，同一组输入永远是同一个结果，
+   * 页面随时能重算给玩家看，测试也能逐条复算。
+   */
+  function outcomeOf(chip, action, combo, inWindow) {
+    var meta = DATA.states[chip.state];
+    var mult = multiplierOf(combo);
+    if (action === 'timeout') {
+      return {
+        points: R.timeoutPoints,
+        combo: 'reset',
+        life: 0,
+        tone: 'timeout',
+        text: '超时 · 这一拍没判，连击断',
+        verdict: 'timeout',
+      };
+    }
+    if (action === 'accept') {
+      if (chip.state === 'exact') {
+        var hit = Math.round(R.hitBase * mult);
+        return {
+          points: hit,
+          combo: 'up',
+          life: 0,
+          tone: 'hit',
+          text: '完全对上 · 命中 +' + hit + '（×' + mult + '）',
+          verdict: 'hit',
+        };
+      }
+      if (chip.state === 'conflict' || chip.state === 'mismatch') {
+        return {
+          points: -R.wrongPenalty,
+          combo: R.acceptCombo[chip.state],
+          life: R.acceptLife[chip.state],
+          tone: 'mismatch',
+          text:
+            meta.label + ' · ' + ACCEPT_TEXT[chip.state] + ' · 倒扣 ' + R.wrongPenalty +
+            ' 分 · 掉一颗心 · 连击断',
+          verdict: 'harm',
+        };
+      }
+      var base = R.accept[chip.state];
+      var doubled = !!(inWindow && isSideState(chip.state));
+      var points = doubled ? base * R.windowBonus.multiplier : base;
+      var life = R.acceptLife[chip.state];
+      var mode = R.acceptCombo[chip.state];
+      var parts = [meta.label + ' · ' + ACCEPT_TEXT[chip.state]];
+      if (points > 0) parts.push('+' + points + (doubled ? '（窗口翻倍）' : ''));
+      if (life < 0) parts.push('掉一颗心');
+      if (mode === 'reset') parts.push('连击断');
+      return {
+        points: points,
+        combo: mode,
+        life: life,
+        tone: life < 0 ? 'mismatch' : meta.tone,
+        text: parts.join(' · '),
+        verdict: life < 0 ? 'harm' : points > 0 ? 'side' : 'flat',
+      };
+    }
+    // 放走
+    if (chip.state === 'exact') {
+      return {
+        points: 0,
+        combo: 'reset',
+        life: 0,
+        tone: 'mismatch',
+        text: '漏判了 · 完全对上却放走，连击断',
+        verdict: 'miss',
+      };
+    }
+    var gain = R.reject[chip.state];
+    var dropParts = [meta.label + ' · 放走'];
+    if (gain > 0) dropParts.push('+' + gain);
+    if (isSideState(chip.state)) {
+      dropParts.push(
+        inWindow
+          ? '窗口里白丢 +' + R.accept[chip.state] * R.windowBonus.multiplier
+          : '现在收不影响倍率',
+      );
+    }
+    return {
+      points: gain,
+      combo: 'keep',
+      life: 0,
+      tone: meta.tone,
+      text: dropParts.join(' · '),
+      verdict: 'drop',
+    };
+  }
+
+  /** 结算的累加规则：分数、连击、心，三样都只在这里改 */
+  function applyOutcome(score, combo, lives, result) {
+    return {
+      score: Math.max(0, score + result.points),
+      combo:
+        result.combo === 'up' ? combo + 1 : result.combo === 'reset' ? 0 : combo,
+      lives: Math.max(0, lives + result.life),
+    };
+  }
+
+  var SORT = {
+    phase: 'idle',
+    run: null,
+    rounds: [],
+    orders: [],
+    order: null,
+    sequence: [0, 1],
+    roundIndex: 0,
+    chipIndex: 0,
+    score: 0,
+    combo: 0,
+    lives: R.lives,
+    maxCombo: 0,
+    hits: 0,
+    misses: 0,
+    timeouts: 0,
+    log: [],
+    locked: false,
+    deadline: 0,
+    duration: 0,
+    remaining: 0,
+    raf: 0,
+    /** 判定停留也受暂停/切页控制：到点该发下一拍的时刻与定时器 */
+    waitDeadline: 0,
+    waitTimer: 0,
+    /** 恢复前的 3-2-1 倒数 */
+    countdownTimer: 0,
+    countdownLeft: 0,
+    /** 暂停时冻结的那一段：'timer'＝答题计时，'wait'＝判定停留 */
+    pauseKind: '',
+    pauseRemaining: 0,
+    startedAt: 0,
+    endedAt: 0,
+    chip: null,
+    drag: null,
+    lastOrder: '',
+    recentRuns: [],
+  };
+
+  var dom = {
+    shell: document.getElementById('shell'),
+    topbar: document.querySelector ? document.querySelector('.topbar') : null,
+    score: document.getElementById('score'),
+    mult: document.getElementById('combo-mult'),
+    comboCount: document.getElementById('combo-count'),
+    comboFill: document.getElementById('combo-fill'),
+    hearts: document.getElementById('hearts'),
+    roundTag: document.getElementById('round-tag'),
+    beatDots: document.getElementById('beat-dots'),
+    switchNote: document.getElementById('switch-note'),
+    lot: document.getElementById('lot'),
+    stage: document.getElementById('stage'),
+    chip: document.getElementById('chip'),
+    chipSlot: document.getElementById('chip-slot'),
+    chipClaim: document.getElementById('chip-claim'),
+    chipValue: document.getElementById('chip-value'),
+    chipTag: document.getElementById('chip-tag'),
+    timerFill: document.getElementById('timer-fill'),
+    timerNum: document.getElementById('timer-num'),
+    timerRow: document.getElementById('timer-row'),
+    comboTrack: document.getElementById('combo-fill').parentNode,
+    verdict: document.getElementById('verdict-line'),
+    verdictLabel: document.getElementById('verdict-label'),
+    verdictText: document.getElementById('verdict-text'),
+    waitBar: document.getElementById('wait-bar'),
+    waitFill: document.getElementById('wait-fill'),
+    fx: document.getElementById('fx'),
+    accept: document.getElementById('btn-accept'),
+    reject: document.getElementById('btn-reject'),
+    start: document.getElementById('start'),
+    startBtn: document.getElementById('btn-start'),
+    startScroll: document.getElementById('start-scroll'),
+    startScrollHint: document.getElementById('start-scroll-hint'),
+    startDetails: document.getElementById('start-details'),
+    rulesText: document.getElementById('rules-text'),
+    rulesBody: document.getElementById('rules-body'),
+    result: document.getElementById('result'),
+    grade: document.getElementById('grade'),
+    gradeLabel: document.getElementById('grade-label'),
+    finalScore: document.getElementById('final-score'),
+    perfectScore: document.getElementById('perfect-score'),
+    resultStats: document.getElementById('result-stats'),
+    historyCard: document.getElementById('history-card'),
+    histPraise: document.getElementById('hist-praise'),
+    histBest: document.getElementById('hist-best'),
+    histRecent: document.getElementById('hist-recent'),
+    histNote: document.getElementById('hist-note'),
+    startHistory: document.getElementById('start-history'),
+    orderNote: document.getElementById('order-note'),
+    reviewWrap: document.getElementById('review-wrap'),
+    reviewSummary: document.getElementById('review-summary'),
+    reviewToggle: document.getElementById('review-toggle'),
+    reviewBody: document.getElementById('review-body'),
+    again: document.getElementById('btn-again'),
+    pause: document.getElementById('pause'),
+    pauseMain: document.getElementById('pause-main'),
+    pauseConfirm: document.getElementById('pause-confirm'),
+    pauseCountdown: document.getElementById('pause-countdown'),
+    pauseCountdownNum: document.getElementById('pause-countdown-num'),
+    pauseBtn: document.getElementById('btn-pause'),
+    resume: document.getElementById('btn-resume'),
+    restart: document.getElementById('btn-restart'),
+    cancelRestart: document.getElementById('btn-cancel-restart'),
+    confirmRestart: document.getElementById('btn-confirm-restart'),
+  };
+
+  var SLOT_IDS = ['auctionHouse', 'dateText', 'sessionName'];
+
+  function round() {
+    return SORT.rounds[SORT.sequence[SORT.roundIndex]];
+  }
+
+  function orderOfRound() {
+    return SORT.order.rounds[SORT.roundIndex];
+  }
+
+  /** 当前这一拍在「牌面数组」里的位置（牌序只改先后，不改牌面） */
+  function chipIndexOfBeat() {
+    return orderOfRound()[SORT.chipIndex];
+  }
+
+  function currentChip() {
+    var r = round();
+    if (!r) return null;
+    var index = chipIndexOfBeat();
+    return index === undefined ? null : r.chips[index];
+  }
+
+  function inWindow() {
+    var r = round();
+    return !!r && SORT.chipIndex >= r.settleFrom;
+  }
+
+  /** 实际排版行数：窄屏折三行就按三行算，不拿字符数猜 */
+  function lineCountOf(el) {
+    if (!el) return 1;
+    var style = window.getComputedStyle(el);
+    var lineHeight = parseFloat(style.lineHeight);
+    if (!lineHeight || !isFinite(lineHeight)) {
+      lineHeight = (parseFloat(style.fontSize) || 16) * 1.5;
+    }
+    return Math.max(1, Math.round(el.offsetHeight / lineHeight));
+  }
+
+  /**
+   * 长文案的加时：排版行数超过两行（这条值 + 本件字段）或总字数超过 14 时加时，
+   * 两者取较大者并封顶。宽屏一行放得下但字数很多的名目，也能拿到按字数算的余量。
+   */
+  function textExtraMs(lines, chars) {
+    var byLine = Math.max(0, lines - 2) * LINE_MS;
+    var byChar = Math.max(0, chars - IDLE_CHARS) * CHAR_MS;
+    return Math.min(MAX_TEXT_EXTRA_MS, Math.max(byLine, byChar));
+  }
+
+  /**
+   * 这一拍给多久。基础节拍 + 收尾窗口加时 + 长文案加时。
+   * 只加不减：中段短文案仍是最紧的 2.6 / 2.3 秒，收尾三拍与长文案才放宽。
+   */
+  function beatMsFor(roundIndex, inWindowBeat, lines, chars) {
+    var base = CHIP_MS[Math.min(roundIndex, CHIP_MS.length - 1)];
+    var windowExtra = inWindowBeat ? WINDOW_EXTRA_MS : 0;
+    return base + windowExtra + textExtraMs(lines, chars);
+  }
+
+  function beatDuration() {
+    var r = round();
+    var lines = lineCountOf(dom.chipClaim) + lineCountOf(dom.chipValue);
+    var lotValue = r ? r.lot.values[SORT.chip.slot] : '';
+    var chars = (SORT.chip ? SORT.chip.value : '').length + (lotValue || '').length;
+    return beatMsFor(SORT.roundIndex, inWindow(), lines, chars);
+  }
+
+  function now() {
+    return window.performance && window.performance.now
+      ? window.performance.now()
+      : Date.now();
+  }
+
+  // ---- 渲染 ----
+
+  function renderHud(bump) {
+    dom.score.textContent = String(SORT.score);
+    var mult = multiplierOf(SORT.combo);
+    dom.mult.textContent = '×' + mult;
+    dom.comboCount.textContent = '连击 ' + SORT.combo;
+    dom.comboFill.style.width = Math.min(100, (SORT.combo / 3) * 100) + '%';
+    dom.mult.classList.toggle('is-hot', mult >= 2);
+    var heartNodes = dom.hearts.children;
+    for (var i = 0; i < heartNodes.length; i += 1) {
+      heartNodes[i].classList.toggle('is-lost', i >= SORT.lives);
+    }
+    dom.hearts.setAttribute(
+      'aria-label',
+      SORT.lives > 0 ? '还剩 ' + SORT.lives + ' 颗心' : '心已掉光',
+    );
+    if (bump) {
+      dom.score.classList.remove('is-bump');
+      void dom.score.offsetWidth;
+      dom.score.classList.add('is-bump');
+    }
+  }
+
+  function renderRoundTag() {
+    var r = round();
+    var beat = SORT.chipIndex + 1;
+    var total = r.chips.length;
+    var windowBeat = inWindow();
+    dom.roundTag.textContent =
+      '第 ' + (SORT.roundIndex + 1) + '/' + SORT.rounds.length + ' 件 · ' +
+      '第 ' + beat + '/' + total + ' 拍' +
+      (windowBeat ? ' · 收尾窗口：这拍多给 0.8 秒' : '');
+    dom.roundTag.classList.toggle('is-window', windowBeat);
+    renderDots(total);
+  }
+
+  /** 本件的十拍进度点：当前拍高亮，最后三拍（兑现窗口）描金边 */
+  function renderDots(total) {
+    if (!dom.beatDots) return;
+    var html = '';
+    for (var i = 0; i < total; i += 1) {
+      var cls = 'beat-dot';
+      if (i === SORT.chipIndex) cls += ' is-now';
+      else if (i < SORT.chipIndex) cls += ' is-done';
+      if (i >= total - R.settleBeats) cls += ' is-window';
+      html += '<i class="' + cls + '"></i>';
+    }
+    dom.beatDots.innerHTML = html;
+    dom.beatDots.setAttribute(
+      'aria-label',
+      '本件第 ' + (SORT.chipIndex + 1) + ' 拍，共 ' + total + ' 拍，最后 ' + R.settleBeats + ' 拍是兑现窗口',
+    );
+  }
+
+  function renderLot() {
+    var r = round();
+    for (var i = 0; i < SLOT_IDS.length; i += 1) {
+      var key = SLOT_IDS[i];
+      document.getElementById('lot-' + key).textContent = r.lot.values[key];
+      document.getElementById('row-' + key).classList.remove('is-hit', 'is-miss');
+    }
+  }
+
+  function clearDecided() {
+    dom.chip.classList.remove('is-decided');
+    dom.chip.className = 'chip';
+    dom.verdict.className = 'verdict-line';
+    dom.verdictLabel.textContent = '';
+    dom.verdictText.textContent = '上甩收下 · 下甩放走';
+    dom.waitFill.style.width = '0%';
+    dom.waitFill.style.transition = 'none';
+  }
+
+  function renderChip() {
+    var chip = currentChip();
+    var r = round();
+    SORT.chip = chip;
+    if (!chip) return;
+    clearDecided();
+    dom.chipSlot.textContent = chip.short;
+    dom.chipClaim.textContent = r.lot.values[chip.slot];
+    dom.chipValue.textContent = chip.value;
+    dom.chipTag.hidden = !chip.demoOnly;
+    dom.chip.style.transition = 'none';
+    dom.chip.style.transform = 'translateY(0)';
+    dom.chip.style.opacity = '1';
+    if (!reduced()) {
+      dom.chip.classList.remove('is-entering');
+      void dom.chip.offsetWidth;
+      dom.chip.classList.add('is-entering');
+    }
+    dom.chip.setAttribute(
+      'aria-label',
+      '本件' + chip.slotLabel + '是' + r.lot.values[chip.slot] +
+        '，这条说法是' + chip.value + (chip.demoOnly ? '（语料外写法）' : ''),
+    );
+  }
+
+  /** 判定写进牌面自身：牌不长脚走掉，判定行就在同一张卡里 */
+  function setVerdict(text, tone) {
+    dom.verdictLabel.textContent = text ? '这拍 ·' : '';
+    dom.verdictText.textContent = text || '';
+    dom.verdict.className = 'verdict-line' + (tone ? ' tone-' + tone : '');
+    dom.chip.classList.toggle('is-decided', !!text);
+    if (text) dom.chip.classList.add('tone-' + (tone || 'hint'));
+  }
+
+  /** 判定停留的这一秒多不是空白：卡片下面一条进度线走完，说明马上发下一拍 */
+  function armWaitBar(ms) {
+    dom.waitFill.style.transition = 'none';
+    dom.waitFill.style.width = '0%';
+    void dom.waitFill.offsetWidth;
+    var wait = typeof ms === 'number' && ms > 0
+      ? ms
+      : reduced() ? VERDICT_MS_REDUCED : VERDICT_MS;
+    dom.waitFill.style.transition = 'width ' + wait + 'ms linear';
+    dom.waitFill.style.width = '100%';
+  }
+
+  var switchTimer = 0;
+  function showSwitchNote() {
+    if (!dom.switchNote) return;
+    dom.switchNote.textContent = '换下一件 · 连击清零，倍率回到 ×1';
+    dom.switchNote.classList.remove('is-in');
+    void dom.switchNote.offsetWidth;
+    dom.switchNote.classList.add('is-in');
+    window.clearTimeout(switchTimer);
+    switchTimer = window.setTimeout(function () {
+      dom.switchNote.classList.remove('is-in');
+      dom.switchNote.textContent = '';
+    }, 1900);
+  }
+
+  // ---- 特效 ----
+
+  function pulse(node, className) {
+    if (!node || reduced()) return;
+    node.classList.remove(className);
+    void node.offsetWidth;
+    node.classList.add(className);
+    window.setTimeout(function () {
+      node.classList.remove(className);
+    }, 520);
+  }
+
+  function floatText(text, color) {
+    if (reduced()) return;
+    var chipRect = dom.chip.getBoundingClientRect();
+    var stageRect = dom.stage.getBoundingClientRect();
+    var node = document.createElement('span');
+    node.className = 'fx-float';
+    node.textContent = text;
+    node.style.color = color || '#E9C46A';
+    node.style.left = chipRect.left - stageRect.left + chipRect.width / 2 + 'px';
+    node.style.top = chipRect.top - stageRect.top - 26 + 'px';
+    dom.fx.appendChild(node);
+    window.setTimeout(function () {
+      if (node.parentNode) node.parentNode.removeChild(node);
+    }, 640);
+  }
+
+  function particles(color) {
+    if (reduced()) return;
+    var chipRect = dom.chip.getBoundingClientRect();
+    var stageRect = dom.stage.getBoundingClientRect();
+    var cx = chipRect.left - stageRect.left + chipRect.width / 2;
+    var cy = chipRect.top - stageRect.top + chipRect.height / 2;
+    for (var i = 0; i < 12; i += 1) {
+      var angle = (Math.PI * 2 * i) / 12 + Math.random() * 0.3;
+      var distance = 46 + Math.random() * 34;
+      var node = document.createElement('span');
+      node.className = 'fx-spark';
+      node.style.left = cx + 'px';
+      node.style.top = cy + 'px';
+      node.style.background = color;
+      node.style.setProperty('--dx', Math.cos(angle) * distance + 'px');
+      node.style.setProperty('--dy', Math.sin(angle) * distance + 'px');
+      dom.fx.appendChild(node);
+      window.setTimeout(function (n) {
+        return function () {
+          if (n.parentNode) n.parentNode.removeChild(n);
+        };
+      }(node), 560);
+    }
+  }
+
+  function damageFlash() {
+    if (reduced()) return;
+    var node = document.createElement('div');
+    node.className = 'fx-vignette';
+    document.body.appendChild(node);
+    window.setTimeout(function () {
+      if (node.parentNode) node.parentNode.removeChild(node);
+    }, 520);
+  }
+
+  function shakeChip() {
+    if (reduced()) return;
+    dom.chip.classList.remove('is-shake');
+    void dom.chip.offsetWidth;
+    dom.chip.classList.add('is-shake');
+    window.setTimeout(function () {
+      dom.chip.classList.remove('is-shake');
+    }, 320);
+  }
+
+  /** 甩得不够 / 点了卡片：立刻给一句否定反馈，计时不停 */
+  function refuseFeedback(text) {
+    setVerdict(text, 'hint');
+    shakeChip();
+  }
+
+  var TONE_COLOR = {
+    hit: '#46C98A',
+    caliber: '#6FA8DC',
+    edge: '#93AEBB',
+    conflict: '#E4A93F',
+    mismatch: '#E2705F',
+    unknown: '#9AA0AA',
+    timeout: '#E2705F',
+    hint: '#E9C46A',
+  };
+
+  // ---- 计时 ----
+
+  function stopTimer() {
+    if (SORT.raf) {
+      window.cancelAnimationFrame(SORT.raf);
+      SORT.raf = 0;
+    }
+  }
+
+  function armTimer(ms) {
+    SORT.duration = ms;
+    SORT.remaining = ms;
+    SORT.deadline = now() + ms;
+    stopTimer();
+    tick();
+  }
+
+  function tick() {
+    if (SORT.phase !== 'playing' || SORT.locked) return;
+    var left = SORT.deadline - now();
+    SORT.remaining = Math.max(0, left);
+    var ratio = SORT.duration > 0 ? SORT.remaining / SORT.duration : 0;
+    var low = ratio < 0.34;
+    dom.timerFill.style.width = (ratio * 100).toFixed(1) + '%';
+    dom.timerFill.classList.toggle('is-low', low);
+    var label = (SORT.remaining / 1000).toFixed(1);
+    if (dom.timerNum.textContent !== label) dom.timerNum.textContent = label;
+    dom.timerNum.classList.toggle('is-low', low);
+    if (left <= 0) {
+      decide('timeout');
+      return;
+    }
+    SORT.raf = window.requestAnimationFrame(tick);
+  }
+
+  // ---- 暂停与重来 ----
+  // 暂停只做两件事：把正在跑的那一段时钟冻结、用不透明遮罩盖住整个画面。
+  // 冻结的是「这一次还剩多少」——恢复时从同一个读数接着走，不补时间也不扣时间。
+
+  var PAUSE_STEP = 600;
+  var PAUSE_STEP_REDUCED = 400;
+
+  /** 遮罩打开时把壳和顶栏从可访问树里摘掉：读屏也不能把下面的分数念出来 */
+  function setShellInert(on) {
+    if (document.body && document.body.classList) {
+      document.body.classList.toggle('is-paused', on);
+    }
+    var nodes = [dom.shell, dom.topbar];
+    for (var i = 0; i < nodes.length; i += 1) {
+      var el = nodes[i];
+      if (!el) continue;
+      if (on) {
+        if (el.setAttribute) el.setAttribute('inert', '');
+        if (el.setAttribute) el.setAttribute('aria-hidden', 'true');
+        el.inert = true;
+      } else {
+        if (el.removeAttribute) el.removeAttribute('inert');
+        if (el.removeAttribute) el.removeAttribute('aria-hidden');
+        el.inert = false;
+      }
+    }
+  }
+
+  function clearDrag() {
+    SORT.drag = null;
+    dom.chip.classList.remove('is-dragging', 'is-settling');
+    dom.chip.style.transition = 'none';
+    dom.chip.style.transform = 'translateY(0)';
+  }
+
+  function showPauseMain() {
+    if (dom.pauseMain) dom.pauseMain.hidden = false;
+    if (dom.pauseConfirm) dom.pauseConfirm.hidden = true;
+    if (dom.pauseCountdown) dom.pauseCountdown.hidden = true;
+  }
+
+  /** 停掉所有「还会自己往前走」的定时器：答题时钟、判定停留、恢复倒数 */
+  function clearPending() {
+    stopTimer();
+    if (SORT.waitTimer) {
+      window.clearTimeout(SORT.waitTimer);
+      SORT.waitTimer = 0;
+    }
+    if (SORT.countdownTimer) {
+      window.clearTimeout(SORT.countdownTimer);
+      SORT.countdownTimer = 0;
+    }
+    SORT.pauseKind = '';
+    SORT.pauseRemaining = 0;
+  }
+
+  function freezeClock() {
+    if (SORT.phase !== 'playing') return;
+    if (SORT.locked) {
+      // 判定已经落账，正在停留：停住「下一拍」的倒计时，恢复后把剩余时间走完
+      SORT.pauseKind = 'wait';
+      SORT.pauseRemaining = Math.max(0, SORT.waitDeadline - now());
+      if (SORT.waitTimer) {
+        window.clearTimeout(SORT.waitTimer);
+        SORT.waitTimer = 0;
+      }
+      return;
+    }
+    SORT.pauseKind = 'timer';
+    SORT.pauseRemaining = Math.max(0, SORT.deadline - now());
+    SORT.remaining = SORT.pauseRemaining;
+    stopTimer();
+  }
+
+  function resumeClock() {
+    var kind = SORT.pauseKind;
+    var left = SORT.pauseRemaining;
+    SORT.pauseKind = '';
+    SORT.pauseRemaining = 0;
+    if (kind === 'wait') {
+      if (left <= 0) {
+        nextBeat();
+        return;
+      }
+      SORT.waitDeadline = now() + left;
+      armWaitBar(left);
+      SORT.waitTimer = window.setTimeout(nextBeat, left);
+      return;
+    }
+    if (kind === 'timer') {
+      SORT.remaining = left;
+      SORT.deadline = now() + left;
+      tick();
+    }
+  }
+
+  function pauseGame() {
+    if (SORT.phase !== 'playing') return;
+    freezeClock();
+    SORT.phase = 'paused';
+    clearDrag();
+    showPauseMain();
+    dom.pause.hidden = false;
+    setShellInert(true);
+    if (dom.resume && dom.resume.focus) dom.resume.focus({ preventScroll: true });
+  }
+
+  function renderCountdown(value) {
+    if (dom.pauseCountdownNum) dom.pauseCountdownNum.textContent = String(value);
+  }
+
+  function cancelCountdownToPaused() {
+    if (SORT.countdownTimer) {
+      window.clearTimeout(SORT.countdownTimer);
+      SORT.countdownTimer = 0;
+    }
+    SORT.phase = 'paused';
+    showPauseMain();
+    dom.pause.hidden = false;
+    setShellInert(true);
+    if (dom.resume && dom.resume.focus) dom.resume.focus({ preventScroll: true });
+  }
+
+  /** 继续：先倒数 3-2-1，倒数期间遮罩不撤、时钟不走，数完才接着计时 */
+  function beginResume() {
+    if (SORT.phase !== 'paused') return;
+    SORT.phase = 'resuming';
+    if (dom.pauseMain) dom.pauseMain.hidden = true;
+    if (dom.pauseConfirm) dom.pauseConfirm.hidden = true;
+    if (dom.pauseCountdown) dom.pauseCountdown.hidden = false;
+    SORT.countdownLeft = reduced() ? 2 : 3;
+    renderCountdown(SORT.countdownLeft);
+
+    function step() {
+      if (SORT.phase !== 'resuming') return;
+      SORT.countdownLeft -= 1;
+      if (SORT.countdownLeft <= 0) {
+        finishCountdown();
+        return;
+      }
+      renderCountdown(SORT.countdownLeft);
+      SORT.countdownTimer = window.setTimeout(
+        step,
+        reduced() ? PAUSE_STEP_REDUCED : PAUSE_STEP,
+      );
+    }
+
+    SORT.countdownTimer = window.setTimeout(
+      step,
+      reduced() ? PAUSE_STEP_REDUCED : PAUSE_STEP,
+    );
+  }
+
+  function finishCountdown() {
+    if (SORT.countdownTimer) {
+      window.clearTimeout(SORT.countdownTimer);
+      SORT.countdownTimer = 0;
+    }
+    // 倒数期间切走了标签页：不要让人回来时发现计时已经跑掉，重新停在暂停页
+    if (document.hidden) {
+      cancelCountdownToPaused();
+      return;
+    }
+    dom.pause.hidden = true;
+    setShellInert(false);
+    SORT.phase = 'playing';
+    resumeClock();
+    if (dom.chip && dom.chip.focus) dom.chip.focus({ preventScroll: true });
+  }
+
+  function requestRestart() {
+    if (SORT.phase !== 'paused') return;
+    if (dom.pauseMain) dom.pauseMain.hidden = true;
+    if (dom.pauseCountdown) dom.pauseCountdown.hidden = true;
+    if (dom.pauseConfirm) dom.pauseConfirm.hidden = false;
+    if (dom.cancelRestart && dom.cancelRestart.focus) {
+      dom.cancelRestart.focus({ preventScroll: true });
+    }
+  }
+
+  function cancelRestart() {
+    if (SORT.phase !== 'paused') return;
+    showPauseMain();
+    if (dom.restart && dom.restart.focus) dom.restart.focus({ preventScroll: true });
+  }
+
+  /** 重来：清掉残留定时器，走与结算页「再来一局」同一个 startGame（同一套随机牌序） */
+  function restartGame() {
+    clearPending();
+    SORT.locked = false;
+    SORT.phase = 'idle';
+    dom.pause.hidden = true;
+    setShellInert(false);
+    showPauseMain();
+    startGame();
+    if (dom.chip && dom.chip.focus) dom.chip.focus({ preventScroll: true });
+  }
+
+  // ---- 一拍的结算 ----
+
+  function decide(action) {
+    if (SORT.phase !== 'playing' || SORT.locked) return;
+    var chip = SORT.chip;
+    if (!chip) return;
+    var windowBeat = inWindow();
+    var beforeCombo = SORT.combo;
+    SORT.locked = true;
+    stopTimer();
+    dom.timerFill.style.width = action === 'timeout' ? '0%' : dom.timerFill.style.width;
+    dom.timerNum.textContent = '0.0';
+    dom.timerFill.classList.remove('is-low');
+    dom.timerNum.classList.remove('is-low');
+
+    var result = outcomeOf(chip, action, SORT.combo, windowBeat);
+    // 先落账、再表演：动画只挂在结果上，减少动效时行为完全一样
+    var next = applyOutcome(SORT.score, SORT.combo, SORT.lives, result);
+    SORT.score = next.score;
+    if (result.combo === 'up') SORT.maxCombo = Math.max(SORT.maxCombo, next.combo);
+    SORT.combo = next.combo;
+    SORT.lives = next.lives;
+    if (result.verdict === 'hit') SORT.hits += 1;
+    if (result.verdict === 'miss') SORT.misses += 1;
+    if (action === 'timeout') SORT.timeouts += 1;
+    SORT.log.push({
+      index: SORT.log.length + 1,
+      round: SORT.roundIndex + 1,
+      slot: chip.slot,
+      slotLabel: chip.slotLabel,
+      short: chip.short,
+      value: chip.value,
+      state: chip.state,
+      note: chip.note,
+      action: action,
+      points: result.points,
+      life: result.life,
+      comboBefore: beforeCombo,
+      comboAfter: SORT.combo,
+      inWindow: windowBeat,
+    });
+
+    if (chip.state === 'exact' && action === 'accept') {
+      document.getElementById('row-' + chip.slot).classList.add('is-hit');
+    }
+    if (result.life < 0) {
+      dom.lot.classList.remove('is-harm');
+      void dom.lot.offsetWidth;
+      dom.lot.classList.add('is-harm');
+      window.setTimeout(function () {
+        dom.lot.classList.remove('is-harm');
+      }, 520);
+    }
+    if (result.combo === 'reset' && action !== 'timeout') pulse(dom.comboTrack, 'is-broken');
+    if (action === 'timeout') pulse(dom.timerRow, 'is-timeout');
+
+    renderHud(result.points > 0);
+    setVerdict(result.text, result.tone);
+    armWaitBar();
+
+    var color = TONE_COLOR[result.tone] || '#E9C46A';
+    if (result.verdict === 'hit') {
+      particles(color);
+      floatText('+' + result.points, color);
+      dom.chip.classList.add('is-hit-glow');
+    } else if (result.verdict === 'harm') {
+      damageFlash();
+      floatText('−' + R.wrongPenalty + ' · −1 ♥', '#E2705F');
+    } else if (result.points > 0) {
+      floatText('+' + result.points, color);
+    } else if (action === 'timeout') {
+      floatText('超时', '#E2705F');
+    }
+
+    if (!reduced() && action !== 'timeout') {
+      dom.chip.style.transition = 'transform .18s ease-out';
+      dom.chip.style.transform = 'translateY(' + (action === 'accept' ? -6 : 6) + 'px) scale(.985)';
+    }
+
+    var waitMs = reduced() ? VERDICT_MS_REDUCED : VERDICT_MS;
+    SORT.waitDeadline = now() + waitMs;
+    SORT.waitTimer = window.setTimeout(nextBeat, waitMs);
+  }
+
+  function nextBeat() {
+    if (SORT.phase !== 'playing') return;
+    SORT.waitTimer = 0;
+    SORT.waitDeadline = 0;
+    SORT.locked = false;
+    if (SORT.lives <= 0) {
+      finish('心掉光了');
+      return;
+    }
+    var r = round();
+    SORT.chipIndex += 1;
+    if (SORT.chipIndex >= r.chips.length) {
+      if (SORT.roundIndex + 1 >= SORT.rounds.length) {
+        finish(null);
+        return;
+      }
+      SORT.roundIndex += 1;
+      SORT.chipIndex = 0;
+      SORT.combo = 0;
+      renderHud(false);
+      renderLot();
+      showSwitchNote();
+    }
+    renderRoundTag();
+    renderChip();
+    armTimer(beatDuration());
+  }
+
+  // ---- 开始与结束 ----
+
+  /**
+   * 抽一个牌局：排除最近两局，保证连打三局不撞回同一副牌；
+   * 牌序与两件器物的先后也避开上一局。
+   */
+  function pickRun() {
+    var candidates = [];
+    for (var i = 0; i < RUNS.length; i += 1) {
+      if (SORT.recentRuns.indexOf(RUNS[i].id) < 0) candidates.push(RUNS[i]);
+    }
+    if (!candidates.length) {
+      SORT.recentRuns = [];
+      candidates = RUNS.slice();
+    }
+    var run = candidates[Math.floor(Math.random() * candidates.length)];
+    SORT.run = run;
+    SORT.rounds = run.rounds;
+    SORT.orders = run.orders;
+    SORT.recentRuns.push(run.id);
+    while (SORT.recentRuns.length > 2) SORT.recentRuns.shift();
+
+    var order = SORT.orders[Math.floor(Math.random() * SORT.orders.length)];
+    if (SORT.orders.length > 1 && order.id === SORT.lastOrder) {
+      order = SORT.orders[(SORT.orders.indexOf(order) + 1) % SORT.orders.length];
+    }
+    SORT.lastOrder = order.id;
+    SORT.order = order;
+    SORT.sequence = SORT.rounds.map(function (_, index) { return index; });
+    if (SORT.rounds.length > 1 && Math.random() < 0.5) SORT.sequence.reverse();
+  }
+
+  function startGame() {
+    if (SORT.phase === 'playing') return;
+    clearPending();
+    if (dom.pause) {
+      dom.pause.hidden = true;
+      showPauseMain();
+      setShellInert(false);
+    }
+    pickRun();
+    SORT.phase = 'playing';
+    SORT.roundIndex = 0;
+    SORT.chipIndex = 0;
+    SORT.score = 0;
+    SORT.combo = 0;
+    SORT.lives = R.lives;
+    SORT.maxCombo = 0;
+    SORT.hits = 0;
+    SORT.misses = 0;
+    SORT.timeouts = 0;
+    SORT.log = [];
+    SORT.locked = false;
+    SORT.chip = null;
+    SORT.startedAt = now();
+    dom.start.hidden = true;
+    dom.result.hidden = true;
+    dom.accept.disabled = false;
+    dom.reject.disabled = false;
+    renderLot();
+    renderRoundTag();
+    renderHud(false);
+    renderChip();
+    armTimer(beatDuration());
+  }
+
+  function finish(reason) {
+    SORT.phase = 'over';
+    stopTimer();
+    if (dom.pause) {
+      dom.pause.hidden = true;
+      setShellInert(false);
+    }
+    SORT.endedAt = now();
+    dom.accept.disabled = true;
+    dom.reject.disabled = true;
+    dom.chip.style.opacity = '0';
+    renderResult(reason);
+    dom.result.hidden = false;
+    dom.again.focus({ preventScroll: true });
+  }
+
+  /**
+   * 分数线按这一牌序的最高分折算；S 档另外要求整局没有误收冲突/没对上。
+   * 分数到了线、但收错过——下调一档，最高档只留给打得干净的一局。
+   */
+  function gradeOf(score, best, clean) {
+    for (var i = 0; i < DATA.grades.length; i += 1) {
+      var grade = DATA.grades[i];
+      if (grade.requiresClean && !clean) continue;
+      if (best > 0 && score >= best * grade.ratio) return grade;
+    }
+    return DATA.grades[DATA.grades.length - 1];
+  }
+
+  /** 这一拍按公开规则该怎么打：收下命中，收尾窗口里收旁证，其余放走 */
+  function ruleWants(item) {
+    if (item.state === 'exact') return 'accept';
+    if (isSideState(item.state)) return item.inWindow ? 'accept' : 'reject';
+    return 'reject';
+  }
+
+  function isOptimal(item) {
+    return item.action === ruleWants(item);
+  }
+
+  /**
+   * 这一局到底错在哪——只读本局日志，数出来、算出分差，再给一句下次怎么打。
+   * 纯函数：同一份日志永远得到同一句话，测试可以直接喂一段日志复算。
+   * 不按档位套模板：不管落到哪副牌、哪个等级，说的都是这一局实际犯的错。
+   */
+  function diagnoseLog(log) {
+    var wrong = [];
+    var missed = [];
+    var windowLost = [];
+    var midSide = [];
+    var timeouts = 0;
+    var windowPts = 0;
+    for (var i = 0; i < log.length; i += 1) {
+      var item = log[i];
+      if (item.action === 'timeout') {
+        timeouts += 1;
+      } else if (item.action === 'accept') {
+        if (item.state === 'conflict' || item.state === 'mismatch') wrong.push(item);
+        else if (isSideState(item.state) && !item.inWindow) midSide.push(item);
+      } else if (item.state === 'exact') {
+        missed.push(item);
+      } else if (isSideState(item.state) && item.inWindow) {
+        windowLost.push(item);
+        windowPts += R.accept[item.state] * R.windowBonus.multiplier;
+      }
+    }
+    var count = wrong.length + missed.length + windowLost.length + midSide.length + timeouts;
+    if (!count) {
+      return {
+        text: '二十拍全按最优解打，没有可再想的。',
+        count: 0,
+        wrong: 0,
+        missed: 0,
+        windowLost: 0,
+        midSide: 0,
+        timeouts: 0,
+        windowPts: 0,
+      };
+    }
+    var parts = [];
+    if (missed.length) {
+      parts.push('放走 ' + missed.length + ' 条完全对上（' + missed[0].value + ' 这类字面一样的要收）');
+    }
+    if (wrong.length) {
+      parts.push(
+        '收下 ' + wrong.length + ' 条冲突/没对上，倒扣 ' + wrong.length * R.wrongPenalty +
+        ' 分、掉了 ' + wrong.length + ' 颗心',
+      );
+    }
+    if (windowLost.length) {
+      parts.push('收尾窗口里漏收 ' + windowLost.length + ' 条旁证，少拿 ' + windowPts + ' 分');
+    }
+    if (midSide.length) {
+      parts.push('中段收 ' + midSide.length + ' 条旁证，把连击断了');
+    }
+    if (timeouts) parts.push('超时 ' + timeouts + ' 拍');
+    var advice;
+    if (missed.length) advice = '完全一样的直接收，别犹豫。';
+    else if (windowLost.length) advice = '最后三拍再看一眼器物卡：旁证这时候收才翻倍。';
+    else if (midSide.length) advice = '中段旁证先放走，留到最后三拍。';
+    else if (wrong.length) advice = '冲突和没对上指向别的值，收下只会掉心。';
+    else advice = '先扫「本件」和「这条」再动手，别拖到超时。';
+    return {
+      text: '本局' + parts.join('；') + '。' + advice,
+      count: count,
+      wrong: wrong.length,
+      missed: missed.length,
+      windowLost: windowLost.length,
+      midSide: midSide.length,
+      timeouts: timeouts,
+      windowPts: windowPts,
+    };
+  }
+
+  var reviewExpanded = false;
+
+  function renderReview(log) {
+    var goodCount = 0;
+    for (var i = 0; i < log.length; i += 1) {
+      if (isOptimal(log[i])) goodCount += 1;
+    }
+    var badCount = log.length - goodCount;
+    reviewExpanded = badCount === 0;
+    if (dom.reviewWrap) {
+      dom.reviewWrap.classList.toggle('is-collapsed', badCount > 0);
+    }
+    if (dom.reviewSummary) {
+      dom.reviewSummary.textContent = badCount
+        ? '先看 ' + badCount + ' 条可再想想；其余 ' + goodCount + ' 条判对了，已折叠'
+        : '这 ' + log.length + ' 条都判对了';
+    }
+    if (dom.reviewToggle) {
+      dom.reviewToggle.hidden = badCount === 0;
+      dom.reviewToggle.textContent = '展开全部 ' + log.length + ' 条';
+      dom.reviewToggle.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  function toggleReview() {
+    reviewExpanded = !reviewExpanded;
+    if (dom.reviewWrap) dom.reviewWrap.classList.toggle('is-collapsed', !reviewExpanded);
+    if (dom.reviewToggle) {
+      dom.reviewToggle.textContent = reviewExpanded
+        ? '只看要改的'
+        : '展开全部 ' + SORT.log.length + ' 条';
+      dom.reviewToggle.setAttribute('aria-expanded', reviewExpanded ? 'true' : 'false');
+    }
+  }
+
+  // ---- 历史成绩：只留最近几局与历史最高，档位与牌序一并记下 ----
+
+  var HISTORY_KEY = 'lodestar.sort.history';
+  var HISTORY_SCHEMA = 1;
+  var HISTORY_KEEP = 8;
+
+  /**
+   * 存档可比性指纹。只把「会影响可比性」的东西算进来：分值结构、档位线、
+   * 节拍松紧、题库与每个牌序的上限。文案改动不算——改一句话不该抹掉成绩。
+   */
+  function historyFingerprint() {
+    var s = R;
+    var parts = [
+      s.hitBase, s.wrongPenalty, s.lives, s.settleBeats, s.timeoutPoints,
+      JSON.stringify(s.accept), JSON.stringify(s.reject),
+      JSON.stringify(s.acceptCombo), JSON.stringify(s.acceptLife),
+      JSON.stringify(s.multiplier), JSON.stringify(s.windowBonus),
+      CHIP_MS.join(','), WINDOW_EXTRA_MS, LINE_MS, CHAR_MS, IDLE_CHARS, MAX_TEXT_EXTRA_MS,
+    ];
+    for (var g = 0; g < DATA.grades.length; g += 1) {
+      parts.push(DATA.grades[g].grade + ':' + DATA.grades[g].ratio + ':' + (DATA.grades[g].requiresClean ? 1 : 0));
+    }
+    for (var i = 0; i < RUNS.length; i += 1) {
+      parts.push(RUNS[i].id);
+      for (var j = 0; j < RUNS[i].orders.length; j += 1) {
+        var order = RUNS[i].orders[j];
+        parts.push(order.id + ':' + order.best + ':' + order.literal + ':' + order.eager);
+      }
+    }
+    var text = parts.join('|');
+    var hash = 5381;
+    for (var k = 0; k < text.length; k += 1) {
+      hash = ((hash << 5) + hash + text.charCodeAt(k)) | 0;
+    }
+    return (hash >>> 0).toString(36);
+  }
+
+  var HISTORY_FP = historyFingerprint();
+
+  function gradeRank(grade) {
+    for (var i = 0; i < DATA.grades.length; i += 1) {
+      if (DATA.grades[i].grade === grade) return i;
+    }
+    return DATA.grades.length;
+  }
+
+  function emptyHistory() {
+    return { schema: HISTORY_SCHEMA, fp: HISTORY_FP, best: null, plays: [] };
+  }
+
+  var HISTORY = {
+    /** 浏览器本地存档能不能用；不能用时下面的 data 只活在这一次打开里 */
+    available: true,
+    data: emptyHistory(),
+    /** 'rules'＝指纹变了、'bad'＝存档坏了、''＝正常 */
+    resetNotice: '',
+    /** 刚结算那局的对比结果，测试与页面共用 */
+    last: null,
+  };
+
+  function validPlay(play) {
+    return !!play && typeof play.score === 'number' && typeof play.grade === 'string';
+  }
+
+  function saveHistory() {
+    HISTORY.data.schema = HISTORY_SCHEMA;
+    HISTORY.data.fp = HISTORY_FP;
+    try {
+      if (!window.localStorage) throw new Error('localStorage 不可用');
+      window.localStorage.setItem(HISTORY_KEY, JSON.stringify(HISTORY.data));
+      HISTORY.available = true;
+      return true;
+    } catch (error) {
+      // 隐私模式 / file:// 限制 / 配额满：不打扰玩家，只在页面上说明成绩不持久
+      HISTORY.available = false;
+      return false;
+    }
+  }
+
+  function loadHistory() {
+    var raw = null;
+    try {
+      if (!window.localStorage) throw new Error('localStorage 不可用');
+      raw = window.localStorage.getItem(HISTORY_KEY);
+    } catch (error) {
+      HISTORY.available = false;
+      HISTORY.data = emptyHistory();
+      return;
+    }
+    if (!raw) {
+      HISTORY.data = emptyHistory();
+      return;
+    }
+    var parsed = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      parsed = null;
+    }
+    var usable =
+      !!parsed &&
+      parsed.schema === HISTORY_SCHEMA &&
+      parsed.fp === HISTORY_FP &&
+      Object.prototype.toString.call(parsed.plays) === '[object Array]';
+    if (!usable) {
+      HISTORY.resetNotice = parsed && parsed.fp && parsed.fp !== HISTORY_FP ? 'rules' : 'bad';
+      HISTORY.data = emptyHistory();
+      saveHistory();
+      return;
+    }
+    parsed.plays = parsed.plays.filter(validPlay).slice(0, HISTORY_KEEP);
+    if (!parsed.best || typeof parsed.best.score !== 'number') parsed.best = null;
+    HISTORY.data = parsed;
+  }
+
+  /**
+   * 本局与历史怎么比。纯函数：给定分数、档位和一份历史，永远得到同一个结论。
+   * kind 六种：first 首局 / record 破纪录 / tie 追平 / above 比上局高 / below 比上局低 / same 同分。
+   */
+  function compareRun(score, grade, history) {
+    var best =
+      history && history.best && typeof history.best.score === 'number' ? history.best : null;
+    var plays = history && history.plays ? history.plays : [];
+    var last = plays.length && typeof plays[0].score === 'number' ? plays[0] : null;
+    var prevBest = best ? best.score : null;
+    var prevLast = last ? last.score : null;
+    var kind;
+    if (prevBest === null) kind = 'first';
+    else if (score > prevBest) kind = 'record';
+    else if (score === prevBest) kind = 'tie';
+    else if (prevLast === null) kind = 'below';
+    else if (score > prevLast) kind = 'above';
+    else if (score < prevLast) kind = 'below';
+    else kind = 'same';
+    return {
+      kind: kind,
+      score: score,
+      grade: grade,
+      prevBest: prevBest,
+      prevLast: prevLast,
+      prevBestGrade: best ? best.grade : null,
+      toBest: prevBest === null ? null : score - prevBest,
+      toLast: prevLast === null ? null : score - prevLast,
+      gradeUp: !!(best && gradeRank(grade) < gradeRank(best.grade)),
+    };
+  }
+
+  /** 三种夸奖（外加首局、追平、同分三种边角）——只有真的更高才说「新纪录」 */
+  function historyPraise(cmp) {
+    var score = cmp.score;
+    var best = cmp.prevBest;
+    if (cmp.kind === 'record') {
+      return '新纪录 <b>' + score + '</b> 分，比原纪录多 <b>' + (score - best) + '</b> 分。';
+    }
+    if (cmp.kind === 'tie') {
+      return '追平历史最好 <b>' + score + '</b> 分' +
+        (cmp.gradeUp ? '，档位还提到了 <b>' + cmp.grade + '</b>' : '') + '。';
+    }
+    if (cmp.kind === 'first') {
+      return '第一局记下 <b>' + score + '</b> 分，之后每局都跟这个数比。';
+    }
+    if (cmp.kind === 'above') {
+      return '比上一局多 <b>' + (score - cmp.prevLast) + '</b> 分，离历史最好还差 <b>' +
+        (best - score) + '</b> 分。';
+    }
+    if (cmp.kind === 'below') {
+      if (cmp.prevLast === null) {
+        return '离历史最好还差 <b>' + (best - score) + '</b> 分。';
+      }
+      return '比上一局少 <b>' + (cmp.prevLast - score) + '</b> 分，历史最好仍是 <b>' +
+        best + '</b> 分。';
+    }
+    return '和上一局同分（<b>' + score + '</b>），历史最好仍是 <b>' + best + '</b> 分。';
+  }
+
+  function historyBestLine(cmp) {
+    if (cmp.prevBest === null) return '历史最好：这一局就是第一条记录。';
+    var grade = cmp.prevBestGrade ? '（' + cmp.prevBestGrade + ' 档）' : '';
+    if (cmp.kind === 'record') {
+      return '历史最好 <b>' + cmp.score + '</b> 分（' + cmp.grade + ' 档） · 刚刷新。';
+    }
+    if (cmp.kind === 'tie') {
+      return '历史最好 <b>' + cmp.prevBest + '</b> 分（' + cmp.grade + ' 档） · 本局追平。';
+    }
+    return '历史最好 <b>' + cmp.prevBest + '</b> 分' + grade + ' · 本局差 <b>' +
+      (cmp.prevBest - cmp.score) + '</b> 分。';
+  }
+
+  function historyNotice() {
+    if (!HISTORY.available) {
+      return '这台浏览器不允许本地存档（直接双击打开时常见），成绩只在本次打开期间有效，关掉页面就没了。';
+    }
+    if (HISTORY.resetNotice === 'rules') {
+      return '规则或题库更新过，旧记录不可比，历史成绩已清空，从这一局重新计。';
+    }
+    if (HISTORY.resetNotice === 'bad') {
+      return '本地存档读不出来，已从这一局重新记录。';
+    }
+    return '';
+  }
+
+  /** 结算时先落档、再渲染：破纪录才加金框与动效，其余情况只是文字 */
+  function recordRun(grade, clean) {
+    var cmp = compareRun(SORT.score, grade, HISTORY.data);
+    var play = {
+      score: SORT.score,
+      grade: grade,
+      clean: !!clean,
+      at: Date.now(),
+      run: SORT.run ? SORT.run.id : '',
+      order: SORT.order ? SORT.order.id : '',
+      perfect: SORT.order ? SORT.order.best : 0,
+    };
+    HISTORY.data.plays.unshift(play);
+    if (HISTORY.data.plays.length > HISTORY_KEEP) HISTORY.data.plays.length = HISTORY_KEEP;
+    var best = HISTORY.data.best;
+    if (!best || play.score > best.score ||
+        (play.score === best.score && gradeRank(play.grade) < gradeRank(best.grade))) {
+      HISTORY.data.best = {
+        score: play.score,
+        grade: play.grade,
+        at: play.at,
+        order: play.order,
+        perfect: play.perfect,
+      };
+    }
+    saveHistory();
+    HISTORY.last = cmp;
+    return cmp;
+  }
+
+  function renderHistoryResult(grade, clean) {
+    var cmp = recordRun(grade, clean);
+    if (dom.histPraise) dom.histPraise.innerHTML = historyPraise(cmp);
+    if (dom.histBest) dom.histBest.innerHTML = historyBestLine(cmp);
+    if (dom.histRecent) {
+      var bestScore = HISTORY.data.best ? HISTORY.data.best.score : null;
+      var html = '';
+      var plays = HISTORY.data.plays;
+      for (var i = 0; i < plays.length && i < 5; i += 1) {
+        html +=
+          '<li' + (plays[i].score === bestScore ? ' class="is-best"' : '') + '>' +
+          (i === 0 ? '本局 ' : '') + plays[i].score + ' · ' + escapeHtml(plays[i].grade) +
+          '</li>';
+      }
+      dom.histRecent.innerHTML = html;
+      dom.histRecent.hidden = plays.length <= 1;
+    }
+    if (dom.histNote) {
+      var note = historyNotice();
+      dom.histNote.textContent = note;
+      dom.histNote.hidden = !note;
+    }
+    if (dom.historyCard) {
+      dom.historyCard.classList.remove('is-record');
+      if (cmp.kind === 'record') {
+        void dom.historyCard.offsetWidth;
+        dom.historyCard.classList.add('is-record');
+        pulse(dom.grade, 'is-bump');
+      }
+    }
+  }
+
+  /** 开始页只露一行：历史最好多少、存了几局；存档不可用或刚清空也在这里说明 */
+  function renderStartHistory() {
+    if (!dom.startHistory) return;
+    var best = HISTORY.data.best;
+    var text;
+    if (!HISTORY.available) text = '本地存档不可用：成绩只在本次打开期间有效。';
+    else if (HISTORY.resetNotice === 'rules') text = '规则/题库更新过：旧成绩已清空，这一局重新计。';
+    else if (HISTORY.resetNotice === 'bad') text = '旧存档读不出来，已重新开始记录。';
+    else if (best) text = '历史最好 ' + best.score + ' 分（' + best.grade + ' 档）· 已记 ' + HISTORY.data.plays.length + ' 局';
+    else text = '还没有历史成绩：这一局就是第一条记录。';
+    dom.startHistory.textContent = text;
+    dom.startHistory.hidden = false;
+  }
+
+  function renderResult(reason) {
+    var best = SORT.order ? SORT.order.best : 0;
+    var diagnosis = diagnoseLog(SORT.log);
+    var clean = diagnosis.wrong === 0;
+    var grade = gradeOf(SORT.score, best, clean);
+    var sLine = Math.ceil(best * DATA.grades[0].ratio);
+    dom.grade.textContent = grade.grade;
+    var head = (reason ? reason + ' · ' : '') + diagnosis.text;
+    if (!clean && grade.grade !== 'S' && SORT.score >= sLine) {
+      head =
+        '分数到了 S 线（' + SORT.score + ' / ' + sLine + '），但收错了 ' + diagnosis.wrong +
+        ' 条冲突/没对上——S 要求整局没有明显误收。' + head;
+    }
+    dom.gradeLabel.textContent = head;
+    dom.finalScore.textContent = String(SORT.score);
+    dom.perfectScore.textContent = String(best);
+    dom.orderNote.textContent = SORT.order
+      ? '这一牌序最优 ' + best + ' 分；只认字面相同最多 ' + SORT.order.literal +
+        ' 分（' + Math.round((SORT.order.literal / best) * 100) + '%），见旁证就收 ' +
+        SORT.order.eager + ' 分。S 另要求整局没有误收冲突/没对上。'
+      : '';
+    renderHistoryResult(grade.grade, clean);
+    var seconds = Math.max(1, Math.round((SORT.endedAt - SORT.startedAt) / 1000));
+    var used = {};
+    for (var i = 0; i < SORT.log.length; i += 1) {
+      used[SORT.log[i].state] = (used[SORT.log[i].state] || 0) + 1;
+    }
+    var stats = [
+      '命中 <b>' + SORT.hits + '</b>',
+      '漏判 <b>' + SORT.misses + '</b>',
+      '超时 <b>' + SORT.timeouts + '</b>',
+      '最高连击 <b>' + SORT.maxCombo + '</b>',
+      '用时 <b>' + seconds + 's</b>',
+    ];
+    var order = ['exact', 'caliber', 'edge', 'conflict', 'mismatch', 'unknown'];
+    for (var k = 0; k < order.length; k += 1) {
+      var state = order[k];
+      stats.push(DATA.states[state].label + ' <b>' + (used[state] || 0) + '</b>');
+    }
+    dom.resultStats.innerHTML = stats
+      .map(function (text) {
+        return '<li>' + text + '</li>';
+      })
+      .join('');
+
+    var rows = SORT.log
+      .map(function (item) {
+        var meta = DATA.states[item.state];
+        var want = ruleWants(item);
+        var actText = item.action === 'accept' ? '收下' : item.action === 'timeout' ? '超时' : '放走';
+        var scoreBits = [];
+        if (item.points !== 0) scoreBits.push((item.points > 0 ? '+' : '') + item.points + ' 分');
+        if (item.life < 0) scoreBits.push('−' + Math.abs(item.life) + '♥');
+        var score = scoreBits.length ? scoreBits.join(' · ') : '0';
+        var good = item.action === want;
+        var cls = item.life < 0 || (item.state === 'exact' && item.action !== 'accept')
+          ? 'is-bad'
+          : good ? 'is-good' : 'is-loss';
+        return (
+          '<li class="' + cls + '">' +
+          '<p class="rev-val"><span class="rev-idx">' + item.index + '</span>' +
+          '<span class="rev-slot">' + item.short + '</span>' + escapeHtml(item.value) + '</p>' +
+          '<p class="rev-meta"><span class="rev-state" style="color:' + TONE_COLOR[meta.tone] + '">' +
+          meta.label + '</span>' + escapeHtml(item.note) + '</p>' +
+          '<p class="rev-act">' + actText + ' <b>' + score + '</b> ' +
+          (good ? '<span class="rev-flag">最优</span>' : '<span class="rev-flag is-loss">该' + (want === 'accept' ? '收下' : '放走') + '</span>') +
+          '</p>' +
+          '</li>'
+        );
+      })
+      .join('');
+    dom.reviewBody.innerHTML = rows;
+    renderReview(SORT.log);
+  }
+
+  function escapeHtml(text) {
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ---- 启动说明里的分值表（与 scoring 同一份数据，不另写一套） ----
+
+  function renderRules() {
+    dom.rulesText.textContent = R.note;
+    var order = ['exact', 'caliber', 'edge', 'conflict', 'mismatch', 'unknown'];
+    dom.rulesBody.innerHTML = order
+      .map(function (state) {
+        var meta = DATA.states[state];
+        var accept =
+          state === 'exact'
+            ? R.hitBase + '×倍率，连击+1'
+            : (R.accept[state] > 0
+                ? '+' + R.accept[state] + (isSideState(state) ? '（窗口 ×' + R.windowBonus.multiplier + '）' : '')
+                : '0') +
+              (R.acceptLife[state] < 0 ? '，−1♥' : '') +
+              (R.acceptCombo[state] === 'reset' ? '，连击断' : '');
+        var reject =
+          state === 'exact'
+            ? '0，连击断'
+            : (R.reject[state] > 0 ? '+' + R.reject[state] : '0') +
+              (isSideState(state) ? '，现在收不亏倍率' : '');
+        return (
+          '<tr><td style="color:' + TONE_COLOR[meta.tone] + '">' + meta.label + '</td>' +
+          '<td>' + accept + '</td><td>' + reject + '</td></tr>'
+        );
+      })
+      .join('');
+  }
+
+  // ---- 开始页的滚动提示：能滚就明说，滚到底也明说 ----
+
+  function updateScrollHint() {
+    var box = dom.startScroll;
+    var hint = dom.startScrollHint;
+    if (!box || !hint) return;
+    var overflow = box.scrollHeight - box.clientHeight;
+    if (!(overflow > 4)) {
+      hint.hidden = true;
+      return;
+    }
+    var atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 8;
+    hint.hidden = false;
+    hint.classList.toggle('is-done', atEnd);
+    hint.textContent = atEnd ? '已到底 · 点「开始」开局' : '↕ 上下滑动查看完整规则';
+  }
+
+  // ---- 输入：指针（触屏/鼠标）、键盘、按钮 ----
+
+  function onChipPointerDown(event) {
+    if (SORT.phase !== 'playing' || SORT.locked) return;
+    if (event.button !== undefined && event.button !== 0) return;
+    SORT.drag = {
+      id: event.pointerId,
+      startY: event.clientY,
+      startAt: now(),
+      dy: 0,
+      moved: false,
+    };
+    dom.chip.classList.remove('is-settling');
+    dom.chip.classList.add('is-dragging');
+    if (dom.chip.setPointerCapture) {
+      try {
+        dom.chip.setPointerCapture(event.pointerId);
+      } catch (error) {
+        /* 某些浏览器在合成事件上会抛，忽略即可：不影响按钮与键盘路径 */
+      }
+    }
+  }
+
+  function onChipPointerMove(event) {
+    if (!SORT.drag || SORT.drag.id !== event.pointerId) return;
+    SORT.drag.dy = event.clientY - SORT.drag.startY;
+    if (Math.abs(SORT.drag.dy) > 4) SORT.drag.moved = true;
+    dom.chip.style.transition = 'none';
+    dom.chip.style.transform = 'translateY(' + SORT.drag.dy + 'px)';
+  }
+
+  function onChipPointerUp(event) {
+    if (!SORT.drag || SORT.drag.id !== event.pointerId) return;
+    var dy = SORT.drag.dy;
+    var moved = SORT.drag.moved;
+    SORT.drag = null;
+    dom.chip.classList.remove('is-dragging');
+    if (SORT.phase !== 'playing' || SORT.locked) return;
+    if (dy <= -SWIPE) {
+      decide('accept');
+      return;
+    }
+    if (dy >= SWIPE) {
+      decide('reject');
+      return;
+    }
+    dom.chip.classList.add('is-settling');
+    dom.chip.style.transform = 'translateY(0)';
+    // 甩得不够 / 只是点了一下：立刻说清楚，计时照走
+    if (!moved || Math.abs(dy) < 6) {
+      refuseFeedback('点卡片不算数：上甩收下、下甩放走');
+    } else {
+      refuseFeedback('甩得不够（要 34px 以上）：再甩长一点');
+    }
+  }
+
+  function onKeyDown(event) {
+    if (event.defaultPrevented) return;
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    var key = event.key;
+
+    // 暂停 / 继续：P 与 Esc 等价；确认框开着时 Esc 先收回确认框
+    if (key === 'Escape' || key === 'p' || key === 'P') {
+      event.preventDefault();
+      if (SORT.phase === 'playing') {
+        pauseGame();
+        return;
+      }
+      if (SORT.phase === 'paused') {
+        if (dom.pauseConfirm && !dom.pauseConfirm.hidden) cancelRestart();
+        else beginResume();
+        return;
+      }
+      // 倒数期间再按一次：退回暂停页（时钟本来就没走，不算重新暂停一次）
+      if (SORT.phase === 'resuming') cancelCountdownToPaused();
+      return;
+    }
+    if (SORT.phase === 'paused' || SORT.phase === 'resuming') {
+      if (key === 'r' || key === 'R') {
+        event.preventDefault();
+        if (SORT.phase === 'resuming') cancelCountdownToPaused();
+        if (dom.pauseConfirm && !dom.pauseConfirm.hidden) cancelRestart();
+        else requestRestart();
+        return;
+      }
+      if (key === 'ArrowUp' || key === 'ArrowDown' || key === 'w' || key === 'W' ||
+          key === 's' || key === 'S') {
+        event.preventDefault();
+      }
+      return;
+    }
+
+    if (key === 'ArrowUp' || key === 'w' || key === 'W') {
+      event.preventDefault();
+      if (SORT.phase === 'playing') decide('accept');
+      return;
+    }
+    if (key === 'ArrowDown' || key === 's' || key === 'S') {
+      event.preventDefault();
+      if (SORT.phase === 'playing') decide('reject');
+      return;
+    }
+    if (key === ' ' || key === 'Enter') {
+      if (SORT.phase !== 'idle' && SORT.phase !== 'over') return;
+      event.preventDefault();
+      startGame();
+    }
+  }
+
+  /**
+   * 切走标签页＝自动暂停：答题计时与判定停留都不许在后台继续。
+   * 回来时不自动接着走，由玩家自己点「继续」或按 P/Esc，倒数之后再计时。
+   */
+  function onVisibility() {
+    if (!document.hidden) return;
+    if (SORT.phase === 'playing') pauseGame();
+    else if (SORT.phase === 'resuming') cancelCountdownToPaused();
+  }
+
+  // ---- 绑定 ----
+
+  dom.chip.addEventListener('pointerdown', onChipPointerDown);
+  dom.chip.addEventListener('pointermove', onChipPointerMove);
+  dom.chip.addEventListener('pointerup', onChipPointerUp);
+  dom.chip.addEventListener('pointercancel', onChipPointerUp);
+  dom.accept.addEventListener('click', function () {
+    decide('accept');
+  });
+  dom.reject.addEventListener('click', function () {
+    decide('reject');
+  });
+  dom.startBtn.addEventListener('click', startGame);
+  dom.again.addEventListener('click', startGame);
+  if (dom.pauseBtn) {
+    dom.pauseBtn.addEventListener('click', function () {
+      if (SORT.phase === 'playing') pauseGame();
+    });
+  }
+  if (dom.resume) dom.resume.addEventListener('click', beginResume);
+  if (dom.restart) dom.restart.addEventListener('click', requestRestart);
+  if (dom.cancelRestart) dom.cancelRestart.addEventListener('click', cancelRestart);
+  if (dom.confirmRestart) dom.confirmRestart.addEventListener('click', restartGame);
+  if (dom.startScroll) dom.startScroll.addEventListener('scroll', updateScrollHint);
+  if (dom.startDetails) {
+    dom.startDetails.addEventListener('toggle', function () {
+      updateScrollHint();
+      window.setTimeout(updateScrollHint, 0);
+    });
+  }
+  if (dom.reviewToggle) dom.reviewToggle.addEventListener('click', toggleReview);
+  if (window.addEventListener) window.addEventListener('resize', updateScrollHint);
+  document.addEventListener('keydown', onKeyDown);
+  document.addEventListener('visibilitychange', onVisibility);
+
+  loadHistory();
+  renderStartHistory();
+  renderRules();
+  renderHud(false);
+  clearDecided();
+  updateScrollHint();
+
+  // 供一致性测试核对：规则表与结算函数是页面真正在用的那一份
+  window.LODESTAR_SORT_RULES = {
+    multiplierOf: multiplierOf,
+    outcomeOf: outcomeOf,
+    applyOutcome: applyOutcome,
+    ruleWants: ruleWants,
+    diagnoseLog: diagnoseLog,
+    gradeOf: gradeOf,
+    compareRun: compareRun,
+    historyFingerprint: historyFingerprint,
+    historyKey: HISTORY_KEY,
+    historyKeep: HISTORY_KEEP,
+    history: function () {
+      return {
+        available: HISTORY.available,
+        resetNotice: HISTORY.resetNotice,
+        fp: HISTORY_FP,
+        best: HISTORY.data.best
+          ? { score: HISTORY.data.best.score, grade: HISTORY.data.best.grade }
+          : null,
+        plays: HISTORY.data.plays.slice(),
+        last: HISTORY.last,
+      };
+    },
+    beatMsFor: beatMsFor,
+    chipMs: CHIP_MS,
+    windowExtraMs: WINDOW_EXTRA_MS,
+    lineExtraMs: LINE_MS,
+    charExtraMs: CHAR_MS,
+    idleChars: IDLE_CHARS,
+    maxTextExtraMs: MAX_TEXT_EXTRA_MS,
+    verdictMs: VERDICT_MS,
+    swipe: SWIPE,
+    pickRun: pickRun,
+    state: function () {
+      return {
+        phase: SORT.phase,
+        score: SORT.score,
+        combo: SORT.combo,
+        lives: SORT.lives,
+        roundIndex: SORT.roundIndex,
+        chipIndex: SORT.chipIndex,
+        duration: SORT.duration,
+        chip: SORT.chip,
+        runId: SORT.run ? SORT.run.id : null,
+        orderId: SORT.order ? SORT.order.id : null,
+        recentRuns: SORT.recentRuns.slice(),
+        sequence: SORT.sequence.slice(),
+        log: SORT.log.slice(),
+        paused: SORT.phase === 'paused' || SORT.phase === 'resuming',
+        clockFrozen: SORT.phase === 'paused' || SORT.phase === 'resuming',
+        pauseKind: SORT.pauseKind,
+        pauseRemaining: Math.round(SORT.pauseRemaining),
+        verdictLocked: SORT.locked,
+        timerRemaining:
+          SORT.phase === 'paused' && SORT.pauseKind === 'timer'
+            ? Math.round(SORT.pauseRemaining)
+            : Math.round(SORT.remaining),
+        waitRemaining:
+          SORT.phase === 'paused' && SORT.pauseKind === 'wait'
+            ? Math.round(SORT.pauseRemaining)
+            : SORT.locked
+              ? Math.max(0, Math.round(SORT.waitDeadline - now()))
+              : 0,
+      };
+    },
+  };
+}());

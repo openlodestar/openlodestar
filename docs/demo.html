@@ -42,6 +42,19 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--navy);outline-offse
 .headline p{margin:0;max-width:840px;color:var(--cream);opacity:.92}
 .legend{max-width:var(--max);margin:18px auto 0;display:flex;gap:10px;flex-wrap:wrap}
 .legend-item{display:flex;align-items:center;gap:8px;background:rgba(244,238,226,.08);border:1px solid rgba(244,238,226,.25);border-radius:10px;padding:8px 12px;font-size:.86rem;color:var(--cream-dim)}
+.legend-dim-item{flex-basis:100%;flex-wrap:wrap;gap:14px}
+.legend-dim-title{color:var(--cream);font-weight:650}
+.legend-dim-one{display:inline-flex;align-items:center;gap:6px;font-size:.82rem}
+.legend-dim-hint{opacity:.78}
+.legend-note{max-width:var(--max);margin:8px auto 0;color:var(--cream-dim);font-size:.82rem;opacity:.85}
+/* 判据六态的配色：完全对上与口径相容要一眼分开；边缘相容明显弱于口径相容；无从判断用中性灰 */
+.dim{display:inline-block;border:1px solid transparent;border-radius:999px;padding:0 8px;font-size:.78rem;font-weight:650;line-height:1.7}
+.dim-exact{background:var(--ok-bg);color:var(--ok);border-color:#C3DCCB}
+.dim-caliber{background:#E7EFF9;color:#1B4373;border-color:#C2D5EA}
+.dim-edge{background:#EEF1F4;color:#5B6878;border:1px dashed #A6B1BF}
+.dim-conflict{background:#F7EFE2;color:#7A4A05;border-color:#E7D3B2}
+.dim-mismatch{background:#EFE9DE;color:#6B5741;border-color:#DCCFBB}
+.dim-unknown{background:#F2F3F5;color:#6B7078;border:1px dashed #C4C8CF}
 main{max-width:var(--max);margin:0 auto;padding:34px 24px 64px}
 .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 22px}
 .chip{
@@ -93,9 +106,13 @@ main{max-width:var(--max);margin:0 auto;padding:34px 24px 64px}
 .verdict-not_found{background:var(--skip-bg);color:var(--skip)}
 .stat{white-space:nowrap}
 .verdict-note{margin:8px 0 0;font-size:.86rem;color:var(--muted)}
+.contradiction{margin:8px 0 0;padding:8px 10px;border-left:3px solid var(--conflict,#a9853b);background:rgba(169,133,59,.08);font-size:.84rem;line-height:1.6}
 .evidence{margin-top:12px;display:flex;flex-direction:column;gap:10px}
 .evidence-row{border-top:1px dashed var(--line);padding-top:10px}
 .evidence-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--muted)}
+.evidence-dim{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 0;font-size:.8rem;color:var(--muted)}
+.dim-tag{font-weight:650;color:var(--ink)}
+.matched code{word-break:break-all}
 .relation{font-weight:650;border-radius:6px;padding:0 7px}
 .relation-supports{background:var(--ok-bg);color:var(--ok)}
 .relation-refutes{background:var(--bad-bg);color:var(--bad)}
@@ -118,6 +135,19 @@ pre{
 .panel-foot{margin-top:26px;padding-top:14px;border-top:1px solid var(--line)}
 .panel-foot p{margin:0;color:var(--muted);font-size:.82rem}
 code{font-size:.85em;background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:0 4px;word-break:break-all}
+.derived{max-width:var(--max);margin:26px auto 0;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px 26px 26px}
+.derived h2{margin:0 0 10px;font-size:clamp(1.1rem,2.2vw,1.35rem)}
+.derived-banner{margin:0 0 18px;padding:10px 12px;border-left:4px solid var(--warn);background:var(--warn-bg);font-size:.88rem;line-height:1.7}
+.derived-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.derived-card{border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:var(--paper);display:flex;flex-direction:column;gap:10px}
+.derived-card h3{margin:0;font-size:1rem;line-height:1.4}
+.derived-pair{display:flex;gap:8px;flex-wrap:wrap;font-size:.88rem;line-height:1.7}
+.derived-label{min-width:5.6em;color:var(--muted)}
+.derived-dims{display:flex;flex-direction:column;gap:6px;font-size:.86rem}
+.derived-dim{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.derived-weight{color:var(--muted);font-size:.8rem}
+.derived-result{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;font-size:.9rem}
+.derived-summary{margin:0;font-size:.86rem;line-height:1.75;color:var(--muted)}
 @media (max-width:860px){
   .layout{grid-template-columns:1fr}
   .list{flex-direction:row;overflow-x:auto;padding-bottom:6px}
@@ -133,7 +163,7 @@ code{font-size:.85em;background:var(--paper);border:1px solid var(--line);border
       <nav aria-label="主导航">
         <a href="index.html">主页</a>
         <a href="demo.html" aria-current="page">逐条演示</a>
-        <a href="demo-lab.html">小游戏</a>
+        <a href="demo-sort.html">小游戏：证据分拣</a>
         <a href="https://github.com/openlodestar/openlodestar">GitHub</a>
       </nav>
     </div>
@@ -150,6 +180,11 @@ code{font-size:.85em;background:var(--paper);border:1px solid var(--line);border
     <div class="list" id="record-list"></div>
     <article class="panel" id="record-panel"></article>
   </div>
+  <section class="derived" id="derived" aria-labelledby="derived-title">
+    <h2 id="derived-title">按规则推演的对照示例</h2>
+    <p class="derived-banner"><strong>按规则推演的示例，不是采集记录。</strong>这两组没有搜索、没有抓取、没有网页快照，是把两句话直接喂给判据规则算出来的；它们不在上面的记录列表里，也不能被当成市场上真发生过的一页。</p>
+    <div class="derived-grid" id="derived-grid"></div>
+  </section>
 </main>
 <script src="assets/demo-data.js"></script>
 <script src="assets/demo-match.js"></script>

@@ -30,6 +30,19 @@ export type ClaimState =
 /** 证据与断言的关系（抓到页面但不涉及断言也是证据，它是 not_found 结论的组成部分） */
 export type EvidenceRelation = 'supports' | 'refutes' | 'irrelevant';
 
+/**
+ * 一条证据在某个判据维度上的状态（维度各自实现比较，汇总层只认状态）。
+ *
+ * 六态是通用词，不带任何时间/机构专属含义：
+ * - exact：完全对上；
+ * - caliber：口径相容（同一件事的不同说法或颗粒度），可撑强坐标；
+ * - edge：边缘相容（只擦到边），只抬可信度，不撑强坐标；
+ * - conflict：明确冲突候选，否决强坐标但不自动判"反对"；
+ * - mismatch：没对上；
+ * - unknown：无从判断（没提到、解析不出、老证据没有这一列）。
+ */
+export type EvidenceDimensionState = 'exact' | 'caliber' | 'edge' | 'conflict' | 'mismatch' | 'unknown';
+
 /** 四分类裁决（分类学只路由不打分，档位不是置信度） */
 export type Verdict = 'supported' | 'refuted' | 'conflicting' | 'not_found';
 
@@ -158,6 +171,18 @@ export interface EvidenceRecord {
   recordId: string | null;
   /** 抓取失败/判定理由等观测 */
   note?: string;
+  /**
+   * 这条证据落在哪个判据维度上（形如 `porcelain:dateText`，只取维度注册表里的名字）。
+   * 可选：老证据没有这一列，读作"无从判断"。
+   */
+  dimension?: string;
+  /** 该证据在本维度上的状态；可选：老证据缺列读作 unknown，不进共现、不升坐标 */
+  state?: EvidenceDimensionState;
+  /**
+   * 页面里写出该维度值的**逐字原文片段**：必须是本行 `quote` 的子串。
+   * 校验不通过时清空（状态降为 unknown），不许用改写后的值参与比较。
+   */
+  matchedValue?: string;
 }
 
 // ============================================

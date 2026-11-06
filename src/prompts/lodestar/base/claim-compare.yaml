@@ -1,6 +1,6 @@
 name: lodestar_claim_compare
-version: "1.4.0"
-last_updated: "2026-11-01"
+version: "1.5.0"
+last_updated: "2026-11-05"
 updated_by: "AI Assistant"
 
 description: |
@@ -35,6 +35,7 @@ template: |
   {
     "relation": "supports | refutes | irrelevant",
     "quote": "从数据块正文里逐字复制的一句原文",
+    "matchedValue": "页面里写出这个字段值的那一小段原文（必须是 quote 的逐字子串）；页面没给出这个字段的值就留空",
     "contentWeight": 1.0,
     "pageTopic": "一句话说明这个页面在讲什么",
     "rationale": "为什么是这个关系（一到两句）"
@@ -75,11 +76,20 @@ rules:
   - name: refuted_needs_explicit_conflict
     enabled: true
     content: 只有页面**直接否认这条断言**才算 refutes——写明该场不存在、该机构那年没办过这场、这场取消或延期，或页面自述"本场定名为 X"而 X 与断言互斥。三种情形都不是矛盾，判 irrelevant：一是"页面没提到"；二是"页面讲的是另一件东西"——同一系列里编号不同的相邻场次、同一机构的其他专场、别的机构或其他年份，它们只证明那件东西办过，证明不了被裁那一场不存在；三是名称字面与断言不同（简称、括号、季度与月份这类写法差别按上面的领域细则算同一样东西）。判错方向的代价不对称：漏判矛盾只是少一条证据，把"这页没说到"写成"这是错的"则把一次"不知道"变成一条假结论——宁可少判 refutes。
+  - name: extract_value_only
+    enabled: true
+    content: matchedValue 只做一件事——把页面怎么写这个字段的值**照抄**下来，不做比较、不判断它与断言是否一致、不把页面的写法改写成断言的写法。页面写"2021秋季"、断言写"2021年8月"，就照抄"2021秋季"；页面写"北京嘉德"、断言写"中国嘉德"，就照抄"北京嘉德"。它必须是 quote 的逐字子串（空白与换行照常不计），抄不出来或页面没给出这个字段的值就留空字符串。对没对上是代码里各维度的比较函数的事，不是你的判断。
   - name: content_weight
     enabled: true
     content: contentWeight 取 1.0 表示页面直接陈述了这条断言的内容；取 0.6 表示只能通过并列信息间接推断（例如从拍品构成推断专场性质）。
 
 changelog:
+  - version: "1.5.0"
+    date: "2026-11-05"
+    changes:
+      - 输出新增 matchedValue：只摘页面里写出该字段值的逐字原文，不判立场、不改写成断言的写法
+      - 代码侧校验 matchedValue 必须是本行引文的逐字子串；不是就清空该值并把证据的维度状态降为 unknown（引文本身照常有效，不拒收整条证据）
+    reason: 判据拆成"抽取—比较—汇总"三层：模型只负责摘原文值，对没对上由每个维度自己的纯函数比较，汇总层只认状态。这样加一个维度不用改提示词，也不会让模型一边抽值一边给自己的抽取打分
   - version: "1.4.0"
     date: "2026-11-01"
     changes:

@@ -242,7 +242,15 @@ function seasonCoreWindow(
 export function parseTimeScope(text: string | null | undefined): { from: string | null; to: string | null } {
   const empty = { from: null, to: null };
   if (!text) return empty;
-  const normalized = String(text).trim();
+  // 同月内的"日区间"先补成年月日形式：`2021年12月2日-6日` → `2021年12月2日至2021年12月6日`。
+  // 不补的话尾段只剩下一个裸数字，会被当成"6 月"，把一场 12 月 2–6 日的拍卖读成一段错误的窗口。
+  const normalized = String(text)
+    .trim()
+    .replace(
+      /(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(?:至|~|～|－|–|—|-)\s*(\d{1,2})\s*日/g,
+      (_whole, year: string, month: string, fromDay: string, toDay: string) =>
+        `${year}年${month}月${fromDay}日至${year}年${month}月${toDay}日`,
+    );
   if (normalized === '') return empty;
 
   // 区间写法先劈开：两侧各按单日期解析
@@ -287,7 +295,7 @@ export function parseTimeScope(text: string | null | undefined): { from: string 
  * 断言侧的窗口：一句话在断言里能主张到哪一段。月份就是那个月、日期就是那一天，
  * 季节词取基准表——**一律不扩**。
  *
- * 收紧的理由：断言是"待核的命题"，窗口就是它声称的时间。把「秋季」放宽成 8 月到次年 1 月，
+ * 收紧的理由：断言是"待核的命题"，窗口就是它声称的时间。把「秋季」放宽成 8 月到 12 月，
  * 等于允许一条说「秋季」的断言拿 12 月 5 日的页面来支持它——那是把弱说法偷换成强说法。
  * 月份更不能被所在季度反过来撑大：说「2021年12月」就只主张 12 月。
  */
@@ -301,8 +309,8 @@ export function assertionTimeWindow(text: string | null | undefined): { from: st
  * 证据侧的窗口：真实语料说季节词时，把基准区间**上下各放宽一个月**（跨年照算）。
  *
  * 放宽的理由：语料里的季节边界会漂。冬拍常从 12 月办到次年 2 月，秋拍也有拖到年初、
- * 或提前到 8 月末的。如果证据只认 1–2 月，一份写着「2021 年冬拍」、正文日期在 12 月 20 日
- * 的报道就永远对不上这条断言的时间窗，而它明明说的就是同一场。
+ * 或提前到 8 月末的。如果证据只认 12 月至次年 2 月，一份写着「2021 年冬拍」、正文日期在 11 月 20 日
+ * （预展报道）的报道就永远对不上这条断言的时间窗，而它明明说的就是同一场。
  *
  * **硬约束：放宽出来的那一圈只能产生「相容、不冲突」，绝不能变成「直接支持」。**
  * 证据落在扩出来的月份里，说明"这条断言没被这段时间排除"，不说明"这段时间印证了断言"；

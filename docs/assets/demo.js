@@ -58,6 +58,24 @@
     coverage: '这批候选来源没覆盖到',
     genuinely_absent: '这批来源里确实没有'
   };
+  // 判据六态：与窗口上的 LODESTAR_MATCH.DIMENSION_STATE_LABELS 一一对应，图例只给短名
+  var DIMENSION_ORDER = ['exact', 'caliber', 'edge', 'conflict', 'mismatch', 'unknown'];
+  var DIMENSION_SHORT = {
+    exact: '完全对上',
+    caliber: '口径相容',
+    edge: '边缘相容',
+    conflict: '冲突候选',
+    mismatch: '没对上',
+    unknown: '无从判断'
+  };
+  var DIMENSION_HINTS = {
+    exact: '断言与原文同一写法',
+    caliber: '只是说法不同，不算同一条证据',
+    edge: '没有矛盾，但这不能证明',
+    conflict: '只作候选，不压成「反对」',
+    mismatch: '原文写的是另一回事',
+    unknown: '原文里没有可判的写法'
+  };
 
   var state = { filter: 'all', current: 0 };
 
@@ -223,6 +241,16 @@
     parts.push(
       '<span class="stat">比对过 ' + field.examinedPages + ' 页</span>'
     );
+    if (field.state === 'covered' && field.dimensionLabel) {
+      // 判据维度状态：口径相容不许写成"对/一致"，冲突只作候选
+      parts.push(
+        '<span class="stat dim dim-' +
+          escapeHtml(field.dimensionState) +
+          '">判据：' +
+          escapeHtml(field.dimensionLabel) +
+          '</span>'
+      );
+    }
     parts.push('</div>');
 
     if (field.verdict === 'not_found') {
@@ -236,12 +264,22 @@
       );
     }
 
+    (field.contradictorySupports || []).forEach(function (row) {
+      parts.push(
+        '<p class="contradiction">' +
+          '<strong>模型裁决与判据不一致</strong>：模型把这一页判成「支持」，但判据层认定原文值与断言冲突' +
+          (row.matchedValue ? '（原文值 <code>' + escapeHtml(row.matchedValue) + '</code>）' : '') +
+          '。按「判据优先」，这一行不计入支持、也不进累计分；模型原来的裁决与原文都保留在下面，供审计回看。' +
+          '</p>'
+      );
+    });
+
     parts.push('<div class="evidence">');
     if (field.evidence.length === 0) {
       parts.push('<p class="empty">这个字段一条证据行都没有：这批页面查过了，但没有一处提到它。</p>');
     } else {
       field.evidence.forEach(function (row) {
-        parts.push(renderEvidence(row, entry));
+        parts.push(renderEvidence(row, entry, field));
       });
     }
     parts.push('</div>');
@@ -249,7 +287,7 @@
     return parts.join('');
   }
 
-  function renderEvidence(row, entry) {
+  function renderEvidence(row, entry, field) {
     var source = entry.sourceByUrl[row.url] || null;
     var publisher = source ? source.publisher : row.domain;
     var parts = [];
@@ -269,6 +307,22 @@
         '<span class="family">家族 ' +
         escapeHtml(row.family) +
         '</span></div>'
+    );
+    parts.push(
+      '<p class="evidence-dim">' +
+        '<span class="dim-tag">维度 · ' +
+        escapeHtml(field.label) +
+        '</span>' +
+        '<span class="dim dim-' +
+        escapeHtml(row.state) +
+        '">' +
+        escapeHtml(api.DIMENSION_STATE_LABELS[row.state] || api.DIMENSION_STATE_LABELS.unknown) +
+        '</span>' +
+        '<span class="matched">原文值：' +
+        (row.matchedValue
+          ? '<code>' + escapeHtml(row.matchedValue) + '</code>（已过逐字子串校验）'
+          : '原文里没有明确写法') +
+        '</span></p>'
     );
     parts.push('<blockquote>' + escapeHtml(row.quote) + '</blockquote>');
     if (row.note) parts.push('<p class="evidence-note">' + escapeHtml(row.note) + '</p>');
@@ -355,6 +409,22 @@
           '</span></div>'
       );
     });
+    var dimParts = [];
+    DIMENSION_ORDER.forEach(function (key) {
+      dimParts.push(
+        '<span class="legend-dim-one"><span class="dim dim-' +
+          key +
+          '">' +
+          DIMENSION_SHORT[key] +
+          '</span><span class="legend-dim-hint">' +
+          DIMENSION_HINTS[key] +
+          '</span></span>'
+      );
+    });
+    parts.push('<div class="legend-item legend-dim-item"><span class="legend-dim-title">判据六态</span>' + dimParts.join('') + '</div>');
+    parts.push(
+      '<p class="legend-note">判据说的是「这条证据与断言在某个维度上的关系」，不是整条记录的结论。口径相容只说明说法不同；边缘相容是没有矛盾、但这不能证明；冲突候选不压成「反对」；无从判断表示原文里没有可判的写法。</p>'
+    );
     document.getElementById('legend').innerHTML = parts.join('');
   }
 
@@ -381,6 +451,70 @@
     }
   });
 
+  /**
+   * 按规则推演的对照示例：页面只说"规则会怎么判"，不把它伪装成采集记录。
+   * 数据是构建时用引擎的维度函数与门禁算好写进 demo-data.js 的，页面不再重算。
+   */
+  function renderDerived() {
+    var target = document.getElementById('derived-grid');
+    if (!target) return;
+    var examples = data.derivedExamples || [];
+    var labels = api.DIMENSION_STATE_LABELS || {};
+    target.innerHTML = examples
+      .map(function (example) {
+        var parts = [];
+        parts.push('<article class="derived-card">');
+        parts.push('<h3>' + escapeHtml(example.title) + '</h3>');
+        parts.push(
+          '<div class="derived-pair"><span class="derived-label">你写的</span><span>' +
+            example.claim
+              .map(function (item) {
+                return escapeHtml(item.label + '：' + item.value);
+              })
+              .join(' · ') +
+            '</span></div>'
+        );
+        parts.push(
+          '<div class="derived-pair"><span class="derived-label">证据里写的</span><span>' +
+            example.evidence
+              .map(function (item) {
+                return escapeHtml(item.label + '：' + item.value);
+              })
+              .join(' · ') +
+            '</span></div>'
+        );
+        parts.push('<div class="derived-dims">');
+        example.dimensions.forEach(function (dimension) {
+          parts.push(
+            '<div class="derived-dim"><span>' +
+              escapeHtml(dimension.label) +
+              '</span><span class="dim dim-' +
+              escapeHtml(dimension.state) +
+              '">' +
+              escapeHtml(labels[dimension.state] || dimension.state) +
+              '</span><span class="derived-weight">折算 ' +
+              dimension.weight +
+              '</span></div>'
+          );
+        });
+        parts.push('</div>');
+        parts.push(
+          '<div class="derived-result"><span class="badge badge-' +
+            escapeHtml(example.grade) +
+            '">' +
+            escapeHtml(BUCKET_LABELS[example.grade] || example.grade) +
+            '</span><span>累计 ' +
+            example.score +
+            ' 分</span></div>'
+        );
+        parts.push('<p class="derived-summary">' + escapeHtml(example.summary) + '</p>');
+        parts.push('</article>');
+        return parts.join('');
+      })
+      .join('');
+  }
+
   renderLegend();
+  renderDerived();
   renderAll();
 })();

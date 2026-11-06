@@ -46,9 +46,16 @@ async function guardOf(store: ReturnType<typeof createStore>) {
 
 beforeEach(async () => {
   workDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openlodestar-poly-'));
-  for (const file of ['claims.jsonl', 'evidence.jsonl', 'query.txt', 'case.json']) {
+  for (const file of ['claims.jsonl', 'query.txt', 'case.json']) {
     await fs.copyFile(path.join(EXAMPLE_DIR, file), path.join(workDir, file));
   }
+  // 回填产物优先（旁挂文件，冻结底稿不动）：维度状态是判据汇总的输入，
+  // 原始 evidence.jsonl 没有这三列，按新口径一律算无从判断。
+  const enriched = await fs
+    .access(path.join(EXAMPLE_DIR, 'evidence.enriched.jsonl'))
+    .then(() => 'evidence.enriched.jsonl')
+    .catch(() => 'evidence.jsonl');
+  await fs.copyFile(path.join(EXAMPLE_DIR, enriched), path.join(workDir, 'evidence.jsonl'));
   await copyDir(path.join(EXAMPLE_DIR, 'snapshots'), path.join(workDir, 'snapshots'));
 });
 

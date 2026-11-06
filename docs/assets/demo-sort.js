@@ -15,6 +15,11 @@
  *
  * 题库不是一副牌：`DATA.runs` 里有若干「内容不同」的牌局，每局抽一个，
  * 且排除最近两局——连打三局不会撞回同一副牌。
+ *
+ * 历史成绩存在浏览器本地存档（键 lodestar.sort.history），只留最近若干局与历史最高；
+ * 归档里带一枚「可比性指纹」，分值结构、档位线、题库或牌序上限一变就整份作废重记。
+ * 不能写本地存档时（file:// 的某些浏览器、隐私模式、配额满）只退到内存，
+ * 页面照常结算，并明说「关掉页面就没了」。
  */
 (function () {
   'use strict';
@@ -253,6 +258,12 @@
     finalScore: document.getElementById('final-score'),
     perfectScore: document.getElementById('perfect-score'),
     resultStats: document.getElementById('result-stats'),
+    historyCard: document.getElementById('history-card'),
+    histPraise: document.getElementById('hist-praise'),
+    histBest: document.getElementById('hist-best'),
+    histRecent: document.getElementById('hist-recent'),
+    histNote: document.getElementById('hist-note'),
+    startHistory: document.getElementById('start-history'),
     orderNote: document.getElementById('order-note'),
     reviewWrap: document.getElementById('review-wrap'),
     reviewSummary: document.getElementById('review-summary'),
@@ -1127,6 +1138,283 @@
     }
   }
 
+  // ---- 历史成绩：只留最近几局与历史最高，档位与牌序一并记下 ----
+
+  var HISTORY_KEY = 'lodestar.sort.history';
+  var HISTORY_SCHEMA = 1;
+  var HISTORY_KEEP = 8;
+
+  /**
+   * 存档可比性指纹。只把「会影响可比性」的东西算进来：分值结构、档位线、
+   * 节拍松紧、题库与每个牌序的上限。文案改动不算——改一句话不该抹掉成绩。
+   */
+  function historyFingerprint() {
+    var s = R;
+    var parts = [
+      s.hitBase, s.wrongPenalty, s.lives, s.settleBeats, s.timeoutPoints,
+      JSON.stringify(s.accept), JSON.stringify(s.reject),
+      JSON.stringify(s.acceptCombo), JSON.stringify(s.acceptLife),
+      JSON.stringify(s.multiplier), JSON.stringify(s.windowBonus),
+      CHIP_MS.join(','), WINDOW_EXTRA_MS, LINE_MS, CHAR_MS, IDLE_CHARS, MAX_TEXT_EXTRA_MS,
+    ];
+    for (var g = 0; g < DATA.grades.length; g += 1) {
+      parts.push(DATA.grades[g].grade + ':' + DATA.grades[g].ratio + ':' + (DATA.grades[g].requiresClean ? 1 : 0));
+    }
+    for (var i = 0; i < RUNS.length; i += 1) {
+      parts.push(RUNS[i].id);
+      for (var j = 0; j < RUNS[i].orders.length; j += 1) {
+        var order = RUNS[i].orders[j];
+        parts.push(order.id + ':' + order.best + ':' + order.literal + ':' + order.eager);
+      }
+    }
+    var text = parts.join('|');
+    var hash = 5381;
+    for (var k = 0; k < text.length; k += 1) {
+      hash = ((hash << 5) + hash + text.charCodeAt(k)) | 0;
+    }
+    return (hash >>> 0).toString(36);
+  }
+
+  var HISTORY_FP = historyFingerprint();
+
+  function gradeRank(grade) {
+    for (var i = 0; i < DATA.grades.length; i += 1) {
+      if (DATA.grades[i].grade === grade) return i;
+    }
+    return DATA.grades.length;
+  }
+
+  function emptyHistory() {
+    return { schema: HISTORY_SCHEMA, fp: HISTORY_FP, best: null, plays: [] };
+  }
+
+  var HISTORY = {
+    /** 浏览器本地存档能不能用；不能用时下面的 data 只活在这一次打开里 */
+    available: true,
+    data: emptyHistory(),
+    /** 'rules'＝指纹变了、'bad'＝存档坏了、''＝正常 */
+    resetNotice: '',
+    /** 刚结算那局的对比结果，测试与页面共用 */
+    last: null,
+  };
+
+  function validPlay(play) {
+    return !!play && typeof play.score === 'number' && typeof play.grade === 'string';
+  }
+
+  function saveHistory() {
+    HISTORY.data.schema = HISTORY_SCHEMA;
+    HISTORY.data.fp = HISTORY_FP;
+    try {
+      if (!window.localStorage) throw new Error('localStorage 不可用');
+      window.localStorage.setItem(HISTORY_KEY, JSON.stringify(HISTORY.data));
+      HISTORY.available = true;
+      return true;
+    } catch (error) {
+      // 隐私模式 / file:// 限制 / 配额满：不打扰玩家，只在页面上说明成绩不持久
+      HISTORY.available = false;
+      return false;
+    }
+  }
+
+  function loadHistory() {
+    var raw = null;
+    try {
+      if (!window.localStorage) throw new Error('localStorage 不可用');
+      raw = window.localStorage.getItem(HISTORY_KEY);
+    } catch (error) {
+      HISTORY.available = false;
+      HISTORY.data = emptyHistory();
+      return;
+    }
+    if (!raw) {
+      HISTORY.data = emptyHistory();
+      return;
+    }
+    var parsed = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      parsed = null;
+    }
+    var usable =
+      !!parsed &&
+      parsed.schema === HISTORY_SCHEMA &&
+      parsed.fp === HISTORY_FP &&
+      Object.prototype.toString.call(parsed.plays) === '[object Array]';
+    if (!usable) {
+      HISTORY.resetNotice = parsed && parsed.fp && parsed.fp !== HISTORY_FP ? 'rules' : 'bad';
+      HISTORY.data = emptyHistory();
+      saveHistory();
+      return;
+    }
+    parsed.plays = parsed.plays.filter(validPlay).slice(0, HISTORY_KEEP);
+    if (!parsed.best || typeof parsed.best.score !== 'number') parsed.best = null;
+    HISTORY.data = parsed;
+  }
+
+  /**
+   * 本局与历史怎么比。纯函数：给定分数、档位和一份历史，永远得到同一个结论。
+   * kind 六种：first 首局 / record 破纪录 / tie 追平 / above 比上局高 / below 比上局低 / same 同分。
+   */
+  function compareRun(score, grade, history) {
+    var best =
+      history && history.best && typeof history.best.score === 'number' ? history.best : null;
+    var plays = history && history.plays ? history.plays : [];
+    var last = plays.length && typeof plays[0].score === 'number' ? plays[0] : null;
+    var prevBest = best ? best.score : null;
+    var prevLast = last ? last.score : null;
+    var kind;
+    if (prevBest === null) kind = 'first';
+    else if (score > prevBest) kind = 'record';
+    else if (score === prevBest) kind = 'tie';
+    else if (prevLast === null) kind = 'below';
+    else if (score > prevLast) kind = 'above';
+    else if (score < prevLast) kind = 'below';
+    else kind = 'same';
+    return {
+      kind: kind,
+      score: score,
+      grade: grade,
+      prevBest: prevBest,
+      prevLast: prevLast,
+      prevBestGrade: best ? best.grade : null,
+      toBest: prevBest === null ? null : score - prevBest,
+      toLast: prevLast === null ? null : score - prevLast,
+      gradeUp: !!(best && gradeRank(grade) < gradeRank(best.grade)),
+    };
+  }
+
+  /** 三种夸奖（外加首局、追平、同分三种边角）——只有真的更高才说「新纪录」 */
+  function historyPraise(cmp) {
+    var score = cmp.score;
+    var best = cmp.prevBest;
+    if (cmp.kind === 'record') {
+      return '新纪录 <b>' + score + '</b> 分，比原纪录多 <b>' + (score - best) + '</b> 分。';
+    }
+    if (cmp.kind === 'tie') {
+      return '追平历史最好 <b>' + score + '</b> 分' +
+        (cmp.gradeUp ? '，档位还提到了 <b>' + cmp.grade + '</b>' : '') + '。';
+    }
+    if (cmp.kind === 'first') {
+      return '第一局记下 <b>' + score + '</b> 分，之后每局都跟这个数比。';
+    }
+    if (cmp.kind === 'above') {
+      return '比上一局多 <b>' + (score - cmp.prevLast) + '</b> 分，离历史最好还差 <b>' +
+        (best - score) + '</b> 分。';
+    }
+    if (cmp.kind === 'below') {
+      if (cmp.prevLast === null) {
+        return '离历史最好还差 <b>' + (best - score) + '</b> 分。';
+      }
+      return '比上一局少 <b>' + (cmp.prevLast - score) + '</b> 分，历史最好仍是 <b>' +
+        best + '</b> 分。';
+    }
+    return '和上一局同分（<b>' + score + '</b>），历史最好仍是 <b>' + best + '</b> 分。';
+  }
+
+  function historyBestLine(cmp) {
+    if (cmp.prevBest === null) return '历史最好：这一局就是第一条记录。';
+    var grade = cmp.prevBestGrade ? '（' + cmp.prevBestGrade + ' 档）' : '';
+    if (cmp.kind === 'record') {
+      return '历史最好 <b>' + cmp.score + '</b> 分（' + cmp.grade + ' 档） · 刚刷新。';
+    }
+    if (cmp.kind === 'tie') {
+      return '历史最好 <b>' + cmp.prevBest + '</b> 分（' + cmp.grade + ' 档） · 本局追平。';
+    }
+    return '历史最好 <b>' + cmp.prevBest + '</b> 分' + grade + ' · 本局差 <b>' +
+      (cmp.prevBest - cmp.score) + '</b> 分。';
+  }
+
+  function historyNotice() {
+    if (!HISTORY.available) {
+      return '这台浏览器不允许本地存档（直接双击打开时常见），成绩只在本次打开期间有效，关掉页面就没了。';
+    }
+    if (HISTORY.resetNotice === 'rules') {
+      return '规则或题库更新过，旧记录不可比，历史成绩已清空，从这一局重新计。';
+    }
+    if (HISTORY.resetNotice === 'bad') {
+      return '本地存档读不出来，已从这一局重新记录。';
+    }
+    return '';
+  }
+
+  /** 结算时先落档、再渲染：破纪录才加金框与动效，其余情况只是文字 */
+  function recordRun(grade, clean) {
+    var cmp = compareRun(SORT.score, grade, HISTORY.data);
+    var play = {
+      score: SORT.score,
+      grade: grade,
+      clean: !!clean,
+      at: Date.now(),
+      run: SORT.run ? SORT.run.id : '',
+      order: SORT.order ? SORT.order.id : '',
+      perfect: SORT.order ? SORT.order.best : 0,
+    };
+    HISTORY.data.plays.unshift(play);
+    if (HISTORY.data.plays.length > HISTORY_KEEP) HISTORY.data.plays.length = HISTORY_KEEP;
+    var best = HISTORY.data.best;
+    if (!best || play.score > best.score ||
+        (play.score === best.score && gradeRank(play.grade) < gradeRank(best.grade))) {
+      HISTORY.data.best = {
+        score: play.score,
+        grade: play.grade,
+        at: play.at,
+        order: play.order,
+        perfect: play.perfect,
+      };
+    }
+    saveHistory();
+    HISTORY.last = cmp;
+    return cmp;
+  }
+
+  function renderHistoryResult(grade, clean) {
+    var cmp = recordRun(grade, clean);
+    if (dom.histPraise) dom.histPraise.innerHTML = historyPraise(cmp);
+    if (dom.histBest) dom.histBest.innerHTML = historyBestLine(cmp);
+    if (dom.histRecent) {
+      var bestScore = HISTORY.data.best ? HISTORY.data.best.score : null;
+      var html = '';
+      var plays = HISTORY.data.plays;
+      for (var i = 0; i < plays.length && i < 5; i += 1) {
+        html +=
+          '<li' + (plays[i].score === bestScore ? ' class="is-best"' : '') + '>' +
+          (i === 0 ? '本局 ' : '') + plays[i].score + ' · ' + escapeHtml(plays[i].grade) +
+          '</li>';
+      }
+      dom.histRecent.innerHTML = html;
+      dom.histRecent.hidden = plays.length <= 1;
+    }
+    if (dom.histNote) {
+      var note = historyNotice();
+      dom.histNote.textContent = note;
+      dom.histNote.hidden = !note;
+    }
+    if (dom.historyCard) {
+      dom.historyCard.classList.remove('is-record');
+      if (cmp.kind === 'record') {
+        void dom.historyCard.offsetWidth;
+        dom.historyCard.classList.add('is-record');
+        pulse(dom.grade, 'is-bump');
+      }
+    }
+  }
+
+  /** 开始页只露一行：历史最好多少、存了几局；存档不可用或刚清空也在这里说明 */
+  function renderStartHistory() {
+    if (!dom.startHistory) return;
+    var best = HISTORY.data.best;
+    var text;
+    if (!HISTORY.available) text = '本地存档不可用：成绩只在本次打开期间有效。';
+    else if (HISTORY.resetNotice === 'rules') text = '规则/题库更新过：旧成绩已清空，这一局重新计。';
+    else if (HISTORY.resetNotice === 'bad') text = '旧存档读不出来，已重新开始记录。';
+    else if (best) text = '历史最好 ' + best.score + ' 分（' + best.grade + ' 档）· 已记 ' + HISTORY.data.plays.length + ' 局';
+    else text = '还没有历史成绩：这一局就是第一条记录。';
+    dom.startHistory.textContent = text;
+    dom.startHistory.hidden = false;
+  }
+
   function renderResult(reason) {
     var best = SORT.order ? SORT.order.best : 0;
     var diagnosis = diagnoseLog(SORT.log);
@@ -1148,6 +1436,7 @@
         ' 分（' + Math.round((SORT.order.literal / best) * 100) + '%），见旁证就收 ' +
         SORT.order.eager + ' 分。S 另要求整局没有误收冲突/没对上。'
       : '';
+    renderHistoryResult(grade.grade, clean);
     var seconds = Math.max(1, Math.round((SORT.endedAt - SORT.startedAt) / 1000));
     var used = {};
     for (var i = 0; i < SORT.log.length; i += 1) {
@@ -1409,6 +1698,8 @@
   document.addEventListener('keydown', onKeyDown);
   document.addEventListener('visibilitychange', onVisibility);
 
+  loadHistory();
+  renderStartHistory();
   renderRules();
   renderHud(false);
   clearDecided();
@@ -1422,6 +1713,22 @@
     ruleWants: ruleWants,
     diagnoseLog: diagnoseLog,
     gradeOf: gradeOf,
+    compareRun: compareRun,
+    historyFingerprint: historyFingerprint,
+    historyKey: HISTORY_KEY,
+    historyKeep: HISTORY_KEEP,
+    history: function () {
+      return {
+        available: HISTORY.available,
+        resetNotice: HISTORY.resetNotice,
+        fp: HISTORY_FP,
+        best: HISTORY.data.best
+          ? { score: HISTORY.data.best.score, grade: HISTORY.data.best.grade }
+          : null,
+        plays: HISTORY.data.plays.slice(),
+        last: HISTORY.last,
+      };
+    },
     beatMsFor: beatMsFor,
     chipMs: CHIP_MS,
     windowExtraMs: WINDOW_EXTRA_MS,

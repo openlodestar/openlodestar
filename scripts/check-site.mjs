@@ -9,14 +9,15 @@ import { fileURLToPath } from 'node:url';
 // 另外为 file:// 双击打开补了几条：禁 type="module"、import、fetch/XHR、
 // localStorage/sessionStorage（这几样在 file:// 下会失败或不可靠）。
 //
-// 唯一例外：小游戏页要把进度存下来（需求就是刷新不丢分），
-// 所以 docs/assets/demo-lab.js 允许用 localStorage，但必须逐处包在 try/catch 里——
-// file:// 下它可能直接抛异常，兜住就退回"这一局照玩、刷新不记得"。
+// 唯一例外：小游戏页要把进度/历史成绩存下来（需求就是刷新不丢分），
+// 所以 docs/assets/demo-lab.js 与 docs/assets/demo-sort.js 允许用 localStorage，
+// 但必须逐处包在 try/catch 里——file:// 下它可能直接抛异常，
+// 兜住就退回"这一局照玩、刷新不记得"。
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const siteDir = join(root, 'docs');
 const errors = [];
-const STORAGE_EXEMPT = new Set(['docs/assets/demo-lab.js']);
+const STORAGE_EXEMPT = new Set(['docs/assets/demo-lab.js', 'docs/assets/demo-sort.js']);
 
 function need(condition, message) {
   if (!condition) errors.push(message);

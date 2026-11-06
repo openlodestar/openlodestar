@@ -303,6 +303,35 @@ a{color:var(--gold)}
   font:inherit;font-size:.9rem;font-weight:600;text-decoration:none;cursor:pointer;
 }
 .result-actions button:hover,.result-actions a:hover{background:rgba(244,238,226,.16)}
+/* 历史成绩：结算页第一眼就能看到「离最好还差几分」 */
+.history-card{
+  flex:0 0 auto;display:flex;flex-direction:column;gap:5px;border-radius:12px;padding:9px 12px;
+  border:1px solid rgba(233,196,106,.26);
+  background:linear-gradient(180deg,rgba(233,196,106,.12),rgba(233,196,106,.04));
+}
+.history-praise{margin:0;font-size:.86rem;font-weight:680;line-height:1.4;color:var(--cream)}
+.history-praise b{color:var(--gold);font-size:1.06em}
+.history-best{margin:0;font-size:.72rem;line-height:1.4;color:rgba(244,238,226,.7);font-variant-numeric:tabular-nums}
+.history-best b{color:var(--cream)}
+.history-recent{margin:0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:5px}
+.history-recent li{font-size:.66rem;padding:2px 7px;border-radius:99px;background:rgba(244,238,226,.1);color:rgba(244,238,226,.7);font-variant-numeric:tabular-nums}
+.history-recent li.is-best{background:rgba(233,196,106,.22);color:var(--gold);font-weight:640}
+.history-note{margin:0;font-size:.68rem;line-height:1.4;color:rgba(233,196,106,.82)}
+.history-card.is-record{
+  border-color:rgba(233,196,106,.72);
+  background:linear-gradient(180deg,rgba(233,196,106,.22),rgba(233,196,106,.06));
+  box-shadow:0 0 0 1px rgba(233,196,106,.35),0 12px 30px rgba(233,196,106,.18);
+  animation:record-pop .9s cubic-bezier(.2,.8,.3,1.1);
+}
+@keyframes record-pop{0%{transform:scale(.96);opacity:.55}50%{transform:scale(1.018)}100%{transform:scale(1);opacity:1}}
+.start-history{margin:0;font-size:.76rem;line-height:1.5;color:rgba(233,196,106,.86)}
+/* 矮屏优先把空间留给复盘：历史只留「本局 vs 最好」两行 */
+@media (max-height:700px){
+  .history-card{gap:3px;padding:7px 10px}
+  .history-praise{font-size:.8rem}
+  .history-best{font-size:.68rem}
+  .history-recent{display:none}
+}
 
 /* ---- 暂停：整屏不透明，牌面 / 分数 / 连击 / 计时全部在下面看不见 ---- */
 .overlay.is-pause{
@@ -485,6 +514,7 @@ body.is-paused .shell,body.is-paused .topbar{visibility:hidden}
       <h1 id="start-title">证据分拣</h1>
       <p class="lead">两件器物、二十条说法，每局从四个内容不同的牌局里抽一副。完全对上就收下，连击会翻倍；说法不同（口径/边缘相容）中段先放走，等每件器物的最后三拍再收——那三拍里收旁证分值翻倍，节拍也多给 0.8 秒。收下冲突/没对上倒扣 6 分、掉一颗心，S 档要求整局没有这种误收；长专场名会按排版行数自动加时。换下一件器物时连击清零。</p>
       <div class="keys"><span><b>↑</b> 收下</span><span><b>↓</b> 放走</span><span>触屏：上甩 / 下甩（34px 以上）</span><span><b>空格</b> 开始</span><span><b>P</b> / <b>Esc</b> 暂停</span><span>点卡片不算数</span></div>
+      <p class="start-history" id="start-history" hidden></p>
       <button class="start-btn" id="btn-start" type="button">开始</button>
       <details id="start-details">
         <summary>分值怎么算的</summary>
@@ -512,6 +542,12 @@ body.is-paused .shell,body.is-paused .topbar{visibility:hidden}
         <p id="grade-label" style="font-size:.8rem"></p>
         <p id="order-note" class="order-note"></p>
       </div>
+    </div>
+    <div class="history-card" id="history-card" aria-live="polite">
+      <p class="history-praise" id="hist-praise"></p>
+      <p class="history-best" id="hist-best"></p>
+      <ol class="history-recent" id="hist-recent" aria-label="最近几局分数" hidden></ol>
+      <p class="history-note" id="hist-note" hidden></p>
     </div>
     <ul class="result-stats" id="result-stats"></ul>
     <div class="review-wrap" id="review-wrap">

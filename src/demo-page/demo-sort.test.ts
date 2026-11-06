@@ -222,6 +222,32 @@ function loadRules(): {
     best: number,
     clean: boolean,
   ) => { grade: string; ratio: number; label: string; requiresClean?: boolean };
+  compareRun: (
+    score: number,
+    grade: string,
+    history: {
+      best?: { score: number; grade: string } | null;
+      plays: Array<{ score: number; grade: string }>;
+    },
+  ) => {
+    kind: 'first' | 'record' | 'tie' | 'above' | 'below' | 'same';
+    prevBest: number | null;
+    prevLast: number | null;
+    toBest: number | null;
+    toLast: number | null;
+    gradeUp: boolean;
+  };
+  historyFingerprint: () => string;
+  historyKey: string;
+  historyKeep: number;
+  history: () => {
+    available: boolean;
+    resetNotice: string;
+    fp: string;
+    best: { score: number; grade: string } | null;
+    plays: Array<{ score: number; grade: string }>;
+    last: unknown;
+  };
   state: () => {
     runId: string | null;
     orderId: string | null;
@@ -928,5 +954,115 @@ describe('暂停与重来', () => {
     expect(state.pauseKind).toBe('');
     expect(typeof state.timerRemaining).toBe('number');
     expect(typeof state.waitRemaining).toBe('number');
+  });
+});
+
+describe('历史成绩', () => {
+  const html = fs.readFileSync(path.join(DOCS, 'demo-sort.html'), 'utf8');
+  const source = fs.readFileSync(SORT_SCRIPT, 'utf8');
+
+  it('只在真的更高时才算破纪录，其余五种情况各有各的说法', () => {
+    const best = { score: 100, grade: 'A' };
+    const last = { score: 60, grade: 'B' };
+    expect(RULES.compareRun(120, 'A', { best: null, plays: [] }).kind).toBe('first');
+    expect(RULES.compareRun(120, 'A', { best, plays: [last] }).kind).toBe('record');
+    expect(RULES.compareRun(100, 'S', { best, plays: [last] }).kind).toBe('tie');
+    expect(RULES.compareRun(80, 'B', { best, plays: [last] }).kind).toBe('above');
+    expect(RULES.compareRun(40, 'C', { best, plays: [last] }).kind).toBe('below');
+    expect(RULES.compareRun(60, 'B', { best, plays: [last] }).kind).toBe('same');
+    // 同分不能算新纪录；追平优先于「比上一局高」
+    expect(RULES.compareRun(100, 'A', { best, plays: [last] }).kind).not.toBe('record');
+    expect(RULES.compareRun(100, 'A', { best, plays: [{ score: 100, grade: 'A' }] }).kind).toBe('tie');
+
+    const record = RULES.compareRun(120, 'A', { best, plays: [last] });
+    expect(record.prevBest).toBe(100);
+    expect(record.toBest).toBe(20);
+    expect(record.prevLast).toBe(60);
+    const above = RULES.compareRun(80, 'B', { best, plays: [last] });
+    expect(above.toBest).toBe(-20);
+    expect(above.toLast).toBe(20);
+    // 同分但档位更高（例如上局不干净）也要能说「档位提到 S」
+    expect(RULES.compareRun(100, 'S', { best: { score: 100, grade: 'A' }, plays: [last] }).gradeUp).toBe(true);
+  });
+
+  it('三种夸奖的文案按情况分开，不会无脑说「新高」', () => {
+    expect(source).toContain("if (cmp.kind === 'record')");
+    expect(source).toContain('新纪录 <b>');
+    expect(source).toContain("if (cmp.kind === 'above')");
+    expect(source).toContain('比上一局多 <b>');
+    expect(source).toContain("if (cmp.kind === 'below')");
+    expect(source).toContain('比上一局少 <b>');
+    expect(source).toContain("if (cmp.kind === 'tie')");
+    expect(source).toContain('追平历史最好 <b>');
+    // 只有 record 分支才加金框与动效
+    const card = source.slice(source.indexOf('function renderHistoryResult'), source.indexOf('function renderStartHistory'));
+    expect(card).toContain("if (cmp.kind === 'record')");
+    expect(card).toContain("classList.add('is-record')");
+    expect(card).toContain("pulse(dom.grade, 'is-bump')");
+  });
+
+  it('localStorage 不可用时只退到内存，页面不报错', () => {
+    // 测试用的沙箱故意没有 localStorage：脚本必须照常初始化
+    const info = RULES.history();
+    expect(info.available).toBe(false);
+    expect(info.best).toBeNull();
+    expect(info.plays).toEqual([]);
+    expect(info.resetNotice).toBe('');
+    expect(source).toContain('window.localStorage');
+    expect(source).toContain("throw new Error('localStorage 不可用')");
+    const save = source.slice(source.indexOf('function saveHistory'), source.indexOf('function loadHistory'));
+    expect(save).toContain('catch (error)');
+    expect(save).toContain('HISTORY.available = false');
+    // 页面上要明说「只在本次打开期间有效」
+    expect(source).toContain('成绩只在本次打开期间有效，关掉页面就没了');
+    expect(source).toContain('本地存档不可用：成绩只在本次打开期间有效');
+  });
+
+  it('存档结构与位置固定，只留最近若干局与历史最高', () => {
+    expect(RULES.historyKey).toBe('lodestar.sort.history');
+    expect(RULES.historyKeep).toBeGreaterThanOrEqual(3);
+    expect(source).toContain('schema: HISTORY_SCHEMA');
+    expect(source).toContain('fp: HISTORY_FP');
+    expect(source).toContain('plays.unshift(play)');
+    expect(source).toContain('HISTORY.data.plays.length = HISTORY_KEEP');
+    expect(source).toContain('window.localStorage.setItem(HISTORY_KEY, JSON.stringify(HISTORY.data))');
+    // 每局都记下牌序与上限，方便解释「这局的分数是在什么牌上打的」
+    expect(source).toContain('perfect: SORT.order ? SORT.order.best : 0');
+  });
+
+  it('规则或题库一变，旧记录按指纹整份作废并说明原因', () => {
+    const fp = RULES.historyFingerprint();
+    expect(fp.length).toBeGreaterThan(0);
+    expect(RULES.historyFingerprint()).toBe(fp);
+    // 指纹覆盖分值、档位线与各牌序上限；改文案不该进指纹
+    expect(source).toContain('JSON.stringify(s.accept)');
+    expect(source).toContain('JSON.stringify(s.windowBonus)');
+    expect(source).toContain('DATA.grades[g].ratio');
+    expect(source).toContain('order.best +');
+    expect(source).toContain('parsed.fp !== HISTORY_FP');
+    expect(source).toContain("'rules'");
+    expect(source).toContain('规则或题库更新过，旧记录不可比，历史成绩已清空，从这一局重新计。');
+    expect(html).toContain('id="hist-note"');
+  });
+
+  it('结算页能一眼看到本局、历史最好与差多少；开始页也露一行', () => {
+    for (const id of [
+      'history-card',
+      'hist-praise',
+      'hist-best',
+      'hist-recent',
+      'hist-note',
+      'start-history',
+    ]) {
+      expect(html).toContain(`id="${id}"`);
+    }
+    expect(source).toContain('历史最好 <b>');
+    expect(source).toContain('本局差 <b>');
+    expect(source).toContain('刚刷新');
+    expect(source).toContain('已记 ');
+    // 破纪录的动效：金框 + 弹出，且减少动效时由全局规则关掉
+    expect(html).toContain('.history-card.is-record{');
+    expect(html).toContain('@keyframes record-pop');
+    expect(html).toContain('prefers-reduced-motion:reduce');
   });
 });

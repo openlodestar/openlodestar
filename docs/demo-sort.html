@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>证据分拣 · OpenLodestar — 上甩收下，下甩放走</title>
-<meta name="description" content="两件器物、二十条说法，每条只给你两三秒。把能当直接支撑的收下，其余放走。每条说法属于哪个判据状态，由构建时跑的真实引擎算出，一局结束可以逐条核对。">
+<meta name="description" content="两件器物、二十条说法，每条只给你两三秒（收尾三拍与长文案另加时）。把能当直接支撑的收下，其余放走。每条说法属于哪个判据状态，由构建时跑的真实引擎算出，一局结束可以逐条核对。">
 <link rel="canonical" href="https://openlodestar.github.io/openlodestar/demo-sort.html">
 <link rel="icon" href="assets/favicon.ico" sizes="any">
 <link rel="stylesheet" href="assets/site-nav.css">
@@ -420,7 +420,7 @@ a{color:var(--gold)}
     <div class="sheet-scroll" id="start-scroll">
       <p class="sheet-kicker">OpenLodestar</p>
       <h1 id="start-title">证据分拣</h1>
-      <p class="lead">两件器物、二十条说法，每局从四个内容不同的牌局里抽一副。完全对上就收下，连击会翻倍；说法不同（口径/边缘相容）中段先放走，等每件器物的最后三拍再收——那三拍里收旁证分值翻倍；冲突、没对上、无从判断一律放走。换下一件器物时连击清零。</p>
+      <p class="lead">两件器物、二十条说法，每局从四个内容不同的牌局里抽一副。完全对上就收下，连击会翻倍；说法不同（口径/边缘相容）中段先放走，等每件器物的最后三拍再收——那三拍里收旁证分值翻倍，节拍也多给 0.8 秒。收下冲突/没对上倒扣 6 分、掉一颗心，S 档要求整局没有这种误收；长专场名会按排版行数自动加时。换下一件器物时连击清零。</p>
       <div class="keys"><span><b>↑</b> 收下</span><span><b>↓</b> 放走</span><span>触屏：上甩 / 下甩（34px 以上）</span><span><b>空格</b> 开始</span><span>点卡片不算数</span></div>
       <button class="start-btn" id="btn-start" type="button">开始</button>
       <details id="start-details">

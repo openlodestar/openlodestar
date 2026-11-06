@@ -32,8 +32,15 @@
   if (!RUNS.length) return;
 
   var R = DATA.scoring;
-  /** 每拍给的时间：第一件 2.6 秒、第二件 2.3 秒（上一版 3.2/2.8 太宽，变成「看完就按」） */
+  /** 基础节拍：第一件 2.6 秒、第二件 2.3 秒（长文案与收尾窗口另加） */
   var CHIP_MS = [2600, 2300];
+  /** 收尾三拍要判「相容还是冲突」，比中段费脑，统一多给 0.8 秒 */
+  var WINDOW_EXTRA_MS = 800;
+  /** 长文案加时：按实际排版行数（两行以内不加）与字符数取较大者，封顶 1.8 秒 */
+  var LINE_MS = 800;
+  var CHAR_MS = 80;
+  var IDLE_CHARS = 14;
+  var MAX_TEXT_EXTRA_MS = 1800;
   var SWIPE = 34;
   /** 判定文字至少停留这么久，再发下一张牌（读得完一行再走） */
   var VERDICT_MS = 1200;
@@ -91,6 +98,18 @@
           tone: 'hit',
           text: '完全对上 · 命中 +' + hit + '（×' + mult + '）',
           verdict: 'hit',
+        };
+      }
+      if (chip.state === 'conflict' || chip.state === 'mismatch') {
+        return {
+          points: -R.wrongPenalty,
+          combo: R.acceptCombo[chip.state],
+          life: R.acceptLife[chip.state],
+          tone: 'mismatch',
+          text:
+            meta.label + ' · ' + ACCEPT_TEXT[chip.state] + ' · 倒扣 ' + R.wrongPenalty +
+            ' 分 · 掉一颗心 · 连击断',
+          verdict: 'harm',
         };
       }
       var base = R.accept[chip.state];
@@ -258,6 +277,45 @@
     return !!r && SORT.chipIndex >= r.settleFrom;
   }
 
+  /** 实际排版行数：窄屏折三行就按三行算，不拿字符数猜 */
+  function lineCountOf(el) {
+    if (!el) return 1;
+    var style = window.getComputedStyle(el);
+    var lineHeight = parseFloat(style.lineHeight);
+    if (!lineHeight || !isFinite(lineHeight)) {
+      lineHeight = (parseFloat(style.fontSize) || 16) * 1.5;
+    }
+    return Math.max(1, Math.round(el.offsetHeight / lineHeight));
+  }
+
+  /**
+   * 长文案的加时：排版行数超过两行（这条值 + 本件字段）或总字数超过 14 时加时，
+   * 两者取较大者并封顶。宽屏一行放得下但字数很多的名目，也能拿到按字数算的余量。
+   */
+  function textExtraMs(lines, chars) {
+    var byLine = Math.max(0, lines - 2) * LINE_MS;
+    var byChar = Math.max(0, chars - IDLE_CHARS) * CHAR_MS;
+    return Math.min(MAX_TEXT_EXTRA_MS, Math.max(byLine, byChar));
+  }
+
+  /**
+   * 这一拍给多久。基础节拍 + 收尾窗口加时 + 长文案加时。
+   * 只加不减：中段短文案仍是最紧的 2.6 / 2.3 秒，收尾三拍与长文案才放宽。
+   */
+  function beatMsFor(roundIndex, inWindowBeat, lines, chars) {
+    var base = CHIP_MS[Math.min(roundIndex, CHIP_MS.length - 1)];
+    var windowExtra = inWindowBeat ? WINDOW_EXTRA_MS : 0;
+    return base + windowExtra + textExtraMs(lines, chars);
+  }
+
+  function beatDuration() {
+    var r = round();
+    var lines = lineCountOf(dom.chipClaim) + lineCountOf(dom.chipValue);
+    var lotValue = r ? r.lot.values[SORT.chip.slot] : '';
+    var chars = (SORT.chip ? SORT.chip.value : '').length + (lotValue || '').length;
+    return beatMsFor(SORT.roundIndex, inWindow(), lines, chars);
+  }
+
   function now() {
     return window.performance && window.performance.now
       ? window.performance.now()
@@ -296,7 +354,7 @@
     dom.roundTag.textContent =
       '第 ' + (SORT.roundIndex + 1) + '/' + SORT.rounds.length + ' 件 · ' +
       '第 ' + beat + '/' + total + ' 拍' +
-      (windowBeat ? ' · 收尾窗口：现在收相容不亏倍率' : '');
+      (windowBeat ? ' · 收尾窗口：这拍多给 0.8 秒' : '');
     dom.roundTag.classList.toggle('is-window', windowBeat);
     renderDots(total);
   }
@@ -588,7 +646,7 @@
       dom.chip.classList.add('is-hit-glow');
     } else if (result.verdict === 'harm') {
       damageFlash();
-      floatText('−1 ♥', '#E2705F');
+      floatText('−' + R.wrongPenalty + ' · −1 ♥', '#E2705F');
     } else if (result.points > 0) {
       floatText('+' + result.points, color);
     } else if (action === 'timeout') {
@@ -625,7 +683,7 @@
     }
     renderRoundTag();
     renderChip();
-    armTimer(CHIP_MS[Math.min(SORT.roundIndex, CHIP_MS.length - 1)]);
+    armTimer(beatDuration());
   }
 
   // ---- 开始与结束 ----
@@ -685,7 +743,7 @@
     renderRoundTag();
     renderHud(false);
     renderChip();
-    armTimer(CHIP_MS[0]);
+    armTimer(beatDuration());
   }
 
   function finish(reason) {
@@ -700,9 +758,15 @@
     dom.again.focus({ preventScroll: true });
   }
 
-  function gradeOf(score, best) {
+  /**
+   * 分数线按这一牌序的最高分折算；S 档另外要求整局没有误收冲突/没对上。
+   * 分数到了线、但收错过——下调一档，最高档只留给打得干净的一局。
+   */
+  function gradeOf(score, best, clean) {
     for (var i = 0; i < DATA.grades.length; i += 1) {
-      if (best > 0 && score >= best * DATA.grades[i].ratio) return DATA.grades[i];
+      var grade = DATA.grades[i];
+      if (grade.requiresClean && !clean) continue;
+      if (best > 0 && score >= best * grade.ratio) return grade;
     }
     return DATA.grades[DATA.grades.length - 1];
   }
@@ -762,7 +826,10 @@
       parts.push('放走 ' + missed.length + ' 条完全对上（' + missed[0].value + ' 这类字面一样的要收）');
     }
     if (wrong.length) {
-      parts.push('收下 ' + wrong.length + ' 条冲突/没对上，掉了 ' + wrong.length + ' 颗心');
+      parts.push(
+        '收下 ' + wrong.length + ' 条冲突/没对上，倒扣 ' + wrong.length * R.wrongPenalty +
+        ' 分、掉了 ' + wrong.length + ' 颗心',
+      );
     }
     if (windowLost.length) {
       parts.push('收尾窗口里漏收 ' + windowLost.length + ' 条旁证，少拿 ' + windowPts + ' 分');
@@ -826,17 +893,24 @@
 
   function renderResult(reason) {
     var best = SORT.order ? SORT.order.best : 0;
-    var grade = gradeOf(SORT.score, best);
     var diagnosis = diagnoseLog(SORT.log);
+    var clean = diagnosis.wrong === 0;
+    var grade = gradeOf(SORT.score, best, clean);
+    var sLine = Math.ceil(best * DATA.grades[0].ratio);
     dom.grade.textContent = grade.grade;
-    dom.gradeLabel.textContent =
-      (reason ? reason + ' · ' : '') + diagnosis.text;
+    var head = (reason ? reason + ' · ' : '') + diagnosis.text;
+    if (!clean && grade.grade !== 'S' && SORT.score >= sLine) {
+      head =
+        '分数到了 S 线（' + SORT.score + ' / ' + sLine + '），但收错了 ' + diagnosis.wrong +
+        ' 条冲突/没对上——S 要求整局没有明显误收。' + head;
+    }
+    dom.gradeLabel.textContent = head;
     dom.finalScore.textContent = String(SORT.score);
     dom.perfectScore.textContent = String(best);
     dom.orderNote.textContent = SORT.order
       ? '这一牌序最优 ' + best + ' 分；只认字面相同最多 ' + SORT.order.literal +
         ' 分（' + Math.round((SORT.order.literal / best) * 100) + '%），见旁证就收 ' +
-        SORT.order.eager + ' 分。'
+        SORT.order.eager + ' 分。S 另要求整局没有误收冲突/没对上。'
       : '';
     var seconds = Math.max(1, Math.round((SORT.endedAt - SORT.startedAt) / 1000));
     var used = {};
@@ -866,7 +940,10 @@
         var meta = DATA.states[item.state];
         var want = ruleWants(item);
         var actText = item.action === 'accept' ? '收下' : item.action === 'timeout' ? '超时' : '放走';
-        var score = item.points > 0 ? '+' + item.points : item.life < 0 ? '−1♥' : '0';
+        var scoreBits = [];
+        if (item.points !== 0) scoreBits.push((item.points > 0 ? '+' : '') + item.points + ' 分');
+        if (item.life < 0) scoreBits.push('−' + Math.abs(item.life) + '♥');
+        var score = scoreBits.length ? scoreBits.join(' · ') : '0';
         var good = item.action === want;
         var cls = item.life < 0 || (item.state === 'exact' && item.action !== 'accept')
           ? 'is-bad'
@@ -1071,7 +1148,14 @@
     applyOutcome: applyOutcome,
     ruleWants: ruleWants,
     diagnoseLog: diagnoseLog,
+    gradeOf: gradeOf,
+    beatMsFor: beatMsFor,
     chipMs: CHIP_MS,
+    windowExtraMs: WINDOW_EXTRA_MS,
+    lineExtraMs: LINE_MS,
+    charExtraMs: CHAR_MS,
+    idleChars: IDLE_CHARS,
+    maxTextExtraMs: MAX_TEXT_EXTRA_MS,
     verdictMs: VERDICT_MS,
     swipe: SWIPE,
     pickRun: pickRun,
@@ -1083,6 +1167,8 @@
         lives: SORT.lives,
         roundIndex: SORT.roundIndex,
         chipIndex: SORT.chipIndex,
+        duration: SORT.duration,
+        chip: SORT.chip,
         runId: SORT.run ? SORT.run.id : null,
         orderId: SORT.order ? SORT.order.id : null,
         recentRuns: SORT.recentRuns.slice(),

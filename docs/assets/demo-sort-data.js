@@ -1,7 +1,7 @@
 // 由 src/demo-page/build-sort-data.ts 从 docs/assets/demo-game-data.js 生成，不要手改；
 // 改玩法或候选值后重跑 pnpm run demo:sort。
 window.LODESTAR_SORT = {
-  "generatedAt": "2026-11-06T13:31:29.433Z",
+  "generatedAt": "2026-11-06T14:08:15.188Z",
   "generator": "src/demo-page/build-sort-data.ts",
   "note": "由冻结矩阵 docs/assets/demo-game-data.js 生成，不要手改。每条证据的状态是构建时用引擎的维度函数算出来的，页面只查表。",
   "states": {
@@ -88,6 +88,7 @@ window.LODESTAR_SORT = {
       "mismatch": -1,
       "unknown": 0
     },
+    "wrongPenalty": 6,
     "multiplier": {
       "per": 1,
       "step": 1,
@@ -105,13 +106,14 @@ window.LODESTAR_SORT = {
     "timeoutCombo": "reset",
     "timeoutPoints": 0,
     "settleBeats": 3,
-    "note": "命中＝10×倍率，倍率只看连续命中：连击 0 是 ×1、1 是 ×2、2 起是 ×3（封顶 ×3）。收下相容 +8、边缘 +4，但连击立刻归零——中段收旁证会打断冲锋，后面每一拍都少拿一倍。每件器物的最后三拍不会再发命中，这三拍收旁证不亏倍率、分值还翻倍（相容 +16、边缘 +8），是兑现窗口；同一个相容，中段收会亏、窗口里收才划算。放走相容/边缘不给分；收下冲突/没对上掉一颗心；放走冲突/没对上/无从判断 +1；放走命中（漏判）、收下无从判断都断连击；换下一件器物时连击清零，倍率回到 ×1。"
+    "note": "命中＝10×倍率，倍率只看连续命中：连击 0 是 ×1、1 是 ×2、2 起是 ×3（封顶 ×3）。收下相容 +8、边缘 +4，但连击立刻归零——中段收旁证会打断冲锋，后面每一拍都少拿一倍。每件器物的最后三拍不会再发命中，这三拍收旁证不亏倍率、分值还翻倍（相容 +16、边缘 +8），是兑现窗口；同一个相容，中段收会亏、窗口里收才划算。放走相容/边缘不给分；收下冲突/没对上倒扣 6 分、掉一颗心、连击归零——S 档要求整局没有这种误收；放走冲突/没对上/无从判断 +1；放走命中（漏判）、收下无从判断都断连击；换下一件器物时连击清零，倍率回到 ×1。"
   },
   "grades": [
     {
       "grade": "S",
-      "ratio": 0.885,
-      "label": "命中没漏，旁证只在兑现窗口里收；漏一条窗口旁证也还在 S 内"
+      "ratio": 0.9,
+      "requiresClean": true,
+      "label": "命中没漏，旁证只在兑现窗口里收，整局没有误收冲突/没对上；漏一条窗口旁证仍在 S 内"
     },
     {
       "grade": "A",
@@ -466,7 +468,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         },
         {
           "id": "order-2",
@@ -502,7 +505,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 167
+          "slipTwo": 167,
+          "oneWrong": 172
         },
         {
           "id": "order-3",
@@ -538,7 +542,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         },
         {
           "id": "order-4",
@@ -574,7 +579,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 191,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         },
         {
           "id": "order-5",
@@ -610,7 +616,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         },
         {
           "id": "order-6",
@@ -646,7 +653,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         }
       ]
     },
@@ -986,7 +994,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         },
         {
           "id": "order-2",
@@ -1022,7 +1031,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 167
+          "slipTwo": 167,
+          "oneWrong": 172
         },
         {
           "id": "order-3",
@@ -1058,7 +1068,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         },
         {
           "id": "order-4",
@@ -1094,7 +1105,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 191,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         },
         {
           "id": "order-5",
@@ -1130,7 +1142,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         },
         {
           "id": "order-6",
@@ -1166,7 +1179,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         }
       ]
     },
@@ -1506,7 +1520,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         },
         {
           "id": "order-2",
@@ -1542,7 +1557,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 167
+          "slipTwo": 167,
+          "oneWrong": 172
         },
         {
           "id": "order-3",
@@ -1578,7 +1594,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         },
         {
           "id": "order-4",
@@ -1614,7 +1631,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 191,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         },
         {
           "id": "order-5",
@@ -1650,7 +1668,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         },
         {
           "id": "order-6",
@@ -1686,7 +1705,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         }
       ]
     },
@@ -2026,7 +2046,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         },
         {
           "id": "order-2",
@@ -2062,7 +2083,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 167
+          "slipTwo": 167,
+          "oneWrong": 172
         },
         {
           "id": "order-3",
@@ -2098,7 +2120,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         },
         {
           "id": "order-4",
@@ -2134,7 +2157,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 191,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         },
         {
           "id": "order-5",
@@ -2170,7 +2194,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         },
         {
           "id": "order-6",
@@ -2206,7 +2231,8 @@ window.LODESTAR_SORT = {
           "literal": 127,
           "eager": 175,
           "slipOne": 183,
-          "slipTwo": 175
+          "slipTwo": 175,
+          "oneWrong": 172
         }
       ]
     }

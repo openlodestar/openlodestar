@@ -116,6 +116,8 @@ export interface SortScoring {
   /** 收下之后连击怎么走：只有命中能续连击；收旁证与误收都会断 */
   acceptCombo: Record<EvidenceDimensionState, 'up' | 'reset'>;
   acceptLife: Record<EvidenceDimensionState, number>;
+  /** 收下冲突候选 / 没对上时的倒扣分（除掉一颗心、断连击之外的可见代价） */
+  wrongPenalty: number;
   multiplier: { per: number; step: number; cap: number };
   /** 兑现窗口里收旁证，固定分乘这个倍数；窗口外不乘 */
   windowBonus: { multiplier: number; states: EvidenceDimensionState[] };
@@ -155,6 +157,8 @@ export interface SortOrder {
   slipOne: number;
   /** 漏收两条窗口旁证——这一档必须掉出 S，分数线才有意义 */
   slipTwo: number;
+  /** 读对规则、但误收了一条冲突/没对上——S 要求整局干净，这一档必须掉出 S */
+  oneWrong: number;
 }
 
 /** 一个牌局：两件器物 + 六种牌序。局与局之间牌面内容不同，不只是换个顺序。 */
@@ -172,7 +176,13 @@ export interface SortData {
   states: Record<EvidenceDimensionState, SortStateMeta>;
   scoring: SortScoring;
   /** 分数线按「这一牌序的最高分」的比例折算 */
-  grades: Array<{ grade: 'S' | 'A' | 'B' | 'C'; ratio: number; label: string }>;
+  grades: Array<{
+    grade: 'S' | 'A' | 'B' | 'C';
+    ratio: number;
+    label: string;
+    /** 这一档除了分数线，还要求整局没有误收冲突/没对上 */
+    requiresClean?: boolean;
+  }>;
   runs: SortRun[];
   stats: {
     /** 每个牌局的牌数 */
@@ -321,6 +331,7 @@ const SCORING: SortScoring = {
     unknown: 'reset',
   },
   acceptLife: { exact: 0, caliber: 0, edge: 0, conflict: -1, mismatch: -1, unknown: 0 },
+  wrongPenalty: 6,
   multiplier: { per: 1, step: 1, cap: 3 },
   windowBonus: { multiplier: 2, states: ['caliber', 'edge'] },
   lives: 3,
@@ -333,7 +344,8 @@ const SCORING: SortScoring = {
     '收下相容 +8、边缘 +4，但连击立刻归零——中段收旁证会打断冲锋，后面每一拍都少拿一倍。' +
     '每件器物的最后三拍不会再发命中，这三拍收旁证不亏倍率、分值还翻倍（相容 +16、边缘 +8），是兑现窗口；' +
     '同一个相容，中段收会亏、窗口里收才划算。' +
-    '放走相容/边缘不给分；收下冲突/没对上掉一颗心；放走冲突/没对上/无从判断 +1；' +
+    '放走相容/边缘不给分；收下冲突/没对上倒扣 6 分、掉一颗心、连击归零——S 档要求整局没有这种误收；' +
+    '放走冲突/没对上/无从判断 +1；' +
     '放走命中（漏判）、收下无从判断都断连击；换下一件器物时连击清零，倍率回到 ×1。',
 };
 
@@ -603,6 +615,13 @@ function actOf(
     if (state === 'exact') {
       return { points: Math.round(SCORING.hitBase * multiplierOf(combo)), combo: 'up', life: 0 };
     }
+    if (state === 'conflict' || state === 'mismatch') {
+      return {
+        points: -SCORING.wrongPenalty,
+        combo: SCORING.acceptCombo[state],
+        life: SCORING.acceptLife[state],
+      };
+    }
     const points =
       SCORING.accept[state] * (inWindow && inWindowBonus(state) ? SCORING.windowBonus.multiplier : 1);
     return { points, combo: SCORING.acceptCombo[state], life: SCORING.acceptLife[state] };
@@ -636,14 +655,19 @@ const EAGER_POLICY: Policy = (state) =>
   state === 'exact' || state === 'caliber' || state === 'edge' ? 'accept' : 'reject';
 
 /**
- * S 线按最优分的 88.5% 折算，取整后是 177/199。
+ * S 线按最优分的 90% 折算，取整后是 180/199。
  *
- * 这个比例不是拍的：它刚好让「读对规则、但在兑现窗口里漏收一条旁证」的一次手误
- * 仍然留在 S 里（183 ≥ 177），两次手误（175）掉出去；同时「只认字面」（127）
- * 与「见旁证就收」（175）都够不到。上一版定在 92%（184），漏一条窗口旁证就只有
- * 183，认真读一局的人反而拿不到 S——盲测里 178 分落 A 就是这么来的。
+ * 这一版的目标不是「够得着」而是「够得着且干净」：
+ * - 读对规则、只在兑现窗口里收旁证的稳健打法 = 199，稳进 S；
+ * - 窗口里漏收一条旁证 = 183，仍在 S 内（认真读一局允许一次手误）；
+ * - 漏收两条 = 175、见旁证就收（粗糙打法）= 175，明确进不去；
+ * - 误收冲突/没对上除了掉心、断连击，还倒扣 6 分；这类局即使分数摸到 S 线，
+ *   也由页面按「S 要求整局没有误收」挡回 A。
+ *
+ * 上一版取 88.5%（177），S 与粗糙打法只差 2 分，而且误收一条冲突仍能拿 S——
+ * 最高档变成了「窗口收全了」而不是「打得干净」。
  */
-const S_RATIO = 0.885;
+const S_RATIO = 0.9;
 
 /** 读对规则，但在整局的前 `slips` 个兑现窗口旁证上手滑放走——用来量 S 线的容忍度 */
 function steadyWithSlips(
@@ -669,6 +693,37 @@ function steadyWithSlips(
       else if (side && inWindow && remaining > 0) {
         action = 'reject';
         remaining -= 1;
+      } else action = side && inWindow ? 'accept' : 'reject';
+      const result = actOf(state, action, combo, inWindow);
+      score += result.points;
+      lives += result.life;
+      combo = result.combo === 'up' ? combo + 1 : result.combo === 'reset' ? 0 : combo;
+    }
+    total += score;
+  }
+  return total;
+}
+
+/** 读对规则，但整局第一次遇到冲突/没对上时误收——S 要求整局干净，这一档必须掉出去 */
+function steadyWithOneWrong(rounds: SortRound[], plan: number[][]): number {
+  let wrongUsed = false;
+  let total = 0;
+  for (let roundIndex = 0; roundIndex < rounds.length; roundIndex += 1) {
+    const round = rounds[roundIndex];
+    const states = plan[roundIndex].map((chipIndex) => round.chips[chipIndex].state);
+    let score = 0;
+    let combo = 0;
+    let lives = SCORING.lives;
+    for (let index = 0; index < states.length; index += 1) {
+      if (lives <= 0) break;
+      const state = states[index];
+      const side = state === 'caliber' || state === 'edge';
+      const inWindow = index >= round.settleFrom;
+      let action: 'accept' | 'reject';
+      if (state === 'exact') action = 'accept';
+      else if (state === 'conflict' || state === 'mismatch') {
+        action = wrongUsed ? 'reject' : 'accept';
+        wrongUsed = true;
       } else action = side && inWindow ? 'accept' : 'reject';
       const result = actOf(state, action, combo, inWindow);
       score += result.points;
@@ -747,9 +802,10 @@ function variantOrder(round: SortRound, seed: number): number[] {
 }
 
 /**
- * 生成一个牌局的六种牌序，并逐牌序验算三条不等式：
- * 只认字面必须掉到 B 档（低于 A 的 72%），见旁证就收必须够不到 S（低于 92%），
- * 稳健策略必须等于理论最高分。任何一条不成立就构建失败，不会生成一份“字面也能赢”的数据。
+ * 生成一个牌局的六种牌序，并逐牌序验算这些不等式：
+ * 只认字面必须掉到 B 档（低于 A 的 72%）、见旁证就收必须够不到 S、
+ * 稳健策略必须等于理论最高分、漏一条窗口旁证仍 ≥ S 线、漏两条 < S 线、
+ * 误收一条冲突/没对上必须掉出 S。任何一条不成立就构建失败。
  */
 function buildOrders(rounds: SortRound[]): SortOrder[] {
   const orders: SortOrder[] = [];
@@ -775,6 +831,7 @@ function buildOrders(rounds: SortRound[]): SortOrder[] {
     }
     const slipOne = steadyWithSlips(rounds, plan, 1);
     const slipTwo = steadyWithSlips(rounds, plan, 2);
+    const oneWrong = steadyWithOneWrong(rounds, plan);
 
     const sMin = Math.ceil(best * S_RATIO);
     if (steady !== best) {
@@ -799,6 +856,12 @@ function buildOrders(rounds: SortRound[]): SortOrder[] {
     if (slipTwo >= sMin) {
       throw new Error(`牌序 ${variant + 1} 漏收两条窗口旁证仍是 S（${slipTwo} ≥ ${sMin}），S 线太松`);
     }
+    // 误收一条冲突/没对上：即使分数还够线，S 也不该给——这条校验守住「S = 打得干净」
+    if (oneWrong >= sMin) {
+      throw new Error(
+        `牌序 ${variant + 1} 误收一条冲突/没对上仍是 S（${oneWrong} ≥ ${sMin}），S 线没体现干净的代价`,
+      );
+    }
     orders.push({
       id: `order-${variant + 1}`,
       label: variant === 0 ? '教学顺序' : `牌序 ${variant + 1}`,
@@ -809,6 +872,7 @@ function buildOrders(rounds: SortRound[]): SortOrder[] {
       eager,
       slipOne,
       slipTwo,
+      oneWrong,
     });
   }
   return orders;
@@ -942,7 +1006,13 @@ function buildData(): SortData {
     states: STATES,
     scoring: SCORING,
     grades: [
-      { grade: 'S', ratio: S_RATIO, label: '命中没漏，旁证只在兑现窗口里收；漏一条窗口旁证也还在 S 内' },
+      {
+        grade: 'S',
+        ratio: S_RATIO,
+        requiresClean: true,
+        label:
+          '命中没漏，旁证只在兑现窗口里收，整局没有误收冲突/没对上；漏一条窗口旁证仍在 S 内',
+      },
       { grade: 'A', ratio: 0.72, label: '取舍方向对了一半：要么把兑现窗口里的旁证全放走了，要么在中段收旁证断了连击' },
       { grade: 'B', ratio: 0.5, label: '只按字面分：命中的都收了，但旁证全放走，兑现窗口一分没拿' },
       { grade: 'C', ratio: 0, label: '这一局的失分点见下面复盘' },

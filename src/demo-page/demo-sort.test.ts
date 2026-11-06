@@ -12,9 +12,11 @@
  * 5. 计分规则可复算：命中＝10×倍率、收旁证断连击、误收掉心、超时 0 分、兑现窗口里旁证翻倍；
  * 6. **「只认字面相同」拿不到 A**：逐牌序算三种策略，字面策略必须低于最优分的 72%，
  *    逢旁证就收必须够不到 S 线，而「中段放旁证、收尾三拍收旁证」的稳健策略必须等于理论最高分；
+ *    S 线抬到 90%，误收一条冲突/没对上既掉出分数线、也被「整局干净」这一关挡回 A；
  * 7. 题库真的换内容：至少四个牌局、开局各不相同、连抽三局不重复、
  *    两局之间连答案都一样的牌不超过上限（记答案过不了关）；
- * 8. 文案与规则对得上：A 档说清「窗口/断连击」，B 档点明「只按字面分」，规则里写了换件清零与窗口翻倍。
+ * 8. 文案与规则对得上：A 档说清「窗口/断连击」，B 档点明「只按字面分」，规则里写了换件清零与窗口翻倍；
+ * 9. 节拍跟着难度走：中段短文案仍是最紧的基础秒数，收尾三拍与两行以上/长字数的文案逐级加时。
  */
 
 import fs from 'node:fs';
@@ -72,6 +74,7 @@ interface SortOrder {
   eager: number;
   slipOne: number;
   slipTwo: number;
+  oneWrong: number;
 }
 
 interface SortRun {
@@ -89,13 +92,14 @@ interface SortData {
     reject: Record<EvidenceDimensionState, number>;
     acceptCombo: Record<EvidenceDimensionState, 'up' | 'reset'>;
     acceptLife: Record<EvidenceDimensionState, number>;
+    wrongPenalty: number;
     multiplier: { per: number; step: number; cap: number };
     windowBonus: { multiplier: number; states: EvidenceDimensionState[] };
     lives: number;
     settleBeats: number;
     note: string;
   };
-  grades: Array<{ grade: string; ratio: number; label: string }>;
+  grades: Array<{ grade: string; ratio: number; label: string; requiresClean?: boolean }>;
   runs: SortRun[];
   stats: {
     chips: number;
@@ -207,6 +211,17 @@ function loadRules(): {
   verdictMs: number;
   swipe: number;
   pickRun: () => void;
+  beatMsFor: (roundIndex: number, inWindow: boolean, lines: number, chars: number) => number;
+  windowExtraMs: number;
+  lineExtraMs: number;
+  charExtraMs: number;
+  idleChars: number;
+  maxTextExtraMs: number;
+  gradeOf: (
+    score: number,
+    best: number,
+    clean: boolean,
+  ) => { grade: string; ratio: number; label: string; requiresClean?: boolean };
   state: () => { runId: string | null; orderId: string | null; recentRuns: string[] };
 } {
   const body = fakeElement('body');
@@ -408,6 +423,36 @@ function playWithSlips(run: SortRun, order: SortOrder, slips: number): number {
   return total;
 }
 
+/** 读对规则，但整局第一次遇到冲突/没对上时误收——S 要求整局干净，这一档必须掉出去 */
+function playWithOneWrong(run: SortRun, order: SortOrder): number {
+  let wrongUsed = false;
+  let total = 0;
+  run.rounds.forEach((round, roundIndex) => {
+    const chips = chipsOfRound(round, order.rounds[roundIndex]);
+    let score = 0;
+    let combo = 0;
+    let lives = DATA.scoring.lives;
+    chips.forEach((chip, index) => {
+      if (lives <= 0) return;
+      const inWindow = index >= round.settleFrom;
+      const side = chip.state === 'caliber' || chip.state === 'edge';
+      let action: 'accept' | 'reject';
+      if (chip.state === 'exact') action = 'accept';
+      else if (chip.state === 'conflict' || chip.state === 'mismatch') {
+        action = wrongUsed ? 'reject' : 'accept';
+        wrongUsed = true;
+      } else action = side && inWindow ? 'accept' : 'reject';
+      const result = RULES.outcomeOf(chip, action, combo, inWindow);
+      const next = RULES.applyOutcome(score, combo, lives, result);
+      score = next.score;
+      combo = next.combo;
+      lives = next.lives;
+    });
+    total += score;
+  });
+  return total;
+}
+
 describe('牌面来自冻结语料', () => {
   it('四个牌局、每局两件器物、每件十拍', () => {
     expect(DATA.runs.length).toBeGreaterThanOrEqual(4);
@@ -576,10 +621,29 @@ describe('只认字面拿不到最高档', () => {
     }
   });
 
-  it('盲测里「读懂再收」的 178 分在新 S 线下落在 S 内', () => {
-    // 199 × 88.5% = 176.115，取整后 177——178 够 S，旧线 184 不够
-    expect(Math.ceil(199 * S_RATIO)).toBe(177);
-    expect(178).toBeGreaterThanOrEqual(Math.ceil(199 * S_RATIO));
+  it('S 线抬到 90%：盲测的 178 分不再够 S，175 明确进不去', () => {
+    // 199 × 90% = 179.1，向上取整为 180——178 过不了，粗糙打法的 175 更过不了
+    const sMin = Math.ceil(199 * S_RATIO);
+    expect(sMin).toBe(180);
+    expect(178).toBeLessThan(sMin);
+    expect(175).toBeLessThan(sMin);
+  });
+
+  it('误收一条冲突/没对上：分数与干净度都不允许 S', () => {
+    for (const run of DATA.runs) {
+      for (const order of run.orders) {
+        const sMin = Math.ceil(order.best * S_RATIO);
+        const dirty = playWithOneWrong(run, order);
+        // 页面记的读数与独立复算一致
+        expect(dirty).toBe(order.oneWrong);
+        // 倒扣 6 分、掉一颗心、断连击——误收一条就不该再摸到 S 线
+        expect(dirty).toBeLessThan(sMin);
+        // 分数掉出 S 线之外，干净度这一关再挡一次
+        expect(RULES.gradeOf(dirty, order.best, false).grade).not.toBe('S');
+        expect(RULES.gradeOf(order.best, order.best, true).grade).toBe('S');
+        expect(RULES.gradeOf(order.best, order.best, false).grade).not.toBe('S');
+      }
+    }
   });
 
   it('兑现窗口里收旁证必须比中段收更划算——最优解奖励「多看一眼位置」', () => {
@@ -618,6 +682,24 @@ describe('只认字面拿不到最高档', () => {
     expect(result.combo).toBe('reset');
     expect(result.text).toContain('超时');
   });
+
+  it('收下冲突/没对上：倒扣 6 分、掉一颗心、连击断', () => {
+    const round = DATA.runs[0].rounds[0];
+    const wrong = round.chips.filter(
+      (chip) => chip.state === 'conflict' || chip.state === 'mismatch',
+    );
+    expect(wrong.length).toBeGreaterThan(0);
+    for (const chip of wrong) {
+      const result = RULES.outcomeOf(chip, 'accept', 2, true);
+      expect(result.points).toBe(-DATA.scoring.wrongPenalty);
+      expect(result.points).toBe(-6);
+      expect(result.life).toBe(-1);
+      expect(result.combo).toBe('reset');
+      expect(result.verdict).toBe('harm');
+      expect(result.text).toContain('倒扣 6 分');
+      expect(result.text).toContain('掉一颗心');
+    }
+  });
 });
 
 describe('文案说对了', () => {
@@ -641,7 +723,8 @@ describe('文案说对了', () => {
 
   it('页面脚本里窗口文案是行动语言，不是「不会再发命中」', () => {
     const source = fs.readFileSync(SORT_SCRIPT, 'utf8');
-    expect(source).toContain('现在收相容不亏倍率');
+    expect(source).toContain('现在收不亏倍率');
+    expect(source).toContain('这拍多给 0.8 秒');
     expect(source).not.toContain('这三拍不会再发命中');
     expect(source).toContain('换下一件 · 连击清零');
     expect(source).toContain('这拍 ·');
@@ -734,8 +817,24 @@ describe('文案说对了', () => {
     expect(source).toContain('已到底 · 点「开始」开局');
   });
 
-  it('节拍收紧，但判定停留时间不缩短', () => {
+  it('节拍跟着难度走：中段基础不变，收尾三拍与长文案加时', () => {
     expect(RULES.chipMs).toEqual([2600, 2300]);
     expect(RULES.verdictMs).toBe(1200);
+    expect(RULES.windowExtraMs).toBe(800);
+    // 中段短文案：仍是最紧的 2.6 / 2.3 秒
+    expect(RULES.beatMsFor(0, false, 2, 10)).toBe(2600);
+    expect(RULES.beatMsFor(1, false, 2, 10)).toBe(2300);
+    // 收尾窗口：同一张牌多给 0.8 秒思考「相容还是冲突」
+    expect(RULES.beatMsFor(0, true, 2, 10)).toBe(3400);
+    expect(RULES.beatMsFor(1, true, 2, 10)).toBe(3100);
+    // 值折成两行（标签 1 行 + 值 2 行 = 3 行）再加 0.8 秒
+    expect(RULES.beatMsFor(0, false, 3, 12)).toBe(3400);
+    expect(RULES.beatMsFor(0, true, 3, 12)).toBe(4200);
+    // 28 字长专场名按字数加时：中段 4.04 秒、窗口 4.84 秒
+    expect(RULES.beatMsFor(0, false, 2, 32)).toBe(2600 + (32 - RULES.idleChars) * RULES.charExtraMs);
+    expect(RULES.beatMsFor(0, true, 2, 32)).toBe(3400 + (32 - RULES.idleChars) * RULES.charExtraMs);
+    // 再长的文案封顶 1.8 秒加时
+    expect(RULES.beatMsFor(1, true, 6, 80)).toBe(2300 + 800 + RULES.maxTextExtraMs);
+    expect(RULES.beatMsFor(1, true, 8, 120)).toBe(2300 + 800 + RULES.maxTextExtraMs);
   });
 });

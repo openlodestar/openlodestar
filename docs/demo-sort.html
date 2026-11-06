@@ -71,17 +71,16 @@ a{color:var(--gold)}
 #combo-count{font-size:.72rem;color:rgba(244,238,226,.6)}
 .combo-track{position:relative;display:block;width:100%;min-width:88px;max-width:220px;height:6px;border-radius:99px;background:rgba(244,238,226,.14);overflow:hidden}
 .combo-fill{position:absolute;inset:0 auto 0 0;width:0%;border-radius:99px;background:linear-gradient(90deg,#6FA8DC,#E9C46A);transition:width .16s linear}
-.combo-track.is-frozen{animation:frozen .46s ease-out}
 .combo-track.is-broken{animation:broken .4s ease-out}
-@keyframes frozen{0%{box-shadow:0 0 0 2px rgba(111,168,220,.9),0 0 14px rgba(111,168,220,.8)}100%{box-shadow:0 0 0 0 rgba(111,168,220,0)}}
 @keyframes broken{0%{box-shadow:0 0 0 2px rgba(226,112,95,.85),0 0 14px rgba(226,112,95,.7)}100%{box-shadow:0 0 0 0 rgba(226,112,95,0)}}
 .combo-track .notch{position:absolute;top:0;bottom:0;width:1px;background:rgba(8,16,32,.65)}
 .hearts{display:flex;gap:3px;font-size:1.05rem;line-height:1;color:var(--mismatch);letter-spacing:.02em}
 .hearts .is-lost{color:rgba(244,238,226,.18)}
 .round-tag{flex:0 0 auto;margin:0;font-size:.7rem;color:rgba(244,238,226,.62);text-align:center;letter-spacing:.04em}
+.round-tag.is-window{color:var(--gold)}
 
-/* ---- 舞台：上卡片、下证据，中间是甩的跑道 ---- */
-.stage{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden}
+/* ---- 舞台：上下留白均分，宽屏也不空 ---- */
+.stage{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:12px;position:relative;overflow:hidden}
 
 .lot{
   flex:0 0 auto;margin:0 auto;width:100%;max-width:520px;border-radius:16px;padding:10px 14px 12px;
@@ -97,57 +96,55 @@ a{color:var(--gold)}
 .lot-row.is-hit dd::after{content:"  命中";font-size:.66rem;color:#1F6B45;font-weight:600;letter-spacing:.06em}
 .lot.is-harm{box-shadow:0 0 0 2px rgba(226,112,95,.85),0 10px 26px rgba(0,0,0,.34)}
 
-/* 中间跑道：虚线是甩的方向，判定结果落在正中 */
-.runway{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center}
-.runway::before{
-  content:"";position:absolute;left:50%;top:16px;bottom:4px;width:1px;transform:translateX(-50%);
-  background:repeating-linear-gradient(180deg,rgba(244,238,226,.16) 0 5px,transparent 5px 13px);
-}
-.runway::after{
-  content:"";position:absolute;left:50%;top:3px;transform:translateX(-50%);
-  border-left:5px solid transparent;border-right:5px solid transparent;
-  border-bottom:7px solid rgba(244,238,226,.22);
-}
-.verdict-line{
-  position:relative;z-index:2;margin:0;padding:3px 12px;border-radius:99px;
-  text-align:center;font-size:clamp(.88rem,3vw,1.05rem);font-weight:640;line-height:1.35;
-  letter-spacing:.01em;color:rgba(244,238,226,.72);transition:color .1s;
-}
-.verdict-line:not(:empty){background:rgba(6,13,28,.82);box-shadow:0 6px 18px rgba(0,0,0,.35)}
-.verdict-line.tone-hit{color:var(--hit)}
-.verdict-line.tone-caliber{color:var(--caliber)}
-.verdict-line.tone-edge{color:var(--edge)}
-.verdict-line.tone-conflict{color:var(--conflict)}
-.verdict-line.tone-mismatch{color:var(--mismatch)}
-.verdict-line.tone-unknown{color:var(--unknown)}
-
-/* 发牌区：计时条 + 证据卡，贴着拇指 */
-.beat{flex:0 0 auto;position:relative;display:flex;flex-direction:column;align-items:center;gap:7px;touch-action:none;padding-bottom:2px}
-.timer-row{display:flex;align-items:center;gap:8px;width:min(100%,320px)}
+/* 发牌区：计时条 + 证据卡 + 判定（贴着拇指，判定就在牌下面） */
+.beat{flex:0 0 auto;position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;touch-action:none;padding-bottom:2px}
+.timer-row{display:flex;align-items:center;gap:8px;width:min(100%,340px);border-radius:99px}
 .timer{flex:1;height:6px;border-radius:99px;background:rgba(244,238,226,.14);overflow:hidden}
 .timer-fill{display:block;height:100%;width:100%;border-radius:99px;background:linear-gradient(90deg,#46C98A,#E9C46A);box-shadow:0 0 8px rgba(70,201,138,.45)}
 .timer-fill.is-low{background:linear-gradient(90deg,#E4A93F,#E2705F);box-shadow:0 0 10px rgba(226,112,95,.6)}
 .timer-num{font-size:.68rem;color:rgba(244,238,226,.55);font-variant-numeric:tabular-nums;min-width:2.4em;text-align:right}
 .timer-num.is-low{color:var(--mismatch);font-weight:700}
 .chip{
-  position:relative;display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:14px;
+  position:relative;display:flex;align-items:center;gap:10px;padding:11px 16px;border-radius:14px;
   background:linear-gradient(180deg,#FFFDF8,#EFE7D8);color:var(--ink);
   box-shadow:0 8px 20px rgba(0,0,0,.3);cursor:grab;touch-action:none;user-select:none;
-  max-width:min(94vw,520px);min-width:min(62vw,240px);will-change:transform;
+  width:min(92vw,480px);will-change:transform;
 }
 .chip:active{cursor:grabbing}
 .chip.is-dragging{transition:none}
 .chip.is-settling{transition:transform .12s ease-out}
+.chip.is-shake{animation:chip-shake .3s ease-out}
+.chip.is-hit-glow{animation:chip-glow .5s ease-out}
+@keyframes chip-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}60%{transform:translateX(5px)}}
+@keyframes chip-glow{0%{box-shadow:0 0 0 0 rgba(70,201,138,.9),0 8px 20px rgba(0,0,0,.3)}60%{box-shadow:0 0 0 6px rgba(70,201,138,.45),0 8px 26px rgba(0,0,0,.3)}100%{box-shadow:0 0 0 0 rgba(70,201,138,0),0 8px 20px rgba(0,0,0,.3)}}
 .chip-slot{font-size:.68rem;letter-spacing:.1em;color:#7B7160;white-space:nowrap;flex:0 0 auto}
 .chip-body{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
 .chip-claim{display:flex;gap:6px;align-items:baseline;font-size:.72rem;color:#8A7F6C;min-width:0}
 .chip-claim em{font-style:normal;font-size:.6rem;letter-spacing:.08em;padding:0 4px;border-radius:4px;background:#E7DCC6;color:#7A6E58;flex:0 0 auto}
-.chip-claim span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip-claim span{white-space:normal;overflow-wrap:anywhere;line-height:1.35}
 .chip-now{display:flex;gap:6px;align-items:baseline;min-width:0}
 .chip-now em{font-style:normal;font-size:.6rem;letter-spacing:.08em;padding:0 4px;border-radius:4px;background:#2E3A4E;color:#EFE7D8;flex:0 0 auto}
 .chip-value{font-size:clamp(.94rem,3vw,1.1rem);font-weight:650;overflow-wrap:anywhere}
 .chip-tag{font-size:.6rem;padding:1px 5px;border-radius:99px;background:#EDE2C8;color:#7A5A16;white-space:nowrap;flex:0 0 auto}
 .beat-hint{margin:0;font-size:.68rem;color:rgba(244,238,226,.42);letter-spacing:.08em}
+
+/* 判定：就在牌下面，停留到下一拍判定为止（至少 1.2 秒） */
+.verdict-line{
+  margin:0;min-height:2.7em;padding:2px 12px;border-radius:99px;max-width:min(94vw,480px);
+  display:flex;align-items:center;gap:6px;justify-content:center;flex-wrap:wrap;
+  text-align:center;font-size:clamp(.86rem,3vw,1rem);font-weight:640;line-height:1.35;
+  letter-spacing:.01em;color:rgba(244,238,226,.78);transition:color .1s;
+}
+.verdict-line #verdict-label{font-size:.64rem;letter-spacing:.12em;color:rgba(244,238,226,.42);flex:0 0 auto}
+.verdict-line.tone-hit{color:var(--hit)}
+.verdict-line.tone-caliber{color:var(--caliber)}
+.verdict-line.tone-edge{color:var(--edge)}
+.verdict-line.tone-conflict{color:var(--conflict)}
+.verdict-line.tone-mismatch,.verdict-line.tone-timeout{color:var(--mismatch)}
+.verdict-line.tone-unknown{color:var(--unknown)}
+.verdict-line.tone-hint{color:var(--gold)}
+.timer-row.is-timeout{animation:timeout-flash .5s ease-out}
+@keyframes timeout-flash{0%{background:rgba(226,112,95,.5);box-shadow:0 0 0 3px rgba(226,112,95,.55)}100%{background:transparent;box-shadow:0 0 0 0 rgba(226,112,95,0)}}
 
 /* ---- 动作条 ---- */
 .controls{flex:0 0 auto;display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -169,11 +166,9 @@ a{color:var(--gold)}
 .fx{position:absolute;inset:0;pointer-events:none;z-index:5}
 .fx-spark{position:absolute;width:7px;height:7px;border-radius:2px;background:var(--gold);animation:spark .52s ease-out forwards}
 .fx-float{position:absolute;font-weight:750;font-size:1rem;color:var(--gold);text-shadow:0 2px 10px rgba(0,0,0,.6);animation:float-up .62s ease-out forwards;white-space:nowrap}
-.fx-burst{position:absolute;border-radius:50%;border:2px solid var(--hit);animation:burst .42s ease-out forwards}
 .fx-vignette{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 120px 30px rgba(226,112,95,.7);opacity:0;animation:vignette .55s ease-out;z-index:7}
 @keyframes spark{from{opacity:1;transform:translate(0,0) scale(1)}to{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.3)}}
 @keyframes float-up{from{opacity:1;transform:translate(-50%,0)}to{opacity:0;transform:translate(-50%,-42px)}}
-@keyframes burst{from{opacity:.9;transform:translate(-50%,-50%) scale(.4)}to{opacity:0;transform:translate(-50%,-50%) scale(2.6)}}
 @keyframes vignette{0%{opacity:0}20%{opacity:1}100%{opacity:0}}
 @keyframes chip-in{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
 .chip.is-entering{animation:chip-in .16s ease-out}
@@ -187,6 +182,7 @@ a{color:var(--gold)}
   width:100%;max-width:560px;max-height:100%;display:flex;flex-direction:column;gap:12px;
   border-radius:18px;padding:18px;border:1px solid rgba(244,238,226,.18);
   background:linear-gradient(180deg,rgba(22,38,68,.98),rgba(10,20,40,.98));box-shadow:0 24px 60px rgba(0,0,0,.5);
+  overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
 }
 .sheet-kicker{margin:0;font-size:.68rem;letter-spacing:.22em;color:rgba(244,238,226,.5)}
 .sheet h1,.sheet h2{margin:0;font-size:clamp(1.25rem,4.4vw,1.7rem);letter-spacing:.02em}
@@ -213,6 +209,7 @@ a{color:var(--gold)}
 .grade{font-size:clamp(2.2rem,9vw,3rem);line-height:1;color:var(--gold);font-weight:800;letter-spacing:-.02em}
 .result-score{margin:0;font-size:1.05rem;color:var(--cream);font-variant-numeric:tabular-nums}
 .result-score span{color:var(--gold);font-weight:700}
+.order-note{margin:2px 0 0;font-size:.7rem;color:rgba(244,238,226,.55);line-height:1.45}
 .result-stats{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none}
 .result-stats li{font-size:.72rem;padding:3px 8px;border-radius:99px;background:rgba(244,238,226,.1);color:rgba(244,238,226,.82)}
 .result-stats li b{color:var(--cream)}
@@ -227,7 +224,10 @@ a{color:var(--gold)}
 .rev-meta .rev-state{font-weight:680;margin-right:5px}
 .rev-act{margin:0;font-size:.72rem;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .review-list li.is-good .rev-act{color:var(--hit)}
+.review-list li.is-loss .rev-act{color:var(--gold)}
 .review-list li.is-bad .rev-act{color:var(--mismatch)}
+.rev-flag{font-size:.62rem;padding:1px 5px;border-radius:99px;background:rgba(70,201,138,.18);color:var(--hit)}
+.rev-flag.is-loss{background:rgba(233,196,106,.16);color:var(--gold)}
 .result-actions{display:flex;gap:10px;align-items:center}
 .result-actions button,.result-actions a{
   flex:1;min-height:48px;display:flex;align-items:center;justify-content:center;border-radius:12px;
@@ -235,6 +235,18 @@ a{color:var(--gold)}
   font:inherit;font-size:.9rem;font-weight:600;text-decoration:none;cursor:pointer;
 }
 .result-actions button:hover,.result-actions a:hover{background:rgba(244,238,226,.16)}
+
+/* ---- 宽屏：牌与器物卡一起放大，不留一大片空 ---- */
+@media (min-width:900px){
+  :root{--max:860px}
+  .lot{max-width:600px;padding:14px 20px 16px}
+  .lot-rows dd{font-size:1.06rem}
+  .chip{width:560px;padding:14px 20px}
+  .chip-value{font-size:1.2rem}
+  .timer-row{width:420px}
+  .act{min-height:62px;font-size:1.05rem}
+  .beat-hint{font-size:.74rem}
+}
 
 /* ---- 窄屏 ---- */
 @media (max-width:560px){
@@ -249,6 +261,14 @@ a{color:var(--gold)}
 @media (max-height:640px){
   .lot-kicker{display:none}
   .beat-hint{display:none}
+  .stage{gap:8px}
+}
+@media (max-height:600px){
+  .overlay{padding:10px}
+  .sheet{padding:12px;gap:8px}
+  .sheet .lead{font-size:.84rem}
+  .rule-table{margin-top:4px}
+  .rule-table th,.rule-table td{padding:4px 5px}
 }
 
 /* ---- 减少动效：功能一件不少，只是不再动 ---- */
@@ -297,12 +317,8 @@ a{color:var(--gold)}
       </dl>
     </article>
 
-    <div class="runway">
-      <p class="verdict-line" id="verdict-line" aria-live="polite"></p>
-    </div>
-
     <div class="beat" id="beat">
-      <div class="timer-row">
+      <div class="timer-row" id="timer-row">
         <div class="timer" aria-hidden="true"><span class="timer-fill" id="timer-fill"></span></div>
         <span class="timer-num" id="timer-num" aria-hidden="true">3.4</span>
       </div>
@@ -314,6 +330,7 @@ a{color:var(--gold)}
         </span>
         <span class="chip-tag" id="chip-tag" hidden>演示</span>
       </div>
+      <p class="verdict-line" id="verdict-line" aria-live="polite" hidden><span id="verdict-label"></span><span id="verdict-text"></span></p>
       <p class="beat-hint" id="beat-hint">上甩收下 · 下甩放走</p>
     </div>
 
@@ -330,8 +347,8 @@ a{color:var(--gold)}
   <div class="sheet">
     <p class="sheet-kicker">OpenLodestar</p>
     <h1 id="start-title">证据分拣</h1>
-    <p class="lead">两件器物、二十条说法。能直接当支撑的收下，其余放走。</p>
-    <div class="keys"><span><b>↑</b> 收下</span><span><b>↓</b> 放走</span><span>触屏：上甩 / 下甩</span><span><b>空格</b> 开始</span></div>
+    <p class="lead">两件器物、二十条说法。完全对上就收下，连击会翻倍；说法不同（口径/边缘相容）先放走，等每件器物最后三拍再收；冲突、没对上、无从判断一律放走。</p>
+    <div class="keys"><span><b>↑</b> 收下</span><span><b>↓</b> 放走</span><span>触屏：上甩 / 下甩（34px 以上）</span><span><b>空格</b> 开始</span><span>点卡片不算数</span></div>
     <button class="start-btn" id="btn-start" type="button">开始</button>
     <details>
       <summary>分值怎么算的</summary>
@@ -354,6 +371,7 @@ a{color:var(--gold)}
       <div>
         <p class="result-score"><span id="final-score">0</span> / <span id="perfect-score">0</span></p>
         <p id="grade-label" style="font-size:.8rem"></p>
+        <p id="order-note" class="order-note"></p>
       </div>
     </div>
     <ul class="result-stats" id="result-stats"></ul>

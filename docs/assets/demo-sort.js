@@ -7,10 +7,12 @@
  * `demo-sort-data.js` 的。本文件只查表，不改判、不放宽。
  *
  * 结算表全部来自数据里的 scoring：
- *   收下「完全对上」= 10 × 倍率；放走它 = 漏判（0 分、连击归零）
- *   收下相容/边缘 = 小分，连击冻结；放走 = 小分，连击 +1
- *   收下冲突/没对上 = 掉一颗心、连击归零；放走 = 小分，连击 +1
- *   超时 = 当作放走，但 0 分且连击归零
+ *   收下「完全对上」= 10 × 倍率（倍率只看连续命中：连击 0 是 ×1、1 是 ×2、2 起 ×3）
+ *   收下相容/边缘 = 固定分，但连击归零（中段收会打断冲锋）
+ *   放走相容/边缘 = 0，连击不变（中段放是小亏，收尾放是白丢）
+ *   收下冲突/没对上 = 掉一颗心、连击归零；放走 = +1
+ *   超时 = 0 分且连击归零
+ * 每件器物的最后三拍不发命中，这三拍是「兑现窗口」，收旁证不亏倍率。
  */
 (function () {
   'use strict';
@@ -21,6 +23,9 @@
   var R = DATA.scoring;
   var CHIP_MS = [3200, 2800];
   var SWIPE = 34;
+  /** 判定文字至少停留这么久，再发下一张牌（读得完一行再走） */
+  var VERDICT_MS = 1200;
+  var VERDICT_MS_REDUCED = 900;
   var reduceQuery =
     window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -52,22 +57,23 @@
     var mult = multiplierOf(combo);
     if (action === 'timeout') {
       return {
-        points: 0,
+        points: R.timeoutPoints,
         combo: 'reset',
         life: 0,
-        tone: meta.tone,
-        text: meta.label + ' · 超时，连击断',
+        tone: 'timeout',
+        text: '超时 · 这一拍没判，连击断',
         verdict: 'timeout',
       };
     }
     if (action === 'accept') {
       if (chip.state === 'exact') {
+        var hit = Math.round(R.hitBase * mult);
         return {
-          points: Math.round(R.hitBase * mult),
+          points: hit,
           combo: 'up',
           life: 0,
           tone: 'hit',
-          text: meta.label + ' · 命中 +' + Math.round(R.hitBase * mult),
+          text: meta.label + ' · 命中 +' + hit + '（×' + mult + '）',
           verdict: 'hit',
         };
       }
@@ -77,7 +83,6 @@
       var parts = [meta.label + ' · ' + ACCEPT_TEXT[chip.state]];
       if (points > 0) parts.push('+' + points);
       if (life < 0) parts.push('掉一颗心');
-      if (mode === 'freeze') parts.push('连击冻结');
       if (mode === 'reset') parts.push('连击断');
       return {
         points: points,
@@ -85,7 +90,7 @@
         life: life,
         tone: life < 0 ? 'mismatch' : meta.tone,
         text: parts.join(' · '),
-        verdict: life < 0 ? 'harm' : 'side',
+        verdict: life < 0 ? 'harm' : points > 0 ? 'side' : 'flat',
       };
     }
     // 放走
@@ -95,16 +100,20 @@
         combo: 'reset',
         life: 0,
         tone: 'mismatch',
-        text: meta.label + ' · 漏判，连击断',
+        text: meta.label + ' · 漏判了，连击断',
         verdict: 'miss',
       };
     }
+    var gain = R.reject[chip.state];
+    var dropParts = [meta.label + ' · 放走'];
+    if (gain > 0) dropParts.push('+' + gain);
+    if (chip.state === 'caliber' || chip.state === 'edge') dropParts.push('没拿分');
     return {
-      points: R.reject[chip.state],
-      combo: 'up',
+      points: gain,
+      combo: 'keep',
       life: 0,
-      tone: 'hit',
-      text: meta.label + ' · 放走 +' + R.reject[chip.state],
+      tone: meta.tone,
+      text: dropParts.join(' · '),
       verdict: 'drop',
     };
   }
@@ -121,6 +130,8 @@
 
   var SORT = {
     phase: 'idle',
+    order: null,
+    sequence: [0, 1],
     roundIndex: 0,
     chipIndex: 0,
     score: 0,
@@ -128,6 +139,8 @@
     lives: R.lives,
     maxCombo: 0,
     hits: 0,
+    misses: 0,
+    timeouts: 0,
     log: [],
     locked: false,
     deadline: 0,
@@ -138,6 +151,8 @@
     endedAt: 0,
     chip: null,
     drag: null,
+    lastOrder: -1,
+    lastFirstRound: -1,
   };
 
   var dom = {
@@ -156,8 +171,11 @@
     chipTag: document.getElementById('chip-tag'),
     timerFill: document.getElementById('timer-fill'),
     timerNum: document.getElementById('timer-num'),
+    timerRow: document.getElementById('timer-row'),
     comboTrack: document.getElementById('combo-fill').parentNode,
     verdict: document.getElementById('verdict-line'),
+    verdictLabel: document.getElementById('verdict-label'),
+    verdictText: document.getElementById('verdict-text'),
     fx: document.getElementById('fx'),
     accept: document.getElementById('btn-accept'),
     reject: document.getElementById('btn-reject'),
@@ -171,6 +189,7 @@
     finalScore: document.getElementById('final-score'),
     perfectScore: document.getElementById('perfect-score'),
     resultStats: document.getElementById('result-stats'),
+    orderNote: document.getElementById('order-note'),
     reviewBody: document.getElementById('review-body'),
     again: document.getElementById('btn-again'),
   };
@@ -178,12 +197,23 @@
   var SLOT_IDS = ['auctionHouse', 'dateText', 'sessionName'];
 
   function round() {
-    return DATA.rounds[SORT.roundIndex];
+    return DATA.rounds[SORT.sequence[SORT.roundIndex]];
+  }
+
+  function orderOfRound() {
+    return SORT.order.rounds[SORT.roundIndex];
+  }
+
+  /** 当前这一拍在「牌面数组」里的位置（牌序只改先后，不改牌面） */
+  function chipIndexOfBeat() {
+    return orderOfRound()[SORT.chipIndex];
   }
 
   function currentChip() {
     var r = round();
-    return r ? r.chips[SORT.chipIndex] : null;
+    if (!r) return null;
+    var index = chipIndexOfBeat();
+    return index === undefined ? null : r.chips[index];
   }
 
   function now() {
@@ -197,9 +227,9 @@
   function renderHud(bump) {
     dom.score.textContent = String(SORT.score);
     var mult = multiplierOf(SORT.combo);
-    dom.mult.textContent = '×' + mult.toFixed(1);
+    dom.mult.textContent = '×' + mult;
     dom.comboCount.textContent = '连击 ' + SORT.combo;
-    dom.comboFill.style.width = Math.min(100, (SORT.combo / (R.multiplier.per * 4)) * 100) + '%';
+    dom.comboFill.style.width = Math.min(100, (SORT.combo / 3) * 100) + '%';
     dom.mult.classList.toggle('is-hot', mult >= 2);
     var heartNodes = dom.hearts.children;
     for (var i = 0; i < heartNodes.length; i += 1) {
@@ -218,9 +248,14 @@
 
   function renderRoundTag() {
     var r = round();
+    var beat = SORT.chipIndex + 1;
+    var total = r.chips.length;
+    var inWindow = SORT.chipIndex >= r.settleFrom;
     dom.roundTag.textContent =
       '第 ' + (SORT.roundIndex + 1) + '/' + DATA.rounds.length + ' 件 · ' +
-      (SORT.chipIndex + 1) + '/' + r.chips.length;
+      '第 ' + beat + '/' + total + ' 拍' +
+      (inWindow ? ' · 收尾窗口：这三拍不会再发命中' : '');
+    dom.roundTag.classList.toggle('is-window', inWindow);
   }
 
   function renderLot() {
@@ -236,6 +271,7 @@
     var chip = currentChip();
     var r = round();
     SORT.chip = chip;
+    if (!chip) return;
     dom.chipSlot.textContent = chip.short;
     dom.chipClaim.textContent = r.lot.values[chip.slot];
     dom.chipValue.textContent = chip.value;
@@ -243,7 +279,7 @@
     dom.chip.style.transition = 'none';
     dom.chip.style.transform = 'translateY(0)';
     dom.chip.style.opacity = '1';
-    dom.chip.classList.remove('is-dragging', 'is-settling');
+    dom.chip.classList.remove('is-dragging', 'is-settling', 'is-hit-glow', 'is-shake');
     if (!reduced()) {
       dom.chip.classList.remove('is-entering');
       void dom.chip.offsetWidth;
@@ -257,8 +293,11 @@
   }
 
   function setVerdict(text, tone) {
-    dom.verdict.textContent = text;
+    dom.verdictLabel.textContent = text ? '上一拍 ·' : '';
+    dom.verdictText.textContent = text || '';
     dom.verdict.className = 'verdict-line' + (tone ? ' tone-' + tone : '');
+    // 不隐藏：留出固定高度，判定出现时整块不会跳
+    dom.verdict.hidden = false;
   }
 
   // ---- 特效 ----
@@ -314,22 +353,6 @@
     }
   }
 
-  function ring(color) {
-    if (reduced()) return;
-    var chipRect = dom.chip.getBoundingClientRect();
-    var stageRect = dom.stage.getBoundingClientRect();
-    var node = document.createElement('span');
-    node.className = 'fx-burst';
-    node.style.borderColor = color;
-    node.style.left = chipRect.left - stageRect.left + chipRect.width / 2 + 'px';
-    node.style.top = chipRect.top - stageRect.top + chipRect.height / 2 + 'px';
-    node.style.width = node.style.height = '90px';
-    dom.fx.appendChild(node);
-    window.setTimeout(function () {
-      if (node.parentNode) node.parentNode.removeChild(node);
-    }, 460);
-  }
-
   function damageFlash() {
     if (reduced()) return;
     var node = document.createElement('div');
@@ -340,6 +363,22 @@
     }, 520);
   }
 
+  function shakeChip() {
+    if (reduced()) return;
+    dom.chip.classList.remove('is-shake');
+    void dom.chip.offsetWidth;
+    dom.chip.classList.add('is-shake');
+    window.setTimeout(function () {
+      dom.chip.classList.remove('is-shake');
+    }, 320);
+  }
+
+  /** 甩得不够 / 点了卡片：立刻给一句否定反馈，计时不停 */
+  function refuseFeedback(text) {
+    setVerdict(text, 'hint');
+    shakeChip();
+  }
+
   var TONE_COLOR = {
     hit: '#46C98A',
     caliber: '#6FA8DC',
@@ -347,6 +386,8 @@
     conflict: '#E4A93F',
     mismatch: '#E2705F',
     unknown: '#9AA0AA',
+    timeout: '#E2705F',
+    hint: '#E9C46A',
   };
 
   // ---- 计时 ----
@@ -390,9 +431,11 @@
     if (SORT.phase !== 'playing' || SORT.locked) return;
     var chip = SORT.chip;
     if (!chip) return;
+    var inWindow = SORT.chipIndex >= round().settleFrom;
+    var beforeCombo = SORT.combo;
     SORT.locked = true;
     stopTimer();
-    dom.timerFill.style.width = '0%';
+    dom.timerFill.style.width = action === 'timeout' ? '0%' : dom.timerFill.style.width;
     dom.timerNum.textContent = '0.0';
     dom.timerFill.classList.remove('is-low');
     dom.timerNum.classList.remove('is-low');
@@ -405,6 +448,8 @@
     SORT.combo = next.combo;
     SORT.lives = next.lives;
     if (result.verdict === 'hit') SORT.hits += 1;
+    if (result.verdict === 'miss') SORT.misses += 1;
+    if (action === 'timeout') SORT.timeouts += 1;
     SORT.log.push({
       index: SORT.log.length + 1,
       round: SORT.roundIndex + 1,
@@ -417,7 +462,9 @@
       action: action,
       points: result.points,
       life: result.life,
+      comboBefore: beforeCombo,
       comboAfter: SORT.combo,
+      inWindow: inWindow,
     });
 
     if (chip.state === 'exact' && action === 'accept') {
@@ -431,8 +478,8 @@
         dom.lot.classList.remove('is-harm');
       }, 520);
     }
-    if (result.combo === 'freeze') pulse(dom.comboTrack, 'is-frozen');
     if (result.combo === 'reset' && action !== 'timeout') pulse(dom.comboTrack, 'is-broken');
+    if (action === 'timeout') pulse(dom.timerRow, 'is-timeout');
 
     renderHud(result.points > 0);
     setVerdict(result.text, result.tone);
@@ -440,13 +487,15 @@
     var color = TONE_COLOR[result.tone] || '#E9C46A';
     if (result.verdict === 'hit') {
       particles(color);
-      ring(color);
       floatText('+' + result.points, color);
+      dom.chip.classList.add('is-hit-glow');
     } else if (result.verdict === 'harm') {
       damageFlash();
       floatText('−1 ♥', '#E2705F');
     } else if (result.points > 0) {
       floatText('+' + result.points, color);
+    } else if (action === 'timeout') {
+      floatText('超时', '#E2705F');
     }
 
     if (!reduced()) {
@@ -460,7 +509,7 @@
       dom.chip.style.opacity = '0';
     }
 
-    window.setTimeout(nextBeat, reduced() ? 90 : 300);
+    window.setTimeout(nextBeat, reduced() ? VERDICT_MS_REDUCED : VERDICT_MS);
   }
 
   function nextBeat() {
@@ -478,21 +527,34 @@
       }
       SORT.roundIndex += 1;
       SORT.chipIndex = 0;
+      SORT.combo = 0;
+      renderHud(false);
       renderLot();
-      renderRoundTag();
-      setVerdict('换一件', 'hit');
-    } else {
-      renderRoundTag();
-      setVerdict('', '');
     }
+    renderRoundTag();
     renderChip();
     armTimer(CHIP_MS[Math.min(SORT.roundIndex, CHIP_MS.length - 1)]);
   }
 
   // ---- 开始与结束 ----
 
+  /** 抽一种牌序、抽一个先后顺序，保证与上一局不同 */
+  function pickRun() {
+    var total = DATA.orders.length;
+    var orderIndex = Math.floor(Math.random() * total);
+    if (total > 1 && orderIndex === SORT.lastOrder) orderIndex = (orderIndex + 1) % total;
+    var first = Math.random() < 0.5 ? 1 : 0;
+    if (DATA.rounds.length > 1 && first === SORT.lastFirstRound) first = 1 - first;
+    SORT.lastOrder = orderIndex;
+    SORT.lastFirstRound = first;
+    SORT.order = DATA.orders[orderIndex];
+    SORT.sequence = DATA.rounds.map(function (_, index) { return index; });
+    if (first === 1 && SORT.sequence.length > 1) SORT.sequence.reverse();
+  }
+
   function startGame() {
     if (SORT.phase === 'playing') return;
+    pickRun();
     SORT.phase = 'playing';
     SORT.roundIndex = 0;
     SORT.chipIndex = 0;
@@ -501,6 +563,8 @@
     SORT.lives = R.lives;
     SORT.maxCombo = 0;
     SORT.hits = 0;
+    SORT.misses = 0;
+    SORT.timeouts = 0;
     SORT.log = [];
     SORT.locked = false;
     SORT.chip = null;
@@ -529,19 +593,33 @@
     dom.again.focus({ preventScroll: true });
   }
 
-  function gradeOf(score) {
+  function gradeOf(score, best) {
     for (var i = 0; i < DATA.grades.length; i += 1) {
-      if (score >= DATA.grades[i].min) return DATA.grades[i];
+      if (best > 0 && score >= best * DATA.grades[i].ratio) return DATA.grades[i];
     }
     return DATA.grades[DATA.grades.length - 1];
   }
 
+  /** 这一拍按公开规则该怎么打：收下命中，收尾窗口里收旁证，其余放走 */
+  function ruleWants(item) {
+    if (item.state === 'exact') return 'accept';
+    if (item.state === 'caliber' || item.state === 'edge') {
+      return item.inWindow ? 'accept' : 'reject';
+    }
+    return 'reject';
+  }
+
   function renderResult(reason) {
-    var grade = gradeOf(SORT.score);
+    var best = SORT.order ? SORT.order.best : 0;
+    var grade = gradeOf(SORT.score, best);
     dom.grade.textContent = grade.grade;
     dom.gradeLabel.textContent = reason ? reason + ' · ' + grade.label : grade.label;
     dom.finalScore.textContent = String(SORT.score);
-    dom.perfectScore.textContent = String(DATA.perfectScore);
+    dom.perfectScore.textContent = String(best);
+    dom.orderNote.textContent = SORT.order
+      ? '这一牌序最优 ' + best + ' 分；只认字面相同最多 ' + SORT.order.literal +
+        ' 分，见旁证就收 ' + SORT.order.eager + ' 分。'
+      : '';
     var seconds = Math.max(1, Math.round((SORT.endedAt - SORT.startedAt) / 1000));
     var used = {};
     for (var i = 0; i < SORT.log.length; i += 1) {
@@ -549,6 +627,8 @@
     }
     var stats = [
       '命中 <b>' + SORT.hits + '</b>',
+      '漏判 <b>' + SORT.misses + '</b>',
+      '超时 <b>' + SORT.timeouts + '</b>',
       '最高连击 <b>' + SORT.maxCombo + '</b>',
       '用时 <b>' + seconds + 's</b>',
     ];
@@ -566,20 +646,22 @@
     var rows = SORT.log
       .map(function (item) {
         var meta = DATA.states[item.state];
-        var good = (item.state === 'exact' && item.action === 'accept') ||
-          (item.state !== 'exact' && item.action === 'reject');
-        var cls = item.life < 0 || (item.state === 'exact' && item.action !== 'accept')
-          ? 'is-bad'
-          : good ? 'is-good' : '';
+        var want = ruleWants(item);
         var actText = item.action === 'accept' ? '收下' : item.action === 'timeout' ? '超时' : '放走';
         var score = item.points > 0 ? '+' + item.points : item.life < 0 ? '−1♥' : '0';
+        var good = item.action === want;
+        var cls = item.life < 0 || (item.state === 'exact' && item.action !== 'accept')
+          ? 'is-bad'
+          : good ? 'is-good' : 'is-loss';
         return (
           '<li class="' + cls + '">' +
           '<p class="rev-val"><span class="rev-idx">' + item.index + '</span>' +
           '<span class="rev-slot">' + item.short + '</span>' + escapeHtml(item.value) + '</p>' +
           '<p class="rev-meta"><span class="rev-state" style="color:' + TONE_COLOR[meta.tone] + '">' +
           meta.label + '</span>' + escapeHtml(item.note) + '</p>' +
-          '<p class="rev-act">' + actText + ' <b>' + score + '</b></p>' +
+          '<p class="rev-act">' + actText + ' <b>' + score + '</b> ' +
+          (good ? '<span class="rev-flag">最优</span>' : '<span class="rev-flag is-loss">可再想想</span>') +
+          '</p>' +
           '</li>'
         );
       })
@@ -608,13 +690,12 @@
             ? R.hitBase + '×倍率，连击+1'
             : (R.accept[state] > 0 ? '+' + R.accept[state] : '0') +
               (R.acceptLife[state] < 0 ? '，−1♥' : '') +
-              (R.acceptCombo[state] === 'freeze'
-                ? '，连击冻结'
-                : R.acceptCombo[state] === 'reset' ? '，连击断' : '');
+              (R.acceptCombo[state] === 'reset' ? '，连击断' : '');
         var reject =
           state === 'exact'
             ? '0，连击断'
-            : '+' + R.reject[state] + '，连击+1';
+            : (R.reject[state] > 0 ? '+' + R.reject[state] : '0') +
+              (state === 'caliber' || state === 'edge' ? '，没拿分' : '');
         return (
           '<tr><td style="color:' + TONE_COLOR[meta.tone] + '">' + meta.label + '</td>' +
           '<td>' + accept + '</td><td>' + reject + '</td></tr>'
@@ -628,7 +709,13 @@
   function onChipPointerDown(event) {
     if (SORT.phase !== 'playing' || SORT.locked) return;
     if (event.button !== undefined && event.button !== 0) return;
-    SORT.drag = { id: event.pointerId, startY: event.clientY, dy: 0 };
+    SORT.drag = {
+      id: event.pointerId,
+      startY: event.clientY,
+      startAt: now(),
+      dy: 0,
+      moved: false,
+    };
     dom.chip.classList.remove('is-settling');
     dom.chip.classList.add('is-dragging');
     if (dom.chip.setPointerCapture) {
@@ -643,6 +730,7 @@
   function onChipPointerMove(event) {
     if (!SORT.drag || SORT.drag.id !== event.pointerId) return;
     SORT.drag.dy = event.clientY - SORT.drag.startY;
+    if (Math.abs(SORT.drag.dy) > 4) SORT.drag.moved = true;
     dom.chip.style.transition = 'none';
     dom.chip.style.transform = 'translateY(' + SORT.drag.dy + 'px)';
   }
@@ -650,6 +738,7 @@
   function onChipPointerUp(event) {
     if (!SORT.drag || SORT.drag.id !== event.pointerId) return;
     var dy = SORT.drag.dy;
+    var moved = SORT.drag.moved;
     SORT.drag = null;
     dom.chip.classList.remove('is-dragging');
     if (SORT.phase !== 'playing' || SORT.locked) return;
@@ -663,6 +752,12 @@
     }
     dom.chip.classList.add('is-settling');
     dom.chip.style.transform = 'translateY(0)';
+    // 甩得不够 / 只是点了一下：立刻说清楚，计时照走
+    if (!moved || Math.abs(dy) < 6) {
+      refuseFeedback('点卡片不算数：上甩收下、下甩放走');
+    } else {
+      refuseFeedback('甩得不够（要 34px 以上）：再甩长一点');
+    }
   }
 
   function onKeyDown(event) {
@@ -726,6 +821,8 @@
     outcomeOf: outcomeOf,
     applyOutcome: applyOutcome,
     chipMs: CHIP_MS,
+    verdictMs: VERDICT_MS,
+    swipe: SWIPE,
     state: function () {
       return {
         phase: SORT.phase,
@@ -734,6 +831,8 @@
         lives: SORT.lives,
         roundIndex: SORT.roundIndex,
         chipIndex: SORT.chipIndex,
+        orderId: SORT.order ? SORT.order.id : null,
+        sequence: SORT.sequence.slice(),
         log: SORT.log.slice(),
       };
     },

@@ -100,19 +100,25 @@ export interface SortRound {
   /** 冻结记录自己在三维上的原文值与状态（复盘用，不参与玩法） */
   truth: Array<{ slot: SlotKey; label: string; evidenceValue: string | null; state: EvidenceDimensionState }>;
   chips: SortChip[];
+  /** 从第几张（0 起）开始是「收尾三拍」——这一段一定不会再发完全对上 */
+  settleFrom: number;
 }
 
 export interface SortScoring {
   hitBase: number;
+  /** 收下非命中证据拿固定分（不乘倍率） */
   accept: Record<EvidenceDimensionState, number>;
   reject: Record<EvidenceDimensionState, number>;
-  /** 收下后连击怎么走：+1 / freeze / reset */
-  acceptCombo: Record<EvidenceDimensionState, 'up' | 'freeze' | 'reset'>;
+  /** 收下之后连击怎么走：只有命中能续连击；收旁证与误收都会断 */
+  acceptCombo: Record<EvidenceDimensionState, 'up' | 'reset'>;
   acceptLife: Record<EvidenceDimensionState, number>;
   multiplier: { per: number; step: number; cap: number };
   lives: number;
+  /** 连击在每件器物开始时清零 */
+  roundComboReset: true;
   timeoutCombo: 'reset';
   timeoutPoints: 0;
+  settleBeats: number;
   note: string;
 }
 
@@ -125,15 +131,32 @@ export interface SortStateMeta {
   rule: string;
 }
 
+/** 一种牌序：只存下标，牌面本身仍是 rounds 里的同一批对象 */
+export interface SortOrder {
+  id: string;
+  label: string;
+  /** 每一轮的发牌顺序（rounds[i].chips 的下标） */
+  rounds: number[][];
+  /** 这一牌序的理论最高分（允许预知后续牌，用动态规划求） */
+  best: number;
+  /** 只按公开规则打（收尾三拍收旁证、其余放走）的得分——S 线按它可达来定 */
+  steady: number;
+  /** 只认字面相同（完全对上就收、其余放走）的得分，必须够不到 S */
+  literal: number;
+  /** 见旁证就收、不区分中段与收尾的得分，也必须够不到 S */
+  eager: number;
+}
+
 export interface SortData {
   generatedAt: string;
   generator: string;
   note: string;
   states: Record<EvidenceDimensionState, SortStateMeta>;
   scoring: SortScoring;
-  grades: Array<{ grade: 'S' | 'A' | 'B' | 'C'; min: number; label: string }>;
-  perfectScore: number;
+  /** 分数线按「这一牌序的最高分」的比例折算 */
+  grades: Array<{ grade: 'S' | 'A' | 'B' | 'C'; ratio: number; label: string }>;
   rounds: SortRound[];
+  orders: SortOrder[];
   stats: { chips: number; byState: Record<EvidenceDimensionState, number> };
 }
 
@@ -170,73 +193,101 @@ const POOL: Record<SlotKey, string[]> = {
 };
 
 /**
- * 两轮、每轮十条，顺序是排好的教学弧线：
+ * 每轮十条，分成三段：
  *
- * 第一条一定是「完全对上」——玩家的第一次上甩就命中，不用读任何说明就知道往上是对的；
- * 第二条是「没对上」——往下甩也对，两个动作各自被确认一次；
- * 之后才依次塞进相容、冲突、边缘、无从判断。
+ * - 头一拍固定：「完全对上」（第一次上甩就命中，不用读说明）；
+ * - 中段六拍打乱：本轮的命中也在这里，且**最后一张固定是命中**——
+ *   这样中段收旁证一定会付出「打断连击」的代价，玩家不能靠猜；
+ * - 收尾三拍打乱：不发命中，是「兑现窗口」，收旁证在这里才划算。
  *
- * 第二轮换一件器物、换一个日期精度（11 月 15 日而不是 12 月 5 日），
- * 于是同一条「2021年秋季」从「边缘相容」变成「口径相容」——
- * 同一个写法、不同的断言精度，判据就不同，这是第二轮真正要玩家感到的东西。
+ * 两种牌序之间，除了第一拍之外全部重排；两轮还换了器物与日期
+ * （11 月 15 日而不是 12 月 5 日），于是同一条「2021年秋季」
+ * 从「边缘相容」变成「口径相容」——同一个写法、不同的断言精度，
+ * 判据就不同，这是第二轮真正要玩家感到的东西。
  */
+const HEAD_BEATS = 1;
+const SETTLE_BEATS = 3;
+
 const ROUND_PLAN: Array<{
   lotId: string;
-  beats: Array<{ slot: SlotKey; state: EvidenceDimensionState }>;
+  head: Array<{ slot: SlotKey; state: EvidenceDimensionState }>;
+  core: Array<{ slot: SlotKey; state: EvidenceDimensionState }>;
+  tail: Array<{ slot: SlotKey; state: EvidenceDimensionState }>;
 }> = [
   {
     lotId: 'g-01',
-    beats: [
-      { slot: 'auctionHouse', state: 'exact' },
+    head: [{ slot: 'auctionHouse', state: 'exact' }],
+    // 中段六张打乱，第六张固定是命中（中段最后一张一定是命中）
+    core: [
       { slot: 'sessionName', state: 'mismatch' },
-      { slot: 'dateText', state: 'exact' },
       { slot: 'dateText', state: 'caliber' },
-      { slot: 'auctionHouse', state: 'conflict' },
       { slot: 'sessionName', state: 'exact' },
-      { slot: 'dateText', state: 'edge' },
       { slot: 'dateText', state: 'unknown' },
+      { slot: 'auctionHouse', state: 'conflict' },
+      { slot: 'dateText', state: 'exact' },
+    ],
+    tail: [
       { slot: 'auctionHouse', state: 'caliber' },
-      { slot: 'auctionHouse', state: 'mismatch' },
+      { slot: 'auctionHouse', state: 'caliber' },
+      { slot: 'dateText', state: 'edge' },
     ],
   },
   {
     lotId: 'g-07',
-    beats: [
-      { slot: 'dateText', state: 'exact' },
-      { slot: 'auctionHouse', state: 'caliber' },
+    head: [{ slot: 'dateText', state: 'exact' }],
+    core: [
       { slot: 'sessionName', state: 'mismatch' },
-      { slot: 'dateText', state: 'caliber' },
-      { slot: 'auctionHouse', state: 'exact' },
+      { slot: 'auctionHouse', state: 'caliber' },
       { slot: 'dateText', state: 'conflict' },
-      { slot: 'auctionHouse', state: 'conflict' },
-      { slot: 'sessionName', state: 'exact' },
+      { slot: 'auctionHouse', state: 'exact' },
       { slot: 'dateText', state: 'unknown' },
-      { slot: 'auctionHouse', state: 'mismatch' },
+      { slot: 'sessionName', state: 'exact' },
+    ],
+    tail: [
+      { slot: 'auctionHouse', state: 'caliber' },
+      { slot: 'dateText', state: 'caliber' },
+      { slot: 'sessionName', state: 'mismatch' },
     ],
   },
 ];
 
-/** 分值表：与页面读到的 `scoring` 是同一份，测试会逐项核对 */
+/**
+ * 分值表：与页面读到的 `scoring` 是同一份，测试会逐项核对。
+ *
+ * 这一版让「字面相同就收」不再是最优，办法是给「收旁证」标一个真实代价：
+ *
+ * - 倍率只由**连续命中**推动：连击 0 是 ×1、1 是 ×2、2 起是 ×3；
+ *   收下相容/边缘会给固定分，但连击立刻归零、倍率掉回 ×1。
+ *   所以中段（后面还有命中）收旁证，赚 8 分、亏掉后面每一拍的倍率；
+ * - 放走相容/边缘不扣分，但也不给分——中段放走是「小亏」，收下是「大亏」；
+ * - 每件器物的最后三拍不会再发命中（公开规则）。这三拍收旁证没有倍率可亏，
+ *   是唯一的兑现窗口：同一个「口径相容」，中段该放、收尾该收。
+ */
 const SCORING: SortScoring = {
   hitBase: 10,
-  accept: { exact: 0, caliber: 3, edge: 1, conflict: 0, mismatch: 0, unknown: 0 },
-  reject: { exact: 0, caliber: 2, edge: 2, conflict: 2, mismatch: 2, unknown: 1 },
+  accept: { exact: 0, caliber: 8, edge: 4, conflict: 0, mismatch: 0, unknown: 0 },
+  reject: { exact: 0, caliber: 0, edge: 0, conflict: 1, mismatch: 1, unknown: 1 },
   acceptCombo: {
     exact: 'up',
-    caliber: 'freeze',
-    edge: 'freeze',
+    caliber: 'reset',
+    edge: 'reset',
     conflict: 'reset',
     mismatch: 'reset',
-    unknown: 'freeze',
+    unknown: 'reset',
   },
   acceptLife: { exact: 0, caliber: 0, edge: 0, conflict: -1, mismatch: -1, unknown: 0 },
-  multiplier: { per: 3, step: 0.5, cap: 3 },
+  multiplier: { per: 1, step: 1, cap: 3 },
   lives: 3,
+  roundComboReset: true,
   timeoutCombo: 'reset',
   timeoutPoints: 0,
+  settleBeats: SETTLE_BEATS,
   note:
-    '命中＝10×倍率；倍率＝1+⌊连击÷3⌋×0.5，最高×3。' +
-    '放走不算错，但只拿小分；收下相容证据会冻住连击，收下冲突/没对上掉一颗心。',
+    '命中＝10×倍率，倍率只看连续命中：连击 0 是 ×1、1 是 ×2、2 起是 ×3（封顶 ×3）。' +
+    '收下相容 +8、边缘 +4，但连击立刻归零——中段收旁证会打断冲锋，后面每一拍都少拿一倍。' +
+    '放走相容/边缘不扣分，但也不给分；中段放走是小亏，收下是大亏。' +
+    '每件器物的最后三拍不会再发命中，这三拍收旁证不会亏倍率，是唯一的兑现窗口。' +
+    '收下冲突/没对上掉一颗心；放走冲突/没对上/无从判断 +1；放走命中（漏判）、收下无从判断都断连击。',
 };
 
 const STATES: Record<EvidenceDimensionState, SortStateMeta> = {
@@ -363,7 +414,8 @@ function buildRound(
     throw new Error(`组合 ${plan.lotId} 没有挂到冻结记录上，不能当器物卡`);
   }
   const used = new Set<string>();
-  const chips: SortChip[] = plan.beats.map((beat, beatIndex) => {
+  const beats = [...plan.head, ...plan.core, ...plan.tail];
+  const chips: SortChip[] = beats.map((beat, beatIndex) => {
     const evidenceValue = combo.dimensions.find((dimension) => dimension.slot === beat.slot)?.evidenceValue ?? null;
     const candidates = POOL[beat.slot];
     const value = candidates.find((candidate) => {
@@ -412,6 +464,7 @@ function buildRound(
     },
     truth,
     chips,
+    settleFrom: chips.length - SETTLE_BEATS,
   };
 }
 
@@ -422,24 +475,162 @@ function multiplierOf(combo: number): number {
 }
 
 /**
- * 满分局：完全对上的收下、其余的放走。
- * 分数线按它折算，玩家能自己算出来为什么差了几分——不是拍脑袋定的目标分。
+ * 一次判决的结果。与页面 `outcomeOf` 的分支一一对应，两边都由 SCORING 驱动。
+ * 这里只算分、连击、心——文案由页面负责。
  */
-function perfectScoreOf(rounds: SortRound[]): number {
+function actOf(
+  state: EvidenceDimensionState,
+  action: 'accept' | 'reject',
+  combo: number,
+): { points: number; combo: 'up' | 'keep' | 'reset'; life: number } {
+  if (action === 'accept') {
+    if (state === 'exact') {
+      return { points: Math.round(SCORING.hitBase * multiplierOf(combo)), combo: 'up', life: 0 };
+    }
+    return { points: SCORING.accept[state], combo: SCORING.acceptCombo[state], life: SCORING.acceptLife[state] };
+  }
+  if (state === 'exact') return { points: 0, combo: 'reset', life: 0 };
+  return { points: SCORING.reject[state], combo: 'keep', life: 0 };
+}
+
+type Policy = (
+  state: EvidenceDimensionState,
+  combo: number,
+  index: number,
+  settleFrom: number,
+) => 'accept' | 'reject';
+
+/** 只认字面相同：完全对上就收，其余全放——这条策略必须够不到 S */
+const LITERAL_POLICY: Policy = (state) => (state === 'exact' ? 'accept' : 'reject');
+
+/**
+ * 稳健策略：只看两眼就能打——一眼看状态，一眼看是不是收尾三拍。
+ * 收尾三拍没有后续命中，收旁证没有代价；中段收会打断冲锋，所以放走。
+ */
+const STEADY_POLICY: Policy = (state, _combo, index, settleFrom) => {
+  if (state === 'exact') return 'accept';
+  if (state !== 'caliber' && state !== 'edge') return 'reject';
+  return index >= settleFrom ? 'accept' : 'reject';
+};
+
+/** 见旁证就收、不分中段收尾——这条也不该拿到 S */
+const EAGER_POLICY: Policy = (state) =>
+  state === 'exact' || state === 'caliber' || state === 'edge' ? 'accept' : 'reject';
+
+function runSequence(
+  states: EvidenceDimensionState[],
+  settleFrom: number,
+  policy: Policy,
+): number {
   let score = 0;
   let combo = 0;
-  for (const round of rounds) {
-    for (const chip of round.chips) {
-      if (chip.state === 'exact') {
-        score += Math.round(SCORING.hitBase * multiplierOf(combo));
-        combo += 1;
-      } else {
-        score += SCORING.reject[chip.state];
-        combo += 1;
-      }
-    }
+  let lives = SCORING.lives;
+  for (let index = 0; index < states.length; index += 1) {
+    if (lives <= 0) break;
+    const result = actOf(states[index], policy(states[index], combo, index, settleFrom), combo);
+    score += result.points;
+    lives += result.life;
+    combo = result.combo === 'up' ? combo + 1 : result.combo === 'reset' ? 0 : combo;
   }
   return score;
+}
+
+/** 理论最高分：允许预知后续牌，十拍的状态空间很小，直接动态规划 */
+function bestScoreOf(states: EvidenceDimensionState[]): number {
+  const memo = new Map<string, number>();
+  const go = (index: number, combo: number, lives: number): number => {
+    if (index >= states.length || lives <= 0) return 0;
+    const key = `${index}|${combo}|${lives}`;
+    const cached = memo.get(key);
+    if (cached !== undefined) return cached;
+    let best = 0;
+    for (const action of ['accept', 'reject'] as const) {
+      const result = actOf(states[index], action, combo);
+      const nextCombo = result.combo === 'up' ? combo + 1 : result.combo === 'reset' ? 0 : combo;
+      best = Math.max(best, result.points + go(index + 1, nextCombo, lives + result.life));
+    }
+    memo.set(key, best);
+    return best;
+  };
+  return go(0, 0, SCORING.lives);
+}
+
+/** 确定性伪随机（线性同余），保证每次构建生成的牌序完全一样 */
+function shuffled(length: number, seed: number): number[] {
+  const order = Array.from({ length }, (_, index) => index);
+  let state = seed;
+  for (let i = order.length - 1; i > 0; i -= 1) {
+    state = (state * 9301 + 49297) % 233280;
+    const j = Math.floor((state / 233280) * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
+}
+
+/**
+ * 一种牌序 = 头一拍不动 + 中段前五张重排（第六张固定是命中）+ 收尾三拍重排。
+ * 教学约束（第一张命中、中段最后一张命中、收尾不发命中）全部保住。
+ */
+function variantOrder(round: SortRound, seed: number): number[] {
+  const length = round.chips.length;
+  const coreStart = HEAD_BEATS;
+  const coreEnd = round.settleFrom - 1; // 中段最后一张（固定命中）不参与重排
+  const head = Array.from({ length: HEAD_BEATS }, (_, index) => index);
+  const core = shuffled(coreEnd - coreStart, seed).map((offset) => coreStart + offset);
+  const tail = shuffled(length - round.settleFrom, seed + 71).map((offset) => round.settleFrom + offset);
+  const order: number[] = [...head, ...core, coreEnd, ...tail];
+  if (order.length !== length) throw new Error('牌序长度与牌面不一致');
+  return order;
+}
+
+/**
+ * 生成若干种牌序。同一种牌序的牌面完全一样（六态齐备），只是先后不同；
+ * 开局随机抽一种，并保证不与上一局相同。
+ */
+function buildOrders(rounds: SortRound[]): SortOrder[] {
+  const orders: SortOrder[] = [];
+  const seeds = [0, 137, 251, 419, 557, 673];
+  for (let variant = 0; variant < seeds.length; variant += 1) {
+    const plan = rounds.map((round, roundIndex) =>
+      variant === 0
+        ? round.chips.map((_, index) => index)
+        : variantOrder(round, seeds[variant] + roundIndex * 977),
+    );
+
+    let best = 0;
+    let steady = 0;
+    let literal = 0;
+    let eager = 0;
+    for (let roundIndex = 0; roundIndex < rounds.length; roundIndex += 1) {
+      const round = rounds[roundIndex];
+      const states = plan[roundIndex].map((chipIndex) => round.chips[chipIndex].state);
+      best += bestScoreOf(states);
+      steady += runSequence(states, round.settleFrom, STEADY_POLICY);
+      literal += runSequence(states, round.settleFrom, LITERAL_POLICY);
+      eager += runSequence(states, round.settleFrom, EAGER_POLICY);
+    }
+
+    const sMin = Math.round(best * 0.92);
+    if (literal >= sMin) {
+      throw new Error(`牌序 ${variant} 只靠字面比对就能拿到 S（${literal} ≥ ${sMin}），必须重排`);
+    }
+    if (eager >= sMin) {
+      throw new Error(`牌序 ${variant} 见旁证就收也能拿到 S（${eager} ≥ ${sMin}），条件没做成取舍`);
+    }
+    if (steady < sMin) {
+      throw new Error(`牌序 ${variant} 的稳健打法拿不到 S（${steady} < ${sMin}），分数线定得太高`);
+    }
+    orders.push({
+      id: `order-${variant + 1}`,
+      label: variant === 0 ? '教学顺序' : `牌序 ${variant + 1}`,
+      rounds: plan,
+      best,
+      steady,
+      literal,
+      eager,
+    });
+  }
+  return orders;
 }
 
 function buildData(): SortData {
@@ -463,8 +654,17 @@ function buildData(): SortData {
       throw new Error(`六种状态里的「${STATES[state].label}」一局都碰不到，玩法缺一档`);
     }
   }
+  for (const round of rounds) {
+    if (round.settleFrom !== round.chips.length - SETTLE_BEATS) {
+      throw new Error(`${round.id} 的收尾窗口长度不对`);
+    }
+    const tail = round.chips.slice(round.settleFrom);
+    if (tail.some((chip) => chip.state === 'exact')) {
+      throw new Error(`${round.id} 的收尾三拍里出现了完全对上，兑现窗口不成立`);
+    }
+  }
 
-  const perfectScore = perfectScoreOf(rounds);
+  const orders = buildOrders(rounds);
 
   return {
     generatedAt: new Date().toISOString(),
@@ -475,13 +675,13 @@ function buildData(): SortData {
     states: STATES,
     scoring: SCORING,
     grades: [
-      { grade: 'S', min: Math.round(perfectScore * 0.9), label: '每条都判对了' },
-      { grade: 'A', min: Math.round(perfectScore * 0.7), label: '只放过了几条相容证据' },
-      { grade: 'B', min: Math.round(perfectScore * 0.45), label: '把相容当成了支撑' },
-      { grade: 'C', min: 0, label: '还没分出相容与对上' },
+      { grade: 'S', ratio: 0.92, label: '接近这一局的最优解：命中没漏，旁证也只在兑现窗口里收' },
+      { grade: 'A', ratio: 0.72, label: '取舍大体正确，几处亏了倍率' },
+      { grade: 'B', ratio: 0.5, label: '把旁证当成了命中，或把命中放走了' },
+      { grade: 'C', ratio: 0, label: '先把两个动作的手感练熟' },
     ],
-    perfectScore,
     rounds,
+    orders,
     stats: { chips: rounds.reduce((sum, round) => sum + round.chips.length, 0), byState },
   };
 }
@@ -498,9 +698,12 @@ function main(): void {
   const perRound = data.rounds.map(
     (round) => `${round.id} ${round.chips.length} 条（${round.lot.values.auctionHouse} / ${round.lot.values.dateText}）`,
   );
+  const perOrder = data.orders.map(
+    (order) => `${order.label} 最优 ${order.best} / 稳健 ${order.steady} / 字面 ${order.literal} / 逢旁证就收 ${order.eager}`,
+  );
   process.stdout.write(
     `写入 ${path.relative(PACKAGE_ROOT, OUTPUT_PATH)}：${perRound.join('，')}；` +
-      `六态 ${JSON.stringify(data.stats.byState)}；满分局 ${data.perfectScore}\n`,
+      `六态 ${JSON.stringify(data.stats.byState)}；牌序 ${perOrder.join('；')}\n`,
   );
 }
 

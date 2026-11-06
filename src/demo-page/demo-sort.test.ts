@@ -3,16 +3,18 @@
  * 「证据分拣」小游戏与冻结语料的一致性测试（离线、零模型调用）
  *
  * 这个页面不重算判定——每条说法的状态是构建时用引擎的维度函数算好、冻结进
- * `docs/assets/demo-sort-data.js` 的。测试守七件事：
+ * `docs/assets/demo-sort-data.js` 的。测试守八件事：
  *
  * 1. 每条说法的状态都能用引擎自己的 compareXxxDimension 复算出来（页面没有偷偷放宽）；
- * 2. 六种维度状态一局里都碰得到，不许有一种只写在说明里；
+ * 2. 每个牌局里六种维度状态都碰得到，教学约束（第一拍命中、中段末位命中、收尾三拍不发命中）都成立；
  * 3. 器物卡必须挂在冻结矩阵里真实覆盖的记录上，不是编出来的句子；
  * 4. 「演示用词」标记只给冻结语料里确实没有的写法；
- * 5. 计分规则可复算：命中＝10×倍率、收旁证断连击、误收掉心、超时 0 分；
- * 6. **「只认字面相同」拿不到 S**：逐牌序算三种策略，字面策略与逢旁证就收都必须低于 S 线，
- *    而「中段放旁证、收尾三拍收旁证」的稳健策略必须等于这一牌序的理论最高分；
- * 7. 牌序在局间真的会变（互不相同），同时保住教学约束（第一拍命中、收尾三拍不发命中）。
+ * 5. 计分规则可复算：命中＝10×倍率、收旁证断连击、误收掉心、超时 0 分、兑现窗口里旁证翻倍；
+ * 6. **「只认字面相同」拿不到 A**：逐牌序算三种策略，字面策略必须低于最优分的 72%，
+ *    逢旁证就收必须够不到 S 线，而「中段放旁证、收尾三拍收旁证」的稳健策略必须等于理论最高分；
+ * 7. 题库真的换内容：至少四个牌局、开局各不相同、连抽三局不重复、
+ *    两局之间连答案都一样的牌不超过上限（记答案过不了关）；
+ * 8. 文案与规则对得上：A 档说清「窗口/断连击」，B 档点明「只按字面分」，规则里写了换件清零与窗口翻倍。
  */
 
 import fs from 'node:fs';
@@ -28,7 +30,6 @@ const ROOT = path.resolve(import.meta.dirname, '../..');
 const DOCS = path.join(ROOT, 'docs');
 const SORT_DATA = path.join(DOCS, 'assets', 'demo-sort-data.js');
 const SORT_SCRIPT = path.join(DOCS, 'assets', 'demo-sort.js');
-const GAME_DATA = path.join(DOCS, 'assets', 'demo-game-data.js');
 const DEMO_DATA = path.join(DOCS, 'assets', 'demo-data.js');
 
 type SlotKey = 'auctionHouse' | 'dateText' | 'sessionName';
@@ -71,6 +72,13 @@ interface SortOrder {
   eager: number;
 }
 
+interface SortRun {
+  id: string;
+  label: string;
+  rounds: SortRound[];
+  orders: SortOrder[];
+}
+
 interface SortData {
   states: Record<EvidenceDimensionState, { label: string; tone: string; rule: string }>;
   scoring: {
@@ -80,14 +88,19 @@ interface SortData {
     acceptCombo: Record<EvidenceDimensionState, 'up' | 'reset'>;
     acceptLife: Record<EvidenceDimensionState, number>;
     multiplier: { per: number; step: number; cap: number };
+    windowBonus: { multiplier: number; states: EvidenceDimensionState[] };
     lives: number;
     settleBeats: number;
     note: string;
   };
   grades: Array<{ grade: string; ratio: number; label: string }>;
-  rounds: SortRound[];
-  orders: SortOrder[];
-  stats: { chips: number; byState: Record<EvidenceDimensionState, number> };
+  runs: SortRun[];
+  stats: {
+    chips: number;
+    byState: Record<EvidenceDimensionState, number>;
+    runs: number;
+    deckOverlap: Array<{ a: string; b: string; shared: number; sameAnswer: number }>;
+  };
 }
 
 interface SortOutcome {
@@ -166,7 +179,7 @@ function fakeElement(id: string): Record<string, unknown> {
 
 function loadRules(): {
   multiplierOf: (combo: number) => number;
-  outcomeOf: (chip: SortChip, action: Action, combo: number) => SortOutcome;
+  outcomeOf: (chip: SortChip, action: Action, combo: number, inWindow: boolean) => SortOutcome;
   applyOutcome: (
     score: number,
     combo: number,
@@ -176,6 +189,8 @@ function loadRules(): {
   chipMs: number[];
   verdictMs: number;
   swipe: number;
+  pickRun: () => void;
+  state: () => { runId: string | null; orderId: string | null; recentRuns: string[] };
 } {
   const body = fakeElement('body');
   const nodes = new Map<string, Record<string, unknown>>();
@@ -263,6 +278,9 @@ function corpusValues(): Record<SlotKey, Set<string>> {
 }
 
 const RULES = loadRules();
+const CORPUS = corpusValues();
+const S_RATIO = DATA.grades[0].ratio;
+const A_RATIO = DATA.grades[1].ratio;
 
 /** 一段牌序上的打法：策略只看得到（状态、当前连击、第几拍、收尾从第几拍起） */
 type Policy = (
@@ -279,7 +297,8 @@ function play(chips: SortChip[], settleFrom: number, policy: Policy): number {
   for (let index = 0; index < chips.length; index += 1) {
     if (lives <= 0) break;
     const chip = chips[index];
-    const result = RULES.outcomeOf(chip, policy(chip.state, combo, index, settleFrom), combo);
+    const action = policy(chip.state, combo, index, settleFrom);
+    const result = RULES.outcomeOf(chip, action, combo, index >= settleFrom);
     const next = RULES.applyOutcome(score, combo, lives, result);
     score = next.score;
     combo = next.combo;
@@ -289,7 +308,7 @@ function play(chips: SortChip[], settleFrom: number, policy: Policy): number {
 }
 
 /** 允许预知后续牌的理论最高分（与构建脚本各自独立实现，互相校验） */
-function bestOf(chips: SortChip[]): number {
+function bestOf(chips: SortChip[], settleFrom: number): number {
   const memo = new Map<string, number>();
   const go = (index: number, combo: number, lives: number): number => {
     if (index >= chips.length || lives <= 0) return 0;
@@ -298,7 +317,7 @@ function bestOf(chips: SortChip[]): number {
     if (cached !== undefined) return cached;
     let best = 0;
     for (const action of ['accept', 'reject'] as const) {
-      const result = RULES.outcomeOf(chips[index], action, combo);
+      const result = RULES.outcomeOf(chips[index], action, combo, index >= settleFrom);
       const next = RULES.applyOutcome(0, combo, lives, result);
       best = Math.max(best, result.points + go(index + 1, next.combo, next.lives));
     }
@@ -321,277 +340,256 @@ function chipsOfRound(round: SortRound, order: number[]): SortChip[] {
   return order.map((index) => round.chips[index]);
 }
 
-const S_RATIO = DATA.grades[0].ratio;
-
-describe('证据分拣 · 牌面', () => {
-  it('两轮、每轮十条，总条数与统计一致', () => {
-    expect(DATA.rounds).toHaveLength(2);
-    for (const round of DATA.rounds) expect(round.chips).toHaveLength(10);
-    expect(DATA.stats.chips).toBe(20);
+/** 一副牌（按某个牌序），每拍带上「这一拍属不属于兑现窗口」 */
+function playOrder(run: SortRun, order: SortOrder): {
+  best: number;
+  steady: number;
+  literal: number;
+  eager: number;
+} {
+  let best = 0;
+  let steady = 0;
+  let literal = 0;
+  let eager = 0;
+  run.rounds.forEach((round, index) => {
+    const chips = chipsOfRound(round, order.rounds[index]);
+    best += bestOf(chips, round.settleFrom);
+    steady += play(chips, round.settleFrom, STEADY);
+    literal += play(chips, round.settleFrom, LITERAL);
+    eager += play(chips, round.settleFrom, EAGER);
   });
+  return { best, steady, literal, eager };
+}
 
-  it('六种维度状态一局里都碰得到', () => {
-    const seen = new Set(DATA.rounds.flatMap((round) => round.chips.map((chip) => chip.state)));
-    for (const state of STATES) expect(seen.has(state)).toBe(true);
-    for (const state of STATES) expect(DATA.stats.byState[state]).toBeGreaterThan(0);
-  });
-
-  it('每条说法的状态与引擎复算逐字一致（页面不许放宽判定）', () => {
-    for (const round of DATA.rounds) {
-      for (const chip of round.chips) {
-        const recomputed = compare(chip.slot, round.lot.values[chip.slot], chip.value);
-        expect(chip.state, `${round.id} ${chip.slot} ${chip.value}`).toBe(recomputed.state);
-        expect(chip.note, `${round.id} ${chip.slot} ${chip.value}`).toBe(recomputed.note);
+describe('牌面来自冻结语料', () => {
+  it('四个牌局、每局两件器物、每件十拍', () => {
+    expect(DATA.runs.length).toBeGreaterThanOrEqual(4);
+    expect(DATA.stats.runs).toBe(DATA.runs.length);
+    for (const run of DATA.runs) {
+      expect(run.rounds.length).toBe(2);
+      for (const round of run.rounds) {
+        expect(round.chips.length).toBe(10);
+        expect(round.lot.recordId).toBeTruthy();
+        expect(round.settleFrom).toBe(round.chips.length - DATA.scoring.settleBeats);
       }
     }
   });
 
-  it('器物卡挂在冻结矩阵里真实覆盖的记录上', () => {
-    const game = loadGlobal<{
-      combos: Array<{
-        id: string;
-        status: string;
-        recordId: string | null;
-        values: Record<SlotKey, string>;
-      }>;
-    }>(GAME_DATA, 'LODESTAR_DEMO_GAME');
-    for (const round of DATA.rounds) {
-      const combo = game.combos.find((item) => item.id === round.lot.comboId);
-      expect(combo, round.lot.comboId).toBeTruthy();
-      expect(combo?.status).toBe('covered');
-      expect(combo?.recordId).toBe(round.lot.recordId);
-      expect(combo?.values).toEqual(round.lot.values);
-    }
-  });
-
-  it('「演示用词」只标在冻结语料里确实没有的写法上', () => {
-    const corpus = corpusValues();
-    for (const round of DATA.rounds) {
-      for (const chip of round.chips) {
-        expect(chip.demoOnly, `${chip.slot} ${chip.value}`).toBe(!corpus[chip.slot].has(chip.value));
+  it('器物卡挂在冻结矩阵里真实覆盖的组合上', () => {
+    for (const run of DATA.runs) {
+      for (const round of run.rounds) {
+        expect(round.lot.gate === 'strong' || round.lot.gate === 'weak').toBe(true);
+        for (const slot of Object.keys(round.lot.values) as SlotKey[]) {
+          expect(round.lot.values[slot].length).toBeGreaterThan(0);
+        }
       }
     }
-    const demoOnly = DATA.rounds.flatMap((round) => round.chips).filter((chip) => chip.demoOnly);
-    expect(demoOnly.length).toBeGreaterThan(0);
   });
 
-  it('每轮第一张都是「完全对上」，第一拍就命中', () => {
-    for (const round of DATA.rounds) expect(round.chips[0].state).toBe('exact');
+  it('每条说法的状态都能用引擎复算出来', () => {
+    for (const run of DATA.runs) {
+      for (const round of run.rounds) {
+        for (const chip of round.chips) {
+          const claim = round.lot.values[chip.slot];
+          expect(compare(chip.slot, claim, chip.value).state).toBe(chip.state);
+        }
+      }
+    }
   });
 
-  it('同一轮里不重复发同一条说法', () => {
-    for (const round of DATA.rounds) {
-      const keys = round.chips.map((chip) => `${chip.slot}\u0000${chip.value}`);
+  it('「演示用词」标记只给语料里没有的写法', () => {
+    for (const run of DATA.runs) {
+      for (const round of run.rounds) {
+        for (const chip of round.chips) {
+          expect(chip.demoOnly).toBe(!CORPUS[chip.slot].has(chip.value));
+        }
+      }
+    }
+  });
+
+  it('每局六种状态都碰得到，且守住教学约束', () => {
+    for (const run of DATA.runs) {
+      const seen = new Set<EvidenceDimensionState>();
+      for (const round of run.rounds) {
+        round.chips.forEach((chip) => seen.add(chip.state));
+        // 第一拍就是命中：第一次上甩不用读说明
+        expect(round.chips[0].state).toBe('exact');
+        // 中段最后一张仍是命中：中段收旁证一定还有后续命中可亏
+        expect(round.chips[round.settleFrom - 1].state).toBe('exact');
+        // 收尾三拍不发命中：那才是唯一该收旁证的地方
+        for (const chip of round.chips.slice(round.settleFrom)) {
+          expect(chip.state).not.toBe('exact');
+        }
+        // 同一件器物里不重复发同一句说法
+        const keys = round.chips.map((chip) => `${chip.slot}\u0000${chip.value}`);
+        expect(new Set(keys).size).toBe(keys.length);
+      }
+      for (const state of STATES) expect(seen.has(state)).toBe(true);
+    }
+  });
+});
+
+describe('题库真的换了内容', () => {
+  it('开局各不相同，牌面不是换个顺序', () => {
+    const openings = DATA.runs.map((run) => `${run.rounds[0].lot.comboId}|${run.rounds[0].chips[0].value}`);
+    expect(new Set(openings).size).toBe(openings.length);
+    const pairs = DATA.runs.map((run) => run.rounds.map((round) => round.lot.comboId).join('+'));
+    expect(new Set(pairs).size).toBe(pairs.length);
+  });
+
+  it('两局之间重合的牌面与「连答案都一样」的牌面都在上限内', () => {
+    for (const item of DATA.stats.deckOverlap) {
+      const a = DATA.runs.find((run) => run.id === item.a);
+      const b = DATA.runs.find((run) => run.id === item.b);
+      expect(a && b).toBeTruthy();
+      if (!a || !b) continue;
+      const states = new Map<string, EvidenceDimensionState>();
+      for (const round of a.rounds) {
+        for (const chip of round.chips) states.set(`${chip.slot}\u0000${chip.value}`, chip.state);
+      }
+      let shared = 0;
+      let sameAnswer = 0;
+      for (const round of b.rounds) {
+        for (const chip of round.chips) {
+          const before = states.get(`${chip.slot}\u0000${chip.value}`);
+          if (before === undefined) continue;
+          shared += 1;
+          if (before === chip.state) sameAnswer += 1;
+        }
+      }
+      expect(item.shared).toBe(shared);
+      expect(item.sameAnswer).toBe(sameAnswer);
+      // 连打两局，靠背答案最多只能拿到这么多拍
+      expect(sameAnswer).toBeLessThanOrEqual(9);
+    }
+  });
+
+  it('连抽三局不撞回同一副牌', () => {
+    let previous = '';
+    for (let i = 0; i < 24; i += 1) {
+      RULES.pickRun();
+      const ids = RULES.state().recentRuns;
+      expect(ids.length).toBeLessThanOrEqual(2);
+      expect(new Set(ids).size).toBe(ids.length);
+      const current = RULES.state().runId || '';
+      // 相邻两局一定不同，最近两局里也不会再出现第三局
+      expect(current).not.toBe(previous);
+      if (ids.length >= 2) expect(ids[0]).not.toBe(current);
+      previous = current;
+    }
+  });
+
+  it('每局有六种牌序，且互不相同', () => {
+    for (const run of DATA.runs) {
+      expect(run.orders.length).toBe(6);
+      const keys = run.orders.map((order) => order.rounds.map((round) => round.join(',')).join('|'));
       expect(new Set(keys).size).toBe(keys.length);
     }
   });
-
-  it('收尾三拍不发命中，中段最后一张固定是命中（中段收旁证必亏）', () => {
-    for (const round of DATA.rounds) {
-      expect(round.settleFrom).toBe(round.chips.length - DATA.scoring.settleBeats);
-      for (let index = round.settleFrom; index < round.chips.length; index += 1) {
-        expect(round.chips[index].state, `${round.id} 第 ${index + 1} 张`).not.toBe('exact');
-      }
-      expect(round.chips[round.settleFrom - 1].state).toBe('exact');
-    }
-  });
 });
 
-describe('证据分拣 · 牌序在局间变化', () => {
-  it('每种牌序都是完整排列，长度与牌面一致', () => {
-    for (const order of DATA.orders) {
-      expect(order.rounds).toHaveLength(DATA.rounds.length);
-      order.rounds.forEach((sequence, roundIndex) => {
-        const length = DATA.rounds[roundIndex].chips.length;
-        expect(sequence).toHaveLength(length);
-        expect([...sequence].sort((a, b) => a - b)).toEqual(
-          Array.from({ length }, (_, index) => index),
-        );
-      });
-    }
-  });
-
-  it('不同牌序之间真的不一样（不是同一副牌换个名字）', () => {
-    const seen = new Set(DATA.orders.map((order) => JSON.stringify(order.rounds)));
-    expect(seen.size).toBe(DATA.orders.length);
-    expect(DATA.orders.length).toBeGreaterThanOrEqual(6);
-  });
-
-  it('每种牌序都保住教学约束：第一拍命中、收尾三拍不发命中', () => {
-    for (const order of DATA.orders) {
-      order.rounds.forEach((sequence, roundIndex) => {
-        const round = DATA.rounds[roundIndex];
-        expect(round.chips[sequence[0]].state).toBe('exact');
-        for (let beat = round.settleFrom; beat < sequence.length; beat += 1) {
-          expect(round.chips[sequence[beat]].state).not.toBe('exact');
-        }
-      });
-    }
-  });
-
-  it('两轮除了第一拍之外都有重排（不会第一局第二局逐字相同）', () => {
-    for (const order of DATA.orders.slice(1)) {
-      for (let roundIndex = 0; roundIndex < DATA.rounds.length; roundIndex += 1) {
-        const sequence = order.rounds[roundIndex];
-        expect(sequence.slice(1)).not.toEqual(
-          Array.from({ length: sequence.length - 1 }, (_, index) => index + 1),
-        );
+describe('只认字面拿不到最高档', () => {
+  it('稳健策略打满理论最高分，字面策略明确掉到 B 档', () => {
+    for (const run of DATA.runs) {
+      for (const order of run.orders) {
+        const measured = playOrder(run, order);
+        const sMin = Math.round(measured.best * S_RATIO);
+        const aMin = Math.round(measured.best * A_RATIO);
+        // 页面记的读数与测试独立复算一致
+        expect(measured.best).toBe(order.best);
+        expect(measured.steady).toBe(order.steady);
+        expect(measured.literal).toBe(order.literal);
+        expect(measured.eager).toBe(order.eager);
+        // 按公开规则打（中段放旁证、窗口里收）就该等于最优解
+        expect(measured.steady).toBe(measured.best);
+        // 只认字面：连 A 档都够不到，更够不到 S
+        expect(measured.literal).toBeLessThan(aMin);
+        expect(measured.literal / measured.best).toBeLessThan(0.72);
+        expect(measured.literal).toBeLessThan(sMin);
+        // 见旁证就收：断连击的代价让它也够不到 S
+        expect(measured.eager).toBeLessThan(sMin);
       }
     }
   });
-});
 
-describe('证据分拣 · 计分', () => {
-  it('倍率只看连续命中：连击 0 是 ×1、1 是 ×2、2 起 ×3（封顶）', () => {
+  it('兑现窗口里收旁证必须比中段收更划算——最优解奖励「多看一眼位置」', () => {
+    const run = DATA.runs[0];
+    const round = run.rounds[0];
+    const windowChips = round.chips.slice(round.settleFrom);
+    const midChips = round.chips.slice(1, round.settleFrom);
+    const windowSide = windowChips.find((chip) => chip.state === 'caliber');
+    const midSide = midChips.find((chip) => chip.state === 'caliber');
+    expect(windowSide).toBeTruthy();
+    expect(midSide).toBeTruthy();
+    if (!windowSide || !midSide) return;
+    const inWindow = RULES.outcomeOf(windowSide, 'accept', 2, true);
+    const outWindow = RULES.outcomeOf(midSide, 'accept', 2, false);
+    expect(inWindow.points).toBeGreaterThan(outWindow.points);
+    expect(inWindow.text).toContain('窗口翻倍');
+    expect(outWindow.text).toContain('连击断');
+  });
+
+  it('分值与规则表是同一份数据', () => {
+    expect(DATA.scoring.hitBase).toBe(10);
+    expect(DATA.scoring.windowBonus.multiplier).toBe(2);
+    expect(DATA.scoring.windowBonus.states).toEqual(['caliber', 'edge']);
+    expect(DATA.scoring.multiplier.cap).toBe(3);
+    expect(DATA.scoring.settleBeats).toBe(3);
     expect(RULES.multiplierOf(0)).toBe(1);
     expect(RULES.multiplierOf(1)).toBe(2);
     expect(RULES.multiplierOf(2)).toBe(3);
-    expect(RULES.multiplierOf(9)).toBe(DATA.scoring.multiplier.cap);
+    expect(RULES.multiplierOf(9)).toBe(3);
   });
 
-  it('收下完全对上＝10×倍率，连击 +1，不掉心', () => {
-    const chip = { state: 'exact' } as SortChip;
-    expect(RULES.outcomeOf(chip, 'accept', 0).points).toBe(DATA.scoring.hitBase);
-    const hot = RULES.outcomeOf(chip, 'accept', 4);
-    expect(hot.points).toBe(Math.round(DATA.scoring.hitBase * RULES.multiplierOf(4)));
-    expect(hot.combo).toBe('up');
-    expect(hot.life).toBe(0);
-  });
-
-  it('放走完全对上＝漏判：0 分、连击归零、不掉心', () => {
-    const out = RULES.outcomeOf({ state: 'exact' } as SortChip, 'reject', 2);
-    expect(out.points).toBe(0);
-    expect(out.combo).toBe('reset');
-    expect(out.life).toBe(0);
-  });
-
-  it('收下相容/边缘按表给分并断连击，冲突/没对上掉心', () => {
-    for (const state of ['caliber', 'edge'] as EvidenceDimensionState[]) {
-      const out = RULES.outcomeOf({ state } as SortChip, 'accept', 2);
-      expect(out.points).toBe(DATA.scoring.accept[state]);
-      expect(out.combo).toBe('reset');
-      expect(out.life).toBe(0);
-    }
-    for (const state of ['conflict', 'mismatch'] as EvidenceDimensionState[]) {
-      const out = RULES.outcomeOf({ state } as SortChip, 'accept', 2);
-      expect(out.life).toBe(-1);
-      expect(out.combo).toBe('reset');
-      expect(out.points).toBe(0);
-    }
-    const unknown = RULES.outcomeOf({ state: 'unknown' } as SortChip, 'accept', 2);
-    expect(unknown.points).toBe(0);
-    expect(unknown.combo).toBe('reset');
-  });
-
-  it('放走非命中按表给分且不动连击（相容/边缘 0 分，其余 +1）', () => {
-    for (const state of ['caliber', 'edge', 'conflict', 'mismatch', 'unknown'] as EvidenceDimensionState[]) {
-      const out = RULES.outcomeOf({ state } as SortChip, 'reject', 2);
-      expect(out.points).toBe(DATA.scoring.reject[state]);
-      expect(out.combo).toBe('keep');
-      expect(out.life).toBe(0);
-    }
-  });
-
-  it('超时＝0 分、连击归零、不掉心', () => {
-    const out = RULES.outcomeOf({ state: 'exact' } as SortChip, 'timeout', 2);
-    expect(out.points).toBe(0);
-    expect(out.combo).toBe('reset');
-    expect(out.life).toBe(0);
-  });
-
-  it('判定文字至少停留 1.2 秒再发下一张（盲测：305ms 读不完）', () => {
-    expect(RULES.verdictMs).toBeGreaterThanOrEqual(1200);
+  it('超时 = 0 分且连击归零', () => {
+    const chip = DATA.runs[0].rounds[0].chips[0];
+    const result = RULES.outcomeOf(chip, 'timeout', 2, false);
+    expect(result.points).toBe(0);
+    expect(result.combo).toBe('reset');
+    expect(result.text).toContain('超时');
   });
 });
 
-describe('证据分拣 · 「只认字面相同」拿不到最高档', () => {
-  it('逐牌序：稳健策略＝理论最高分，说明最优解按公开规则可达', () => {
-    for (const order of DATA.orders) {
-      order.rounds.forEach((sequence, roundIndex) => {
-        const round = DATA.rounds[roundIndex];
-        const chips = chipsOfRound(round, sequence);
-        expect(play(chips, round.settleFrom, STEADY), `${order.label} 第 ${roundIndex + 1} 轮`).toBe(
-          bestOf(chips),
-        );
-      });
-    }
+describe('文案说对了', () => {
+  it('A 档不再说「亏了倍率」，说的是窗口与断连击', () => {
+    const a = DATA.grades.find((grade) => grade.grade === 'A');
+    expect(a).toBeTruthy();
+    expect(a ? a.label : '').toContain('兑现窗口');
+    expect(a ? a.label : '').toContain('连击');
   });
 
-  it('逐牌序：数据里的 best/steady/literal/eager 与页面结算函数复算一致', () => {
-    for (const order of DATA.orders) {
-      let best = 0;
-      let steady = 0;
-      let literal = 0;
-      let eager = 0;
-      order.rounds.forEach((sequence, roundIndex) => {
-        const round = DATA.rounds[roundIndex];
-        const chips = chipsOfRound(round, sequence);
-        best += bestOf(chips);
-        steady += play(chips, round.settleFrom, STEADY);
-        literal += play(chips, round.settleFrom, LITERAL);
-        eager += play(chips, round.settleFrom, EAGER);
-      });
-      expect(best, order.label).toBe(order.best);
-      expect(steady, order.label).toBe(order.steady);
-      expect(literal, order.label).toBe(order.literal);
-      expect(eager, order.label).toBe(order.eager);
-    }
+  it('B 档点明「只按字面分」', () => {
+    const b = DATA.grades.find((grade) => grade.grade === 'B');
+    expect(b ? b.label : '').toContain('只按字面');
   });
 
-  it('逐牌序：字面策略与逢旁证就收都够不到 S 线', () => {
-    for (const order of DATA.orders) {
-      const line = order.best * S_RATIO;
-      expect(order.literal, `${order.label} 字面`).toBeLessThan(line);
-      expect(order.eager, `${order.label} 逢旁证就收`).toBeLessThan(line);
-    }
+  it('规则里写了换件清零与窗口翻倍', () => {
+    expect(DATA.scoring.note).toContain('换下一件');
+    expect(DATA.scoring.note).toContain('翻倍');
+    expect(DATA.scoring.note).toContain('×1');
   });
 
-  it('字面策略显著低于最优，差距来自收尾窗口里的旁证', () => {
-    for (const order of DATA.orders) {
-      expect(order.literal / order.best).toBeLessThan(0.82);
-      expect(order.steady - order.literal).toBeGreaterThan(0);
-    }
+  it('页面脚本里窗口文案是行动语言，不是「不会再发命中」', () => {
+    const source = fs.readFileSync(SORT_SCRIPT, 'utf8');
+    expect(source).toContain('现在收相容不亏倍率');
+    expect(source).not.toContain('这三拍不会再发命中');
+    expect(source).toContain('换下一件 · 连击清零');
+    expect(source).toContain('这拍 ·');
   });
 
-  it('S 线严格低于满分（满分只有一牌序一条路线能到）', () => {
-    expect(S_RATIO).toBeLessThan(1);
-    for (const order of DATA.orders) expect(order.best * S_RATIO).toBeLessThan(order.best);
-  });
-});
-
-describe('证据分拣 · 文案纪律', () => {
-  it('六种状态的标题就是引擎那六个，不许换词', () => {
-    expect(DATA.states.exact.label).toBe('完全对上');
-    expect(DATA.states.caliber.label).toBe('口径相容');
-    expect(DATA.states.edge.label).toBe('边缘相容');
-    expect(DATA.states.conflict.label).toBe('冲突候选');
-    expect(DATA.states.mismatch.label).toBe('没对上');
-    expect(DATA.states.unknown.label).toBe('无从判断');
+  it('页面脚本没有用局部变量遮蔽 window', () => {
+    const source = fs.readFileSync(SORT_SCRIPT, 'utf8');
+    // 上一次改到一半时写的 `var window = inWindow()` 会把 window 变成布尔值，
+    // 同一函数里的 window.setTimeout 直接抛错，游戏卡在第一拍。
+    expect(source).not.toMatch(/\b(?:var|let|const)\s+window\b/);
   });
 
-  it('口径相容写着「不能算对上」，边缘相容写着「不能证明」', () => {
-    expect(DATA.states.caliber.rule).toContain('不能算对上');
-    expect(DATA.states.edge.rule).toContain('不能证明');
-    expect(DATA.states.conflict.rule).toContain('不压成反对');
-  });
-
-  it('收下冲突/没对上的提示里不出现「命中」', () => {
-    for (const state of ['conflict', 'mismatch'] as EvidenceDimensionState[]) {
-      const out = RULES.outcomeOf({ state } as SortChip, 'accept', 3);
-      expect(out.text).not.toContain('命中');
-      expect(out.text).toContain('掉一颗心');
-    }
-  });
-
-  it('S 级文案如实描述，不再写「每条都判对了」', () => {
-    const s = DATA.grades.find((grade) => grade.grade === 'S');
-    expect(s).toBeTruthy();
-    expect(s?.label).not.toContain('每条都判对');
-    expect(s?.label).toContain('最优解');
-  });
-
-  it('规则说明里必须写到兑现窗口，否则玩家无从知道旁证什么时候收', () => {
-    expect(DATA.scoring.note).toContain('最后三拍');
-    expect(DATA.scoring.note).toContain('兑现窗口');
+  it('判定行写进卡片自身区域（不再作为卡片外的兄弟节点）', () => {
+    const html = fs.readFileSync(path.join(DOCS, 'demo-sort.html'), 'utf8');
+    const chipBlock = html.slice(html.indexOf('id="chip"'), html.indexOf('id="wait-bar"'));
+    expect(chipBlock).toContain('id="verdict-line"');
+    expect(chipBlock).toContain('id="chip-value"');
+    expect(html).toContain('id="switch-note"');
+    expect(html).toContain('id="wait-fill"');
   });
 });

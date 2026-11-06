@@ -9,16 +9,27 @@
  * 结算表全部来自数据里的 scoring：
  *   收下「完全对上」= 10 × 倍率（倍率只看连续命中：连击 0 是 ×1、1 是 ×2、2 起 ×3）
  *   收下相容/边缘 = 固定分，但连击归零（中段收会打断冲锋）
- *   放走相容/边缘 = 0，连击不变（中段放是小亏，收尾放是白丢）
+ *   每件器物的最后三拍不发命中，这三拍收旁证分值翻倍（兑现窗口）
  *   收下冲突/没对上 = 掉一颗心、连击归零；放走 = +1
- *   超时 = 0 分且连击归零
- * 每件器物的最后三拍不发命中，这三拍是「兑现窗口」，收旁证不亏倍率。
+ *   超时 = 0 分且连击归零；换下一件器物时连击清零
+ *
+ * 题库不是一副牌：`DATA.runs` 里有若干「内容不同」的牌局，每局抽一个，
+ * 且排除最近两局——连打三局不会撞回同一副牌。
  */
 (function () {
   'use strict';
 
   var DATA = window.LODESTAR_SORT;
-  if (!DATA || !DATA.rounds || !DATA.rounds.length) return;
+
+  function runList() {
+    if (!DATA) return [];
+    if (DATA.runs && DATA.runs.length) return DATA.runs;
+    // 只有一副牌的旧数据结构也照样能跑（不为了兼容而写分支逻辑，只兜这一处）
+    return DATA.rounds ? [{ id: 'run-legacy', label: '', rounds: DATA.rounds, orders: DATA.orders }] : [];
+  }
+
+  var RUNS = runList();
+  if (!RUNS.length) return;
 
   var R = DATA.scoring;
   var CHIP_MS = [3200, 2800];
@@ -47,12 +58,16 @@
     unknown: '判不了',
   };
 
+  function isSideState(state) {
+    return state === 'caliber' || state === 'edge';
+  }
+
   /**
    * 一条说法 + 一个动作 = 这一拍的结果。
-   * 纯函数：传入当前的连击数，同一个 (chip, action, combo) 永远是同一个结果，
+   * 纯函数：传入当前连击与「是否在兑现窗口里」，同一组输入永远是同一个结果，
    * 页面随时能重算给玩家看，测试也能逐条复算。
    */
-  function outcomeOf(chip, action, combo) {
+  function outcomeOf(chip, action, combo, inWindow) {
     var meta = DATA.states[chip.state];
     var mult = multiplierOf(combo);
     if (action === 'timeout') {
@@ -73,15 +88,17 @@
           combo: 'up',
           life: 0,
           tone: 'hit',
-          text: meta.label + ' · 命中 +' + hit + '（×' + mult + '）',
+          text: '完全对上 · 命中 +' + hit + '（×' + mult + '）',
           verdict: 'hit',
         };
       }
-      var points = R.accept[chip.state];
+      var base = R.accept[chip.state];
+      var doubled = !!(inWindow && isSideState(chip.state));
+      var points = doubled ? base * R.windowBonus.multiplier : base;
       var life = R.acceptLife[chip.state];
       var mode = R.acceptCombo[chip.state];
       var parts = [meta.label + ' · ' + ACCEPT_TEXT[chip.state]];
-      if (points > 0) parts.push('+' + points);
+      if (points > 0) parts.push('+' + points + (doubled ? '（窗口翻倍）' : ''));
       if (life < 0) parts.push('掉一颗心');
       if (mode === 'reset') parts.push('连击断');
       return {
@@ -100,14 +117,20 @@
         combo: 'reset',
         life: 0,
         tone: 'mismatch',
-        text: meta.label + ' · 漏判了，连击断',
+        text: '漏判了 · 完全对上却放走，连击断',
         verdict: 'miss',
       };
     }
     var gain = R.reject[chip.state];
     var dropParts = [meta.label + ' · 放走'];
     if (gain > 0) dropParts.push('+' + gain);
-    if (chip.state === 'caliber' || chip.state === 'edge') dropParts.push('没拿分');
+    if (isSideState(chip.state)) {
+      dropParts.push(
+        inWindow
+          ? '窗口里白丢 +' + R.accept[chip.state] * R.windowBonus.multiplier
+          : '现在收不影响倍率',
+      );
+    }
     return {
       points: gain,
       combo: 'keep',
@@ -130,6 +153,9 @@
 
   var SORT = {
     phase: 'idle',
+    run: null,
+    rounds: [],
+    orders: [],
     order: null,
     sequence: [0, 1],
     roundIndex: 0,
@@ -151,8 +177,8 @@
     endedAt: 0,
     chip: null,
     drag: null,
-    lastOrder: -1,
-    lastFirstRound: -1,
+    lastOrder: '',
+    recentRuns: [],
   };
 
   var dom = {
@@ -162,6 +188,8 @@
     comboFill: document.getElementById('combo-fill'),
     hearts: document.getElementById('hearts'),
     roundTag: document.getElementById('round-tag'),
+    beatDots: document.getElementById('beat-dots'),
+    switchNote: document.getElementById('switch-note'),
     lot: document.getElementById('lot'),
     stage: document.getElementById('stage'),
     chip: document.getElementById('chip'),
@@ -176,6 +204,8 @@
     verdict: document.getElementById('verdict-line'),
     verdictLabel: document.getElementById('verdict-label'),
     verdictText: document.getElementById('verdict-text'),
+    waitBar: document.getElementById('wait-bar'),
+    waitFill: document.getElementById('wait-fill'),
     fx: document.getElementById('fx'),
     accept: document.getElementById('btn-accept'),
     reject: document.getElementById('btn-reject'),
@@ -197,7 +227,7 @@
   var SLOT_IDS = ['auctionHouse', 'dateText', 'sessionName'];
 
   function round() {
-    return DATA.rounds[SORT.sequence[SORT.roundIndex]];
+    return SORT.rounds[SORT.sequence[SORT.roundIndex]];
   }
 
   function orderOfRound() {
@@ -214,6 +244,11 @@
     if (!r) return null;
     var index = chipIndexOfBeat();
     return index === undefined ? null : r.chips[index];
+  }
+
+  function inWindow() {
+    var r = round();
+    return !!r && SORT.chipIndex >= r.settleFrom;
   }
 
   function now() {
@@ -250,12 +285,31 @@
     var r = round();
     var beat = SORT.chipIndex + 1;
     var total = r.chips.length;
-    var inWindow = SORT.chipIndex >= r.settleFrom;
+    var windowBeat = inWindow();
     dom.roundTag.textContent =
-      '第 ' + (SORT.roundIndex + 1) + '/' + DATA.rounds.length + ' 件 · ' +
+      '第 ' + (SORT.roundIndex + 1) + '/' + SORT.rounds.length + ' 件 · ' +
       '第 ' + beat + '/' + total + ' 拍' +
-      (inWindow ? ' · 收尾窗口：这三拍不会再发命中' : '');
-    dom.roundTag.classList.toggle('is-window', inWindow);
+      (windowBeat ? ' · 收尾窗口：现在收相容不亏倍率' : '');
+    dom.roundTag.classList.toggle('is-window', windowBeat);
+    renderDots(total);
+  }
+
+  /** 本件的十拍进度点：当前拍高亮，最后三拍（兑现窗口）描金边 */
+  function renderDots(total) {
+    if (!dom.beatDots) return;
+    var html = '';
+    for (var i = 0; i < total; i += 1) {
+      var cls = 'beat-dot';
+      if (i === SORT.chipIndex) cls += ' is-now';
+      else if (i < SORT.chipIndex) cls += ' is-done';
+      if (i >= total - R.settleBeats) cls += ' is-window';
+      html += '<i class="' + cls + '"></i>';
+    }
+    dom.beatDots.innerHTML = html;
+    dom.beatDots.setAttribute(
+      'aria-label',
+      '本件第 ' + (SORT.chipIndex + 1) + ' 拍，共 ' + total + ' 拍，最后 ' + R.settleBeats + ' 拍是兑现窗口',
+    );
   }
 
   function renderLot() {
@@ -267,11 +321,22 @@
     }
   }
 
+  function clearDecided() {
+    dom.chip.classList.remove('is-decided');
+    dom.chip.className = 'chip';
+    dom.verdict.className = 'verdict-line';
+    dom.verdictLabel.textContent = '';
+    dom.verdictText.textContent = '上甩收下 · 下甩放走';
+    dom.waitFill.style.width = '0%';
+    dom.waitFill.style.transition = 'none';
+  }
+
   function renderChip() {
     var chip = currentChip();
     var r = round();
     SORT.chip = chip;
     if (!chip) return;
+    clearDecided();
     dom.chipSlot.textContent = chip.short;
     dom.chipClaim.textContent = r.lot.values[chip.slot];
     dom.chipValue.textContent = chip.value;
@@ -279,7 +344,6 @@
     dom.chip.style.transition = 'none';
     dom.chip.style.transform = 'translateY(0)';
     dom.chip.style.opacity = '1';
-    dom.chip.classList.remove('is-dragging', 'is-settling', 'is-hit-glow', 'is-shake');
     if (!reduced()) {
       dom.chip.classList.remove('is-entering');
       void dom.chip.offsetWidth;
@@ -292,12 +356,37 @@
     );
   }
 
+  /** 判定写进牌面自身：牌不长脚走掉，判定行就在同一张卡里 */
   function setVerdict(text, tone) {
-    dom.verdictLabel.textContent = text ? '上一拍 ·' : '';
+    dom.verdictLabel.textContent = text ? '这拍 ·' : '';
     dom.verdictText.textContent = text || '';
     dom.verdict.className = 'verdict-line' + (tone ? ' tone-' + tone : '');
-    // 不隐藏：留出固定高度，判定出现时整块不会跳
-    dom.verdict.hidden = false;
+    dom.chip.classList.toggle('is-decided', !!text);
+    if (text) dom.chip.classList.add('tone-' + (tone || 'hint'));
+  }
+
+  /** 判定停留的这一秒多不是空白：卡片下面一条进度线走完，说明马上发下一拍 */
+  function armWaitBar() {
+    dom.waitFill.style.transition = 'none';
+    dom.waitFill.style.width = '0%';
+    void dom.waitFill.offsetWidth;
+    var ms = reduced() ? VERDICT_MS_REDUCED : VERDICT_MS;
+    dom.waitFill.style.transition = 'width ' + ms + 'ms linear';
+    dom.waitFill.style.width = '100%';
+  }
+
+  var switchTimer = 0;
+  function showSwitchNote() {
+    if (!dom.switchNote) return;
+    dom.switchNote.textContent = '换下一件 · 连击清零，倍率回到 ×1';
+    dom.switchNote.classList.remove('is-in');
+    void dom.switchNote.offsetWidth;
+    dom.switchNote.classList.add('is-in');
+    window.clearTimeout(switchTimer);
+    switchTimer = window.setTimeout(function () {
+      dom.switchNote.classList.remove('is-in');
+      dom.switchNote.textContent = '';
+    }, 1900);
   }
 
   // ---- 特效 ----
@@ -431,7 +520,7 @@
     if (SORT.phase !== 'playing' || SORT.locked) return;
     var chip = SORT.chip;
     if (!chip) return;
-    var inWindow = SORT.chipIndex >= round().settleFrom;
+    var windowBeat = inWindow();
     var beforeCombo = SORT.combo;
     SORT.locked = true;
     stopTimer();
@@ -440,7 +529,7 @@
     dom.timerFill.classList.remove('is-low');
     dom.timerNum.classList.remove('is-low');
 
-    var result = outcomeOf(chip, action, SORT.combo);
+    var result = outcomeOf(chip, action, SORT.combo, windowBeat);
     // 先落账、再表演：动画只挂在结果上，减少动效时行为完全一样
     var next = applyOutcome(SORT.score, SORT.combo, SORT.lives, result);
     SORT.score = next.score;
@@ -464,7 +553,7 @@
       life: result.life,
       comboBefore: beforeCombo,
       comboAfter: SORT.combo,
-      inWindow: inWindow,
+      inWindow: windowBeat,
     });
 
     if (chip.state === 'exact' && action === 'accept') {
@@ -483,6 +572,7 @@
 
     renderHud(result.points > 0);
     setVerdict(result.text, result.tone);
+    armWaitBar();
 
     var color = TONE_COLOR[result.tone] || '#E9C46A';
     if (result.verdict === 'hit') {
@@ -498,15 +588,9 @@
       floatText('超时', '#E2705F');
     }
 
-    if (!reduced()) {
-      if (action === 'accept') {
-        dom.chip.style.transition = 'transform .18s ease-in, opacity .18s ease-in';
-        dom.chip.style.transform = 'translateY(-64px) scale(.92)';
-      } else {
-        dom.chip.style.transition = 'transform .18s ease-in, opacity .18s ease-in';
-        dom.chip.style.transform = 'translateY(' + (action === 'timeout' ? 26 : 84) + 'px)';
-      }
-      dom.chip.style.opacity = '0';
+    if (!reduced() && action !== 'timeout') {
+      dom.chip.style.transition = 'transform .18s ease-out';
+      dom.chip.style.transform = 'translateY(' + (action === 'accept' ? -6 : 6) + 'px) scale(.985)';
     }
 
     window.setTimeout(nextBeat, reduced() ? VERDICT_MS_REDUCED : VERDICT_MS);
@@ -521,7 +605,7 @@
     var r = round();
     SORT.chipIndex += 1;
     if (SORT.chipIndex >= r.chips.length) {
-      if (SORT.roundIndex + 1 >= DATA.rounds.length) {
+      if (SORT.roundIndex + 1 >= SORT.rounds.length) {
         finish(null);
         return;
       }
@@ -530,6 +614,7 @@
       SORT.combo = 0;
       renderHud(false);
       renderLot();
+      showSwitchNote();
     }
     renderRoundTag();
     renderChip();
@@ -538,18 +623,34 @@
 
   // ---- 开始与结束 ----
 
-  /** 抽一种牌序、抽一个先后顺序，保证与上一局不同 */
+  /**
+   * 抽一个牌局：排除最近两局，保证连打三局不撞回同一副牌；
+   * 牌序与两件器物的先后也避开上一局。
+   */
   function pickRun() {
-    var total = DATA.orders.length;
-    var orderIndex = Math.floor(Math.random() * total);
-    if (total > 1 && orderIndex === SORT.lastOrder) orderIndex = (orderIndex + 1) % total;
-    var first = Math.random() < 0.5 ? 1 : 0;
-    if (DATA.rounds.length > 1 && first === SORT.lastFirstRound) first = 1 - first;
-    SORT.lastOrder = orderIndex;
-    SORT.lastFirstRound = first;
-    SORT.order = DATA.orders[orderIndex];
-    SORT.sequence = DATA.rounds.map(function (_, index) { return index; });
-    if (first === 1 && SORT.sequence.length > 1) SORT.sequence.reverse();
+    var candidates = [];
+    for (var i = 0; i < RUNS.length; i += 1) {
+      if (SORT.recentRuns.indexOf(RUNS[i].id) < 0) candidates.push(RUNS[i]);
+    }
+    if (!candidates.length) {
+      SORT.recentRuns = [];
+      candidates = RUNS.slice();
+    }
+    var run = candidates[Math.floor(Math.random() * candidates.length)];
+    SORT.run = run;
+    SORT.rounds = run.rounds;
+    SORT.orders = run.orders;
+    SORT.recentRuns.push(run.id);
+    while (SORT.recentRuns.length > 2) SORT.recentRuns.shift();
+
+    var order = SORT.orders[Math.floor(Math.random() * SORT.orders.length)];
+    if (SORT.orders.length > 1 && order.id === SORT.lastOrder) {
+      order = SORT.orders[(SORT.orders.indexOf(order) + 1) % SORT.orders.length];
+    }
+    SORT.lastOrder = order.id;
+    SORT.order = order;
+    SORT.sequence = SORT.rounds.map(function (_, index) { return index; });
+    if (SORT.rounds.length > 1 && Math.random() < 0.5) SORT.sequence.reverse();
   }
 
   function startGame() {
@@ -576,7 +677,6 @@
     renderLot();
     renderRoundTag();
     renderHud(false);
-    setVerdict('', '');
     renderChip();
     armTimer(CHIP_MS[0]);
   }
@@ -603,9 +703,7 @@
   /** 这一拍按公开规则该怎么打：收下命中，收尾窗口里收旁证，其余放走 */
   function ruleWants(item) {
     if (item.state === 'exact') return 'accept';
-    if (item.state === 'caliber' || item.state === 'edge') {
-      return item.inWindow ? 'accept' : 'reject';
-    }
+    if (isSideState(item.state)) return item.inWindow ? 'accept' : 'reject';
     return 'reject';
   }
 
@@ -618,7 +716,8 @@
     dom.perfectScore.textContent = String(best);
     dom.orderNote.textContent = SORT.order
       ? '这一牌序最优 ' + best + ' 分；只认字面相同最多 ' + SORT.order.literal +
-        ' 分，见旁证就收 ' + SORT.order.eager + ' 分。'
+        ' 分（' + Math.round((SORT.order.literal / best) * 100) + '%），见旁证就收 ' +
+        SORT.order.eager + ' 分。'
       : '';
     var seconds = Math.max(1, Math.round((SORT.endedAt - SORT.startedAt) / 1000));
     var used = {};
@@ -688,14 +787,16 @@
         var accept =
           state === 'exact'
             ? R.hitBase + '×倍率，连击+1'
-            : (R.accept[state] > 0 ? '+' + R.accept[state] : '0') +
+            : (R.accept[state] > 0
+                ? '+' + R.accept[state] + (isSideState(state) ? '（窗口 ×' + R.windowBonus.multiplier + '）' : '')
+                : '0') +
               (R.acceptLife[state] < 0 ? '，−1♥' : '') +
               (R.acceptCombo[state] === 'reset' ? '，连击断' : '');
         var reject =
           state === 'exact'
             ? '0，连击断'
             : (R.reject[state] > 0 ? '+' + R.reject[state] : '0') +
-              (state === 'caliber' || state === 'edge' ? '，没拿分' : '');
+              (isSideState(state) ? '，现在收不亏倍率' : '');
         return (
           '<tr><td style="color:' + TONE_COLOR[meta.tone] + '">' + meta.label + '</td>' +
           '<td>' + accept + '</td><td>' + reject + '</td></tr>'
@@ -814,6 +915,7 @@
 
   renderRules();
   renderHud(false);
+  clearDecided();
 
   // 供一致性测试核对：规则表与结算函数是页面真正在用的那一份
   window.LODESTAR_SORT_RULES = {
@@ -823,6 +925,7 @@
     chipMs: CHIP_MS,
     verdictMs: VERDICT_MS,
     swipe: SWIPE,
+    pickRun: pickRun,
     state: function () {
       return {
         phase: SORT.phase,
@@ -831,7 +934,9 @@
         lives: SORT.lives,
         roundIndex: SORT.roundIndex,
         chipIndex: SORT.chipIndex,
+        runId: SORT.run ? SORT.run.id : null,
         orderId: SORT.order ? SORT.order.id : null,
+        recentRuns: SORT.recentRuns.slice(),
         sequence: SORT.sequence.slice(),
         log: SORT.log.slice(),
       };

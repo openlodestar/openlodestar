@@ -4,6 +4,21 @@
 
 `docs/demo-sort.html` 是另开的一页。`docs/demo-lab.html`（改词 + 八档图鉴 + 31 分线）原样保留，可以并排对比：那边是"自己拼一句话、看系统怎么判"，这边是"系统把一条条说法递到手上，你替它分拣"。两页读同一份冻结矩阵、调同一套维度函数，判定口径一个字没改。
 
+## 本地打开这个演示
+
+两种方式，任选一种；都不需要装依赖。
+
+1. **最省事：直接双击 `docs/demo-sort.html`**，用默认浏览器打开即可（地址栏会是 `file:///.../docs/demo-sort.html`）。这一页的脚本、样式、数据全部走相对路径，没有 `fetch` / `XMLHttpRequest`、没有 ES module，也不联网，所以 `file://` 下能完整玩。实测（Chromium，390×844）：样式生效、`window.LODESTAR_SORT` 读到 4 个牌局、开始后第一拍判对得 10 分，控制台 0 错误、动态请求 0 条。
+2. **要 HTTP 预览**（例如浏览器扩展拦了 `file://`）：在仓库根目录跑
+
+   ```powershell
+   pnpm run demo:serve -- --port 3021
+   ```
+
+   然后打开 `http://127.0.0.1:3021/demo-sort.html`。不想用 pnpm 也可以直接 `node scripts/serve-demo.mjs --port 3021`。服务只读 `docs/`、只绑 `127.0.0.1`，不联网、不计费。
+
+**关于之前那个 3021 端口**：检查时它还在，进程是 `node scripts/serve-demo.mjs --port 3021`（当时 PID 412，父进程是一个 `cmd.exe /C` 终端），`http://127.0.0.1:3021/demo-sort.html` 返回 200。停掉：在那个终端按 `Ctrl+C`，或执行 `Stop-Process -Id 412`（先确认 PID 没变）。再起来就是上面那条命令；端口只是启动参数，默认端口是 3013，换别的号同理。
+
 ## 一局的形状
 
 - 两件器物，每件十条说法，共 20 拍；每拍一张证据卡，基础倒计时第一件 2.6 秒、第二件 2.3 秒。

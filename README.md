@@ -157,7 +157,25 @@ pnpm exec tsx src/cli.ts demo --example poly-2021-autumn --report .openlodestar-
 
 玩法、组合矩阵与覆盖读数见 [docs/demo-lab.md](docs/demo-lab.md)。同一份文档里还写了一个**只在本机跑、不部署**的实时实验服务（`pnpm run demo:lab-server`，`127.0.0.1:3014`，默认拒绝运行，加 `--allow-spend` 才真的花钱查）。
 
-两页演示都可以直接双击本地文件打开。要在浏览器里用 `http://127.0.0.1:3013/demo-lab.html` 这种地址看，起一个只绑本机的静态预览：
+### 证据分拣：上甩收下，下甩放走
+
+`docs/demo-sort.html` 是另一种玩法，回答的问题不变：一条说法到底能不能当支撑。屏幕下方滑过一张证据卡，你只有三秒多——往上甩收下、往下甩放走。两件器物、每件十条说法，一屏之内打完，满分局 146 分。
+
+它把"相容证据不等于直接支持"做成了要用手感去碰的取舍：
+
+- **完全对上**收下是命中（10 × 倍率），放走算漏判、连击归零；
+- **口径相容**收下只给 +3 并**冻住连击**，放走给 +2 且连击继续——多 1 分，还是保住倍数；
+- **边缘相容**收下 +1、放走 +2，收下严格更亏；
+- **冲突候选 / 没对上**收下就掉一颗心、连击断；
+- **无从判断**收下不伤，但白占一拍。
+
+连击每 3 次升半档倍率、封顶 ×3；三颗心掉光提前结束。每拍结束跑道正中写一行 `口径相容 · 只算旁证 · +3 · 连击冻结`，状态、后果、分数一次说清；一局结束逐条列出每条说法的真实状态、你的动作与得分，可以自己核。没有随机奖励、没有时间奖励、没有隐藏倍率。
+
+状态同样**不是页面算的**：`pnpm run demo:sort`（`src/demo-page/build-sort-data.ts`）读 `docs/assets/demo-game-data.js`，用引擎的维度纯函数把 20 条说法的状态与说明算好，冻结进 `docs/assets/demo-sort-data.js`。两轮牌序是排好的教学弧线，第一拍必是完全对上；第二轮换一个日期精度，让同一条「2021年秋季」从边缘相容变成口径相容——同一个词，断言精度不同，判据就不同。六种状态在一局里都会出现，缺一种构建就失败；`src/demo-page/demo-sort.test.ts` 用引擎逐条复算守着这条界线。
+
+触屏用真实指针事件（上下甩），键盘 `↑`/`↓` 或 `W`/`S` 打完整局，`prefers-reduced-motion` 下特效整层隐藏、结算逻辑不变。玩法、计分表与实测读数见 [docs/demo-sort.md](docs/demo-sort.md)。旧的 `docs/demo-lab.html` 一个字没改，仍在导航里，可以两页对比着玩。
+
+三页演示都可以直接双击本地文件打开。要在浏览器里用 `http://127.0.0.1:3013/demo-lab.html` 这种地址看，起一个只绑本机的静态预览：
 
 ```bash
 pnpm run demo:serve                    # 默认 http://127.0.0.1:3013/demo-lab.html
@@ -237,19 +255,21 @@ src/
   prompts/                  提示词模板（YAML，每条规则都带 enabled）
   integrations/             搜索提供者（注册表 + 内置 llm-web/serper）、浏览器插件注册表与约定加载、抓取策略、HTML 清洗
   llm/                      OpenAI 兼容调用与重试
-  demo-page/                交互演示的数据构建与冻结脚本（docs/demo.html 与 docs/demo-lab.html 的数据由它们生成）
+  demo-page/                交互演示的数据构建与冻结脚本（docs/demo.html、docs/demo-lab.html 与 docs/demo-sort.html 的数据由它们生成）
 plugins/browser-playwright/ playwright 渲染插件（独立包；自带 package.json 与 playwright 依赖）
 examples/porcelain/         最小离线底稿（合成数据，契约测试用）
 examples/poly-2021-autumn/  真实案例底稿（公开报道的正文节选 + 抓取档案 + 四条候选记录 + case.json）
 examples/demo-batch-*/      在线采集补出来的冻结批次（页面节选 + 来源声明，供交互演示切换）
 examples/*/evidence.enriched.jsonl 判据维度回填产物（旁挂文件，冻结底稿不动；演示构建优先读）
-docs/index.html             站点首页：这个项目做什么、现在到哪一步，并直入两个演示
+docs/index.html             站点首页：这个项目做什么、现在到哪一步，并直入三个演示
 docs/demo.html              交互演示页：切换记录、看字段引文与判定（断网可开）
 docs/demo-lab.html          小游戏版演示页：一屏之内改句子的三个槽位、收齐八种结论通关（断网可开）
-docs/assets/site-nav.css    三页共用的顶栏样式（导航结构只写一份，链接全部相对路径）
+docs/demo-sort.html         证据分拣小游戏页：20 拍限时判断，六种判据状态各有后果（断网可开）
+docs/assets/site-nav.css    各页共用的顶栏样式（导航结构只写一份，链接全部相对路径）
 docs/demo-lab.md            小游戏玩法、组合矩阵与覆盖读数；站点地图与本地实时实验服务的边界
+docs/demo-sort.md           证据分拣的玩法、计分表、两轮教学弧线、实测读数与已知不足
 scripts/demo-live-server.mjs 只在本机跑的实时实验服务（不部署，默认拒绝运行）
-scripts/serve-demo.mjs      两页演示的本地静态预览（只绑 127.0.0.1，默认端口 3013）
+scripts/serve-demo.mjs      docs/ 下静态页面的本地预览（只绑 127.0.0.1，默认端口 3013）
 scripts/backfill-evidence-dimensions.ts 既有证据行的判据维度回填（规则优先、模型兜底、逐字子串校验）
 docs/demo-design-guide.md   演示方法论：一条演示该证明什么、怎么挑素材、怎么摆证据
 docs/time-window-rules.md   时间窗口的两条口径：断言侧不扩、证据侧上下各放宽一个月

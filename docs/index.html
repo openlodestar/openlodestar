@@ -81,7 +81,7 @@ p{margin:0 0 16px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 20px 18px}
 .card h3{margin:0 0 8px;font-size:1.04rem;line-height:1.4}
 .card p{margin:0;color:var(--muted);font-size:.95rem;line-height:1.75}
-.demo-cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}
+.demo-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:24px}
 .demo-card{
   display:flex;flex-direction:column;gap:9px;padding:22px 20px;background:var(--card);
   border:1px solid var(--line);border-radius:14px;text-decoration:none;color:inherit;
@@ -142,6 +142,7 @@ footer a:hover{color:var(--cream)}
         <a href="index.html" aria-current="page">主页</a>
         <a href="demo.html">逐条演示</a>
         <a href="demo-lab.html">小游戏</a>
+        <a href="demo-sort.html">证据分拣</a>
         <a href="https://github.com/openlodestar/openlodestar">GitHub</a>
       </nav>
     </div>
@@ -155,7 +156,7 @@ footer a:hover{color:var(--cream)}
     <div class="actions">
       <a class="button primary" href="https://github.com/openlodestar/openlodestar">在 GitHub 上看代码</a>
       <a class="button" href="https://github.com/openlodestar/openlodestar/blob/main/README.md">先读 README</a>
-      <a class="button" href="#demos">先看两个演示</a>
+      <a class="button" href="#demos">先看三个演示</a>
     </div>
     <p class="en" lang="en">OpenLodestar is a verification layer for LLM output. Every claim is treated as a lead and checked against public web pages. When evidence is found, the exact quote and its source are kept; when it is not, the result says which kind of not-found it is. Every kept verdict can be re-run step by step.</p>
   </div>
@@ -164,8 +165,8 @@ footer a:hover{color:var(--cream)}
 <main id="main">
 
 <section class="section" id="demos">
-  <h2>不用装环境，先看两个演示</h2>
-  <p>两页演示都不联网、不调模型：结论是构建时用真引擎对冻结证据算好并冻住的，断网也能打开。它们回答的不是同一个问题——</p>
+  <h2>不用装环境，先看三个演示</h2>
+  <p>三页演示都不联网、不调模型：结论是构建时用真引擎对冻结证据算好并冻住的，断网也能打开。它们回答的不是同一个问题——</p>
   <div class="demo-cards">
     <a class="demo-card" href="demo.html">
       <span class="demo-kicker">逐条记录演示</span>
@@ -174,10 +175,16 @@ footer a:hover{color:var(--cream)}
       <span class="demo-go">进入逐条记录演示 →</span>
     </a>
     <a class="demo-card" href="demo-lab.html">
-      <span class="demo-kicker">小游戏</span>
+      <span class="demo-kicker">小游戏 · 改词</span>
       <strong>换掉一个词，证据还认不认？</strong>
       <p>自己动手改句子里的机构、时间、专场名，每换一个词结论立刻重算；撞进“这批证据没覆盖”时，它会指出改一两个词就能看到结论的去处。</p>
       <span class="demo-go">进入小游戏 →</span>
+    </a>
+    <a class="demo-card" href="demo-sort.html">
+      <span class="demo-kicker">小游戏 · 分拣</span>
+      <strong>三秒之内，这条说法能不能当支撑？</strong>
+      <p>两件器物、二十条说法。往上甩收下、往下甩放走；相容证据收下会冻住连击，冲突与没对上会掉心。判据状态由真引擎构建时算好，一局结束逐条可核。</p>
+      <span class="demo-go">进入证据分拣 →</span>
     </a>
   </div>
 </section>

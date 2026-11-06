@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>证据分拣 · OpenLodestar — 上甩收下，下甩放走</title>
+<meta name="description" content="两件器物、二十条说法，每条只给你三秒多。把能当直接支撑的收下，其余放走。每条说法属于哪个判据状态，由构建时跑的真实引擎算出，一局结束可以逐条核对。">
+<link rel="canonical" href="https://openlodestar.github.io/openlodestar/demo-sort.html">
+<link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="stylesheet" href="assets/site-nav.css">
+<style>
+:root{
+  --navy:#101E3C;
+  --cream:#F4EEE2;
+  --cream-dim:#C9C2B4;
+  --card:#FFFDF8;
+  --ink:#151A24;
+  --gold:#E9C46A;
+  --board:#081020;
+  --hit:#46C98A;
+  --caliber:#6FA8DC;
+  --edge:#93AEBB;
+  --conflict:#E4A93F;
+  --mismatch:#E2705F;
+  --unknown:#9AA0AA;
+  --max:760px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+html,body{height:100%}
+body{
+  margin:0;overflow:hidden;display:flex;flex-direction:column;height:100vh;height:100dvh;
+  background:var(--board);color:var(--cream);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+  line-height:1.5;-webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(820px 420px at 16% -10%, #24436F 0%, rgba(8,16,32,0) 62%),
+    radial-gradient(620px 380px at 92% -6%, #3B2E58 0%, rgba(8,16,32,0) 58%),
+    linear-gradient(180deg,#0C1A33 0%,#070E1C 100%);
+}
+a{color:var(--gold)}
+:focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:8px}
+
+/* ---- 顶栏：沿用共用导航，只压高度 ---- */
+.topbar{flex:0 0 auto;padding:0 14px;background:rgba(6,13,28,.6);border-bottom:1px solid rgba(244,238,226,.09);position:relative;z-index:6}
+.topbar .site-nav-inner{padding:7px 0;max-width:var(--max)}
+.topbar .brand{font-size:.96rem}
+.topbar .site-nav nav a{font-size:.82rem;padding:3px 1px}
+
+/* ---- 游戏外壳：整页不滚，只有结算表内部可以滚 ---- */
+.shell{
+  flex:1;min-height:0;width:100%;max-width:var(--max);margin:0 auto;
+  padding:8px 14px 10px;display:flex;flex-direction:column;gap:8px;position:relative;
+}
+
+/* ---- 顶栏数值 ---- */
+.hud{
+  flex:0 0 auto;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;
+  border:1px solid rgba(244,238,226,.15);border-radius:14px;padding:7px 12px;
+  background:linear-gradient(180deg,rgba(255,253,248,.09),rgba(255,253,248,.03));
+}
+.stat{display:flex;align-items:baseline;gap:5px;font-variant-numeric:tabular-nums}
+.stat-label{font-size:.68rem;letter-spacing:.12em;color:rgba(244,238,226,.55)}
+.stat strong{font-size:clamp(1.15rem,3.4vw,1.5rem);line-height:1;color:var(--gold)}
+#score{min-width:2ch;text-align:left}
+.stat-combo{flex-direction:column;align-items:center;gap:2px;min-width:0}
+.stat-combo .combo-head{display:flex;align-items:baseline;gap:5px}
+#combo-mult{font-size:clamp(.95rem,2.8vw,1.15rem);color:var(--cream);transition:color .12s}
+#combo-mult.is-hot{color:var(--gold);text-shadow:0 0 14px rgba(233,196,106,.6)}
+#combo-count{font-size:.72rem;color:rgba(244,238,226,.6)}
+.combo-track{position:relative;display:block;width:100%;min-width:88px;max-width:220px;height:6px;border-radius:99px;background:rgba(244,238,226,.14);overflow:hidden}
+.combo-fill{position:absolute;inset:0 auto 0 0;width:0%;border-radius:99px;background:linear-gradient(90deg,#6FA8DC,#E9C46A);transition:width .16s linear}
+.combo-track.is-frozen{animation:frozen .46s ease-out}
+.combo-track.is-broken{animation:broken .4s ease-out}
+@keyframes frozen{0%{box-shadow:0 0 0 2px rgba(111,168,220,.9),0 0 14px rgba(111,168,220,.8)}100%{box-shadow:0 0 0 0 rgba(111,168,220,0)}}
+@keyframes broken{0%{box-shadow:0 0 0 2px rgba(226,112,95,.85),0 0 14px rgba(226,112,95,.7)}100%{box-shadow:0 0 0 0 rgba(226,112,95,0)}}
+.combo-track .notch{position:absolute;top:0;bottom:0;width:1px;background:rgba(8,16,32,.65)}
+.hearts{display:flex;gap:3px;font-size:1.05rem;line-height:1;color:var(--mismatch);letter-spacing:.02em}
+.hearts .is-lost{color:rgba(244,238,226,.18)}
+.round-tag{flex:0 0 auto;margin:0;font-size:.7rem;color:rgba(244,238,226,.62);text-align:center;letter-spacing:.04em}
+
+/* ---- 舞台：上卡片、下证据，中间是甩的跑道 ---- */
+.stage{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden}
+
+.lot{
+  flex:0 0 auto;margin:0 auto;width:100%;max-width:520px;border-radius:16px;padding:10px 14px 12px;
+  background:linear-gradient(180deg,#FFFDF8,#F4EEE2);color:var(--ink);
+  box-shadow:0 10px 26px rgba(0,0,0,.34),inset 0 1px 0 #fff;
+  border:1px solid rgba(255,255,255,.5);
+}
+.lot-kicker{margin:0 0 6px;font-size:.64rem;letter-spacing:.22em;color:#8A7F6C;text-transform:uppercase}
+.lot-rows{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:baseline}
+.lot-row{display:contents}
+.lot-rows dt{font-size:.72rem;color:#7B7160;white-space:nowrap}
+.lot-rows dd{margin:0;font-size:clamp(.86rem,2.6vw,1rem);font-weight:620;overflow-wrap:anywhere}
+.lot-row.is-hit dd::after{content:"  命中";font-size:.66rem;color:#1F6B45;font-weight:600;letter-spacing:.06em}
+.lot.is-harm{box-shadow:0 0 0 2px rgba(226,112,95,.85),0 10px 26px rgba(0,0,0,.34)}
+
+/* 中间跑道：虚线是甩的方向，判定结果落在正中 */
+.runway{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center}
+.runway::before{
+  content:"";position:absolute;left:50%;top:16px;bottom:4px;width:1px;transform:translateX(-50%);
+  background:repeating-linear-gradient(180deg,rgba(244,238,226,.16) 0 5px,transparent 5px 13px);
+}
+.runway::after{
+  content:"";position:absolute;left:50%;top:3px;transform:translateX(-50%);
+  border-left:5px solid transparent;border-right:5px solid transparent;
+  border-bottom:7px solid rgba(244,238,226,.22);
+}
+.verdict-line{
+  position:relative;z-index:2;margin:0;padding:3px 12px;border-radius:99px;
+  text-align:center;font-size:clamp(.88rem,3vw,1.05rem);font-weight:640;line-height:1.35;
+  letter-spacing:.01em;color:rgba(244,238,226,.72);transition:color .1s;
+}
+.verdict-line:not(:empty){background:rgba(6,13,28,.82);box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.verdict-line.tone-hit{color:var(--hit)}
+.verdict-line.tone-caliber{color:var(--caliber)}
+.verdict-line.tone-edge{color:var(--edge)}
+.verdict-line.tone-conflict{color:var(--conflict)}
+.verdict-line.tone-mismatch{color:var(--mismatch)}
+.verdict-line.tone-unknown{color:var(--unknown)}
+
+/* 发牌区：计时条 + 证据卡，贴着拇指 */
+.beat{flex:0 0 auto;position:relative;display:flex;flex-direction:column;align-items:center;gap:7px;touch-action:none;padding-bottom:2px}
+.timer-row{display:flex;align-items:center;gap:8px;width:min(100%,320px)}
+.timer{flex:1;height:6px;border-radius:99px;background:rgba(244,238,226,.14);overflow:hidden}
+.timer-fill{display:block;height:100%;width:100%;border-radius:99px;background:linear-gradient(90deg,#46C98A,#E9C46A);box-shadow:0 0 8px rgba(70,201,138,.45)}
+.timer-fill.is-low{background:linear-gradient(90deg,#E4A93F,#E2705F);box-shadow:0 0 10px rgba(226,112,95,.6)}
+.timer-num{font-size:.68rem;color:rgba(244,238,226,.55);font-variant-numeric:tabular-nums;min-width:2.4em;text-align:right}
+.timer-num.is-low{color:var(--mismatch);font-weight:700}
+.chip{
+  position:relative;display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:14px;
+  background:linear-gradient(180deg,#FFFDF8,#EFE7D8);color:var(--ink);
+  box-shadow:0 8px 20px rgba(0,0,0,.3);cursor:grab;touch-action:none;user-select:none;
+  max-width:min(94vw,520px);min-width:min(62vw,240px);will-change:transform;
+}
+.chip:active{cursor:grabbing}
+.chip.is-dragging{transition:none}
+.chip.is-settling{transition:transform .12s ease-out}
+.chip-slot{font-size:.68rem;letter-spacing:.1em;color:#7B7160;white-space:nowrap;flex:0 0 auto}
+.chip-body{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.chip-claim{display:flex;gap:6px;align-items:baseline;font-size:.72rem;color:#8A7F6C;min-width:0}
+.chip-claim em{font-style:normal;font-size:.6rem;letter-spacing:.08em;padding:0 4px;border-radius:4px;background:#E7DCC6;color:#7A6E58;flex:0 0 auto}
+.chip-claim span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip-now{display:flex;gap:6px;align-items:baseline;min-width:0}
+.chip-now em{font-style:normal;font-size:.6rem;letter-spacing:.08em;padding:0 4px;border-radius:4px;background:#2E3A4E;color:#EFE7D8;flex:0 0 auto}
+.chip-value{font-size:clamp(.94rem,3vw,1.1rem);font-weight:650;overflow-wrap:anywhere}
+.chip-tag{font-size:.6rem;padding:1px 5px;border-radius:99px;background:#EDE2C8;color:#7A5A16;white-space:nowrap;flex:0 0 auto}
+.beat-hint{margin:0;font-size:.68rem;color:rgba(244,238,226,.42);letter-spacing:.08em}
+
+/* ---- 动作条 ---- */
+.controls{flex:0 0 auto;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.act{
+  display:flex;align-items:center;justify-content:center;gap:8px;min-height:56px;
+  border-radius:14px;border:1px solid rgba(244,238,226,.22);background:rgba(244,238,226,.07);
+  color:var(--cream);font:inherit;font-size:.98rem;font-weight:600;letter-spacing:.06em;cursor:pointer;
+  transition:background .12s,border-color .12s,transform .06s;
+}
+.act-key{font-size:1.05rem;opacity:.8}
+.act:active{transform:scale(.98)}
+.act-accept{border-color:rgba(70,201,138,.55);background:rgba(70,201,138,.14)}
+.act-accept:hover{background:rgba(70,201,138,.22)}
+.act-reject{border-color:rgba(244,238,226,.24)}
+.act-reject:hover{background:rgba(244,238,226,.12)}
+.act:disabled{opacity:.4;cursor:default}
+
+/* ---- 特效层 ---- */
+.fx{position:absolute;inset:0;pointer-events:none;z-index:5}
+.fx-spark{position:absolute;width:7px;height:7px;border-radius:2px;background:var(--gold);animation:spark .52s ease-out forwards}
+.fx-float{position:absolute;font-weight:750;font-size:1rem;color:var(--gold);text-shadow:0 2px 10px rgba(0,0,0,.6);animation:float-up .62s ease-out forwards;white-space:nowrap}
+.fx-burst{position:absolute;border-radius:50%;border:2px solid var(--hit);animation:burst .42s ease-out forwards}
+.fx-vignette{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 120px 30px rgba(226,112,95,.7);opacity:0;animation:vignette .55s ease-out;z-index:7}
+@keyframes spark{from{opacity:1;transform:translate(0,0) scale(1)}to{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.3)}}
+@keyframes float-up{from{opacity:1;transform:translate(-50%,0)}to{opacity:0;transform:translate(-50%,-42px)}}
+@keyframes burst{from{opacity:.9;transform:translate(-50%,-50%) scale(.4)}to{opacity:0;transform:translate(-50%,-50%) scale(2.6)}}
+@keyframes vignette{0%{opacity:0}20%{opacity:1}100%{opacity:0}}
+@keyframes chip-in{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.chip.is-entering{animation:chip-in .16s ease-out}
+@keyframes bump{0%{transform:scale(1)}45%{transform:scale(1.22)}100%{transform:scale(1)}}
+.is-bump{animation:bump .22s ease-out}
+@keyframes stamp{0%{opacity:0;transform:scale(1.6)}30%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1)}}
+
+/* ---- 覆盖层 ---- */
+.overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(6,12,24,.86);backdrop-filter:blur(3px)}
+.sheet{
+  width:100%;max-width:560px;max-height:100%;display:flex;flex-direction:column;gap:12px;
+  border-radius:18px;padding:18px;border:1px solid rgba(244,238,226,.18);
+  background:linear-gradient(180deg,rgba(22,38,68,.98),rgba(10,20,40,.98));box-shadow:0 24px 60px rgba(0,0,0,.5);
+}
+.sheet-kicker{margin:0;font-size:.68rem;letter-spacing:.22em;color:rgba(244,238,226,.5)}
+.sheet h1,.sheet h2{margin:0;font-size:clamp(1.25rem,4.4vw,1.7rem);letter-spacing:.02em}
+.sheet p{margin:0;font-size:.86rem;color:rgba(244,238,226,.78)}
+.sheet .lead{font-size:.92rem;color:var(--cream)}
+.sheet .keys{display:flex;gap:10px;flex-wrap:wrap;font-size:.8rem;color:rgba(244,238,226,.66)}
+.sheet .keys b{color:var(--cream);font-weight:600}
+.start-btn{
+  min-height:58px;border-radius:14px;border:1px solid rgba(233,196,106,.6);
+  background:linear-gradient(180deg,rgba(233,196,106,.28),rgba(233,196,106,.12));
+  color:var(--cream);font:inherit;font-size:1.1rem;font-weight:700;letter-spacing:.16em;cursor:pointer;
+}
+.start-btn:hover{background:linear-gradient(180deg,rgba(233,196,106,.4),rgba(233,196,106,.18))}
+.sheet details{border-top:1px solid rgba(244,238,226,.14);padding-top:10px}
+.sheet summary{cursor:pointer;font-size:.8rem;color:rgba(244,238,226,.72)}
+.sheet details p{margin-top:8px;font-size:.78rem;line-height:1.6}
+.rule-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:.74rem}
+.rule-table th,.rule-table td{text-align:left;padding:5px 6px;border-bottom:1px solid rgba(244,238,226,.1);vertical-align:top}
+.rule-table th{color:rgba(244,238,226,.55);font-weight:600;letter-spacing:.06em}
+.rule-table td:first-child{white-space:nowrap;font-weight:640}
+
+/* 结算 */
+.result-head{display:flex;align-items:center;gap:14px}
+.grade{font-size:clamp(2.2rem,9vw,3rem);line-height:1;color:var(--gold);font-weight:800;letter-spacing:-.02em}
+.result-score{margin:0;font-size:1.05rem;color:var(--cream);font-variant-numeric:tabular-nums}
+.result-score span{color:var(--gold);font-weight:700}
+.result-stats{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none}
+.result-stats li{font-size:.72rem;padding:3px 8px;border-radius:99px;background:rgba(244,238,226,.1);color:rgba(244,238,226,.82)}
+.result-stats li b{color:var(--cream)}
+.review-wrap{flex:1;min-height:0;overflow:auto;border:1px solid rgba(244,238,226,.13);border-radius:12px;padding:2px 10px}
+.review-list{margin:0;padding:0;list-style:none}
+.review-list li{display:grid;grid-template-columns:1fr auto;gap:1px 10px;padding:7px 0;border-bottom:1px solid rgba(244,238,226,.08)}
+.review-list li:last-child{border-bottom:0}
+.rev-val{grid-column:1/-1;margin:0;font-size:.78rem;color:var(--cream);overflow-wrap:anywhere}
+.rev-val .rev-idx{display:inline-block;min-width:1.4em;color:rgba(244,238,226,.4);font-variant-numeric:tabular-nums}
+.rev-val .rev-slot{font-size:.68rem;color:rgba(244,238,226,.5);margin-right:4px}
+.rev-meta{margin:0;font-size:.68rem;color:rgba(244,238,226,.55);overflow-wrap:anywhere}
+.rev-meta .rev-state{font-weight:680;margin-right:5px}
+.rev-act{margin:0;font-size:.72rem;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.review-list li.is-good .rev-act{color:var(--hit)}
+.review-list li.is-bad .rev-act{color:var(--mismatch)}
+.result-actions{display:flex;gap:10px;align-items:center}
+.result-actions button,.result-actions a{
+  flex:1;min-height:48px;display:flex;align-items:center;justify-content:center;border-radius:12px;
+  border:1px solid rgba(244,238,226,.24);background:rgba(244,238,226,.08);color:var(--cream);
+  font:inherit;font-size:.9rem;font-weight:600;text-decoration:none;cursor:pointer;
+}
+.result-actions button:hover,.result-actions a:hover{background:rgba(244,238,226,.16)}
+
+/* ---- 窄屏 ---- */
+@media (max-width:560px){
+  .topbar .site-nav-inner{padding:6px 0}
+  .shell{padding:6px 12px 8px;gap:6px}
+  .hud{padding:6px 10px;gap:8px}
+  .lot{padding:8px 12px 10px}
+  .chip{padding:10px 13px}
+  .act{min-height:54px}
+  .sheet{padding:14px;gap:10px}
+}
+@media (max-height:640px){
+  .lot-kicker{display:none}
+  .beat-hint{display:none}
+}
+
+/* ---- 减少动效：功能一件不少，只是不再动 ---- */
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
+  .fx{display:none}
+  .fx-vignette{display:none}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="site-nav">
+    <div class="site-nav-inner">
+      <a class="brand" href="index.html">OpenLodestar</a>
+      <nav aria-label="主导航">
+        <a href="index.html">主页</a>
+        <a href="demo.html">逐条演示</a>
+        <a href="demo-lab.html">小游戏</a>
+        <a href="demo-sort.html" aria-current="page">证据分拣</a>
+        <a href="https://github.com/openlodestar/openlodestar">GitHub</a>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<main class="shell" id="shell">
+  <section class="hud" aria-label="本局数值">
+    <div class="stat"><span class="stat-label">分</span><strong id="score">0</strong></div>
+    <div class="stat stat-combo">
+      <span class="combo-head"><strong id="combo-mult">×1.0</strong><span id="combo-count">连击 0</span></span>
+      <span class="combo-track" aria-hidden="true"><i class="combo-fill" id="combo-fill"></i><b class="notch" style="left:25%"></b><b class="notch" style="left:50%"></b><b class="notch" style="left:75%"></b></span>
+    </div>
+    <div class="hearts" id="hearts" aria-label="剩三颗心"><span>♥</span><span>♥</span><span>♥</span></div>
+  </section>
+  <p class="round-tag" id="round-tag">第 1/2 件 · 1/10</p>
+
+  <section class="stage" id="stage">
+    <article class="lot" id="lot" aria-label="本件断言">
+      <p class="lot-kicker">这一件</p>
+      <dl class="lot-rows">
+        <div class="lot-row" id="row-auctionHouse"><dt>机构</dt><dd id="lot-auctionHouse">—</dd></div>
+        <div class="lot-row" id="row-dateText"><dt>时间</dt><dd id="lot-dateText">—</dd></div>
+        <div class="lot-row" id="row-sessionName"><dt>专场</dt><dd id="lot-sessionName">—</dd></div>
+      </dl>
+    </article>
+
+    <div class="runway">
+      <p class="verdict-line" id="verdict-line" aria-live="polite"></p>
+    </div>
+
+    <div class="beat" id="beat">
+      <div class="timer-row">
+        <div class="timer" aria-hidden="true"><span class="timer-fill" id="timer-fill"></span></div>
+        <span class="timer-num" id="timer-num" aria-hidden="true">3.4</span>
+      </div>
+      <div class="chip" id="chip" tabindex="0" role="group" aria-label="待分拣的说法">
+        <span class="chip-slot" id="chip-slot">机构</span>
+        <span class="chip-body">
+          <span class="chip-claim"><em>本件</em><span id="chip-claim">—</span></span>
+          <span class="chip-now"><em>这条</em><b class="chip-value" id="chip-value">—</b></span>
+        </span>
+        <span class="chip-tag" id="chip-tag" hidden>演示</span>
+      </div>
+      <p class="beat-hint" id="beat-hint">上甩收下 · 下甩放走</p>
+    </div>
+
+    <div class="fx" id="fx" aria-hidden="true"></div>
+  </section>
+
+  <section class="controls">
+    <button class="act act-reject" id="btn-reject" type="button"><span class="act-key">↓</span><span class="act-label">放走</span></button>
+    <button class="act act-accept" id="btn-accept" type="button"><span class="act-key">↑</span><span class="act-label">收下</span></button>
+  </section>
+</main>
+
+<div class="overlay" id="start" role="dialog" aria-modal="true" aria-labelledby="start-title">
+  <div class="sheet">
+    <p class="sheet-kicker">OpenLodestar</p>
+    <h1 id="start-title">证据分拣</h1>
+    <p class="lead">两件器物、二十条说法。能直接当支撑的收下，其余放走。</p>
+    <div class="keys"><span><b>↑</b> 收下</span><span><b>↓</b> 放走</span><span>触屏：上甩 / 下甩</span><span><b>空格</b> 开始</span></div>
+    <button class="start-btn" id="btn-start" type="button">开始</button>
+    <details>
+      <summary>分值怎么算的</summary>
+      <p id="rules-text"></p>
+      <table class="rule-table">
+        <thead><tr><th>判据</th><th>收下</th><th>放走</th></tr></thead>
+        <tbody id="rules-body"></tbody>
+      </table>
+      <p>每条说法属于哪种判据，是构建时用引擎自己那套维度函数算出来的；一局结束逐条列出来，可以自己核。</p>
+    </details>
+  </div>
+</div>
+
+<div class="overlay" id="result" role="dialog" aria-modal="true" aria-labelledby="result-title" hidden>
+  <div class="sheet">
+    <p class="sheet-kicker">这一局</p>
+    <h2 id="result-title" class="sr-only">这一局的结果</h2>
+    <div class="result-head">
+      <strong class="grade" id="grade">C</strong>
+      <div>
+        <p class="result-score"><span id="final-score">0</span> / <span id="perfect-score">0</span></p>
+        <p id="grade-label" style="font-size:.8rem"></p>
+      </div>
+    </div>
+    <ul class="result-stats" id="result-stats"></ul>
+    <div class="review-wrap">
+      <ul class="review-list" id="review-body"></ul>
+    </div>
+    <div class="result-actions">
+      <button id="btn-again" type="button">再来一局</button>
+      <a href="demo-lab.html">旧版小游戏</a>
+    </div>
+  </div>
+</div>
+
+<script src="assets/demo-sort-data.js"></script>
+<script src="assets/demo-sort.js"></script>
+</body>
+</html>

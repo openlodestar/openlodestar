@@ -32,7 +32,8 @@
   if (!RUNS.length) return;
 
   var R = DATA.scoring;
-  var CHIP_MS = [3200, 2800];
+  /** 每拍给的时间：第一件 2.6 秒、第二件 2.3 秒（上一版 3.2/2.8 太宽，变成「看完就按」） */
+  var CHIP_MS = [2600, 2300];
   var SWIPE = 34;
   /** 判定文字至少停留这么久，再发下一张牌（读得完一行再走） */
   var VERDICT_MS = 1200;
@@ -211,6 +212,9 @@
     reject: document.getElementById('btn-reject'),
     start: document.getElementById('start'),
     startBtn: document.getElementById('btn-start'),
+    startScroll: document.getElementById('start-scroll'),
+    startScrollHint: document.getElementById('start-scroll-hint'),
+    startDetails: document.getElementById('start-details'),
     rulesText: document.getElementById('rules-text'),
     rulesBody: document.getElementById('rules-body'),
     result: document.getElementById('result'),
@@ -220,6 +224,9 @@
     perfectScore: document.getElementById('perfect-score'),
     resultStats: document.getElementById('result-stats'),
     orderNote: document.getElementById('order-note'),
+    reviewWrap: document.getElementById('review-wrap'),
+    reviewSummary: document.getElementById('review-summary'),
+    reviewToggle: document.getElementById('review-toggle'),
     reviewBody: document.getElementById('review-body'),
     again: document.getElementById('btn-again'),
   };
@@ -352,7 +359,7 @@
     dom.chip.setAttribute(
       'aria-label',
       '本件' + chip.slotLabel + '是' + r.lot.values[chip.slot] +
-        '，这条说法是' + chip.value + (chip.demoOnly ? '（演示用词）' : ''),
+        '，这条说法是' + chip.value + (chip.demoOnly ? '（语料外写法）' : ''),
     );
   }
 
@@ -707,11 +714,123 @@
     return 'reject';
   }
 
+  function isOptimal(item) {
+    return item.action === ruleWants(item);
+  }
+
+  /**
+   * 这一局到底错在哪——只读本局日志，数出来、算出分差，再给一句下次怎么打。
+   * 纯函数：同一份日志永远得到同一句话，测试可以直接喂一段日志复算。
+   * 不按档位套模板：不管落到哪副牌、哪个等级，说的都是这一局实际犯的错。
+   */
+  function diagnoseLog(log) {
+    var wrong = [];
+    var missed = [];
+    var windowLost = [];
+    var midSide = [];
+    var timeouts = 0;
+    var windowPts = 0;
+    for (var i = 0; i < log.length; i += 1) {
+      var item = log[i];
+      if (item.action === 'timeout') {
+        timeouts += 1;
+      } else if (item.action === 'accept') {
+        if (item.state === 'conflict' || item.state === 'mismatch') wrong.push(item);
+        else if (isSideState(item.state) && !item.inWindow) midSide.push(item);
+      } else if (item.state === 'exact') {
+        missed.push(item);
+      } else if (isSideState(item.state) && item.inWindow) {
+        windowLost.push(item);
+        windowPts += R.accept[item.state] * R.windowBonus.multiplier;
+      }
+    }
+    var count = wrong.length + missed.length + windowLost.length + midSide.length + timeouts;
+    if (!count) {
+      return {
+        text: '二十拍全按最优解打，没有可再想的。',
+        count: 0,
+        wrong: 0,
+        missed: 0,
+        windowLost: 0,
+        midSide: 0,
+        timeouts: 0,
+        windowPts: 0,
+      };
+    }
+    var parts = [];
+    if (missed.length) {
+      parts.push('放走 ' + missed.length + ' 条完全对上（' + missed[0].value + ' 这类字面一样的要收）');
+    }
+    if (wrong.length) {
+      parts.push('收下 ' + wrong.length + ' 条冲突/没对上，掉了 ' + wrong.length + ' 颗心');
+    }
+    if (windowLost.length) {
+      parts.push('收尾窗口里漏收 ' + windowLost.length + ' 条旁证，少拿 ' + windowPts + ' 分');
+    }
+    if (midSide.length) {
+      parts.push('中段收 ' + midSide.length + ' 条旁证，把连击断了');
+    }
+    if (timeouts) parts.push('超时 ' + timeouts + ' 拍');
+    var advice;
+    if (missed.length) advice = '完全一样的直接收，别犹豫。';
+    else if (windowLost.length) advice = '最后三拍再看一眼器物卡：旁证这时候收才翻倍。';
+    else if (midSide.length) advice = '中段旁证先放走，留到最后三拍。';
+    else if (wrong.length) advice = '冲突和没对上指向别的值，收下只会掉心。';
+    else advice = '先扫「本件」和「这条」再动手，别拖到超时。';
+    return {
+      text: '本局' + parts.join('；') + '。' + advice,
+      count: count,
+      wrong: wrong.length,
+      missed: missed.length,
+      windowLost: windowLost.length,
+      midSide: midSide.length,
+      timeouts: timeouts,
+      windowPts: windowPts,
+    };
+  }
+
+  var reviewExpanded = false;
+
+  function renderReview(log) {
+    var goodCount = 0;
+    for (var i = 0; i < log.length; i += 1) {
+      if (isOptimal(log[i])) goodCount += 1;
+    }
+    var badCount = log.length - goodCount;
+    reviewExpanded = badCount === 0;
+    if (dom.reviewWrap) {
+      dom.reviewWrap.classList.toggle('is-collapsed', badCount > 0);
+    }
+    if (dom.reviewSummary) {
+      dom.reviewSummary.textContent = badCount
+        ? '先看 ' + badCount + ' 条可再想想；其余 ' + goodCount + ' 条判对了，已折叠'
+        : '这 ' + log.length + ' 条都判对了';
+    }
+    if (dom.reviewToggle) {
+      dom.reviewToggle.hidden = badCount === 0;
+      dom.reviewToggle.textContent = '展开全部 ' + log.length + ' 条';
+      dom.reviewToggle.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  function toggleReview() {
+    reviewExpanded = !reviewExpanded;
+    if (dom.reviewWrap) dom.reviewWrap.classList.toggle('is-collapsed', !reviewExpanded);
+    if (dom.reviewToggle) {
+      dom.reviewToggle.textContent = reviewExpanded
+        ? '只看要改的'
+        : '展开全部 ' + SORT.log.length + ' 条';
+      dom.reviewToggle.setAttribute('aria-expanded', reviewExpanded ? 'true' : 'false');
+    }
+  }
+
   function renderResult(reason) {
     var best = SORT.order ? SORT.order.best : 0;
     var grade = gradeOf(SORT.score, best);
+    var diagnosis = diagnoseLog(SORT.log);
     dom.grade.textContent = grade.grade;
-    dom.gradeLabel.textContent = reason ? reason + ' · ' + grade.label : grade.label;
+    dom.gradeLabel.textContent =
+      (reason ? reason + ' · ' : '') + diagnosis.text;
     dom.finalScore.textContent = String(SORT.score);
     dom.perfectScore.textContent = String(best);
     dom.orderNote.textContent = SORT.order
@@ -759,13 +878,14 @@
           '<p class="rev-meta"><span class="rev-state" style="color:' + TONE_COLOR[meta.tone] + '">' +
           meta.label + '</span>' + escapeHtml(item.note) + '</p>' +
           '<p class="rev-act">' + actText + ' <b>' + score + '</b> ' +
-          (good ? '<span class="rev-flag">最优</span>' : '<span class="rev-flag is-loss">可再想想</span>') +
+          (good ? '<span class="rev-flag">最优</span>' : '<span class="rev-flag is-loss">该' + (want === 'accept' ? '收下' : '放走') + '</span>') +
           '</p>' +
           '</li>'
         );
       })
       .join('');
     dom.reviewBody.innerHTML = rows;
+    renderReview(SORT.log);
   }
 
   function escapeHtml(text) {
@@ -803,6 +923,23 @@
         );
       })
       .join('');
+  }
+
+  // ---- 开始页的滚动提示：能滚就明说，滚到底也明说 ----
+
+  function updateScrollHint() {
+    var box = dom.startScroll;
+    var hint = dom.startScrollHint;
+    if (!box || !hint) return;
+    var overflow = box.scrollHeight - box.clientHeight;
+    if (!(overflow > 4)) {
+      hint.hidden = true;
+      return;
+    }
+    var atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 8;
+    hint.hidden = false;
+    hint.classList.toggle('is-done', atEnd);
+    hint.textContent = atEnd ? '已到底 · 点「开始」开局' : '↕ 上下滑动查看完整规则';
   }
 
   // ---- 输入：指针（触屏/鼠标）、键盘、按钮 ----
@@ -910,18 +1047,30 @@
   });
   dom.startBtn.addEventListener('click', startGame);
   dom.again.addEventListener('click', startGame);
+  if (dom.startScroll) dom.startScroll.addEventListener('scroll', updateScrollHint);
+  if (dom.startDetails) {
+    dom.startDetails.addEventListener('toggle', function () {
+      updateScrollHint();
+      window.setTimeout(updateScrollHint, 0);
+    });
+  }
+  if (dom.reviewToggle) dom.reviewToggle.addEventListener('click', toggleReview);
+  if (window.addEventListener) window.addEventListener('resize', updateScrollHint);
   document.addEventListener('keydown', onKeyDown);
   document.addEventListener('visibilitychange', onVisibility);
 
   renderRules();
   renderHud(false);
   clearDecided();
+  updateScrollHint();
 
   // 供一致性测试核对：规则表与结算函数是页面真正在用的那一份
   window.LODESTAR_SORT_RULES = {
     multiplierOf: multiplierOf,
     outcomeOf: outcomeOf,
     applyOutcome: applyOutcome,
+    ruleWants: ruleWants,
+    diagnoseLog: diagnoseLog,
     chipMs: CHIP_MS,
     verdictMs: VERDICT_MS,
     swipe: SWIPE,

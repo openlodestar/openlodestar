@@ -70,6 +70,8 @@ interface SortOrder {
   steady: number;
   literal: number;
   eager: number;
+  slipOne: number;
+  slipTwo: number;
 }
 
 interface SortRun {
@@ -186,6 +188,21 @@ function loadRules(): {
     lives: number,
     result: SortOutcome,
   ) => { score: number; combo: number; lives: number };
+  diagnoseLog: (log: Array<{
+    action: string;
+    state: EvidenceDimensionState;
+    inWindow: boolean;
+    value: string;
+  }>) => {
+    text: string;
+    count: number;
+    wrong: number;
+    missed: number;
+    windowLost: number;
+    midSide: number;
+    timeouts: number;
+    windowPts: number;
+  };
   chipMs: number[];
   verdictMs: number;
   swipe: number;
@@ -361,6 +378,36 @@ function playOrder(run: SortRun, order: SortOrder): {
   return { best, steady, literal, eager };
 }
 
+/** 读对规则，但在整局的前 `slips` 个兑现窗口旁证上手滑放走（与构建脚本各自独立实现） */
+function playWithSlips(run: SortRun, order: SortOrder, slips: number): number {
+  let remaining = slips;
+  let total = 0;
+  run.rounds.forEach((round, roundIndex) => {
+    const chips = chipsOfRound(round, order.rounds[roundIndex]);
+    let score = 0;
+    let combo = 0;
+    let lives = DATA.scoring.lives;
+    chips.forEach((chip, index) => {
+      if (lives <= 0) return;
+      const inWindow = index >= round.settleFrom;
+      const side = chip.state === 'caliber' || chip.state === 'edge';
+      let action: 'accept' | 'reject';
+      if (chip.state === 'exact') action = 'accept';
+      else if (side && inWindow && remaining > 0) {
+        action = 'reject';
+        remaining -= 1;
+      } else action = side && inWindow ? 'accept' : 'reject';
+      const result = RULES.outcomeOf(chip, action, combo, inWindow);
+      const next = RULES.applyOutcome(score, combo, lives, result);
+      score = next.score;
+      combo = next.combo;
+      lives = next.lives;
+    });
+    total += score;
+  });
+  return total;
+}
+
 describe('牌面来自冻结语料', () => {
   it('四个牌局、每局两件器物、每件十拍', () => {
     expect(DATA.runs.length).toBeGreaterThanOrEqual(4);
@@ -493,7 +540,7 @@ describe('只认字面拿不到最高档', () => {
     for (const run of DATA.runs) {
       for (const order of run.orders) {
         const measured = playOrder(run, order);
-        const sMin = Math.round(measured.best * S_RATIO);
+        const sMin = Math.ceil(measured.best * S_RATIO);
         const aMin = Math.round(measured.best * A_RATIO);
         // 页面记的读数与测试独立复算一致
         expect(measured.best).toBe(order.best);
@@ -510,6 +557,29 @@ describe('只认字面拿不到最高档', () => {
         expect(measured.eager).toBeLessThan(sMin);
       }
     }
+  });
+
+  it('S 线容得下一次手误，容不下两次', () => {
+    for (const run of DATA.runs) {
+      for (const order of run.orders) {
+        const sMin = Math.ceil(order.best * S_RATIO);
+        const one = playWithSlips(run, order, 1);
+        const two = playWithSlips(run, order, 2);
+        // 页面记的读数与独立复算一致
+        expect(one).toBe(order.slipOne);
+        expect(two).toBe(order.slipTwo);
+        // 读对规则、只漏收一条窗口旁证：仍在 S 内，认真读一局的人摸得到最高档
+        expect(one).toBeGreaterThanOrEqual(sMin);
+        // 漏两条就掉出去，S 才有区分度
+        expect(two).toBeLessThan(sMin);
+      }
+    }
+  });
+
+  it('盲测里「读懂再收」的 178 分在新 S 线下落在 S 内', () => {
+    // 199 × 88.5% = 176.115，取整后 177——178 够 S，旧线 184 不够
+    expect(Math.ceil(199 * S_RATIO)).toBe(177);
+    expect(178).toBeGreaterThanOrEqual(Math.ceil(199 * S_RATIO));
   });
 
   it('兑现窗口里收旁证必须比中段收更划算——最优解奖励「多看一眼位置」', () => {
@@ -591,5 +661,81 @@ describe('文案说对了', () => {
     expect(chipBlock).toContain('id="chip-value"');
     expect(html).toContain('id="switch-note"');
     expect(html).toContain('id="wait-fill"');
+  });
+
+  it('判定行是固定高度占位，文案长短不改卡片高', () => {
+    const html = fs.readFileSync(path.join(DOCS, 'demo-sort.html'), 'utf8');
+    const rule = html.slice(html.indexOf('.verdict-line{'), html.indexOf('.verdict-line #verdict-label'));
+    expect(rule).toContain('height:3.4em');
+    expect(rule).not.toContain('min-height');
+    // 宽屏那份也要固定高度，不能又用 min-height 把舞台顶起来
+    expect(html).not.toContain('min-height:2.5em');
+  });
+
+  it('评语按本局实际错误生成，不是通用话术', () => {
+    const diag = RULES.diagnoseLog([
+      { action: 'reject', state: 'exact', inWindow: false, value: '保利香港' },
+      { action: 'reject', state: 'caliber', inWindow: true, value: '中国嘉德' },
+      { action: 'accept', state: 'mismatch', inWindow: false, value: '2024年5月' },
+      { action: 'accept', state: 'caliber', inWindow: false, value: '北京' },
+      { action: 'timeout', state: 'unknown', inWindow: false, value: '—' },
+    ]);
+    expect(diag.missed).toBe(1);
+    expect(diag.wrong).toBe(1);
+    expect(diag.windowLost).toBe(1);
+    expect(diag.midSide).toBe(1);
+    expect(diag.timeouts).toBe(1);
+    const doubled = DATA.scoring.accept.caliber * DATA.scoring.windowBonus.multiplier;
+    expect(diag.windowPts).toBe(doubled);
+    expect(diag.text).toContain('放走 1 条完全对上');
+    expect(diag.text).toContain('保利香港');
+    expect(diag.text).toContain('收尾窗口里漏收 1 条');
+    expect(diag.text).toContain('少拿 ' + doubled + ' 分');
+    expect(diag.text).toContain('中段收 1 条旁证');
+    expect(diag.text).toContain('超时 1 拍');
+
+    const clean = RULES.diagnoseLog([
+      { action: 'accept', state: 'exact', inWindow: false, value: '保利香港' },
+      { action: 'reject', state: 'caliber', inWindow: false, value: '中国嘉德' },
+      { action: 'accept', state: 'caliber', inWindow: true, value: '北京' },
+    ]);
+    expect(clean.count).toBe(0);
+    expect(clean.text).toContain('没有可再想的');
+  });
+
+  it('「语料外写法」徽章挨着这条值，措辞说清不是假数据', () => {
+    const html = fs.readFileSync(path.join(DOCS, 'demo-sort.html'), 'utf8');
+    const chipBlock = html.slice(html.indexOf('id="chip"'), html.indexOf('id="wait-bar"'));
+    expect(chipBlock).toContain('id="chip-tag"');
+    expect(chipBlock.indexOf('id="chip-value"')).toBeLessThan(chipBlock.indexOf('id="chip-tag"'));
+    expect(chipBlock).toContain('语料外写法');
+    expect(chipBlock).not.toContain('演示用词');
+    expect(html).toContain('不是假数据');
+  });
+
+  it('复盘默认只展开要改的，其余折叠', () => {
+    const html = fs.readFileSync(path.join(DOCS, 'demo-sort.html'), 'utf8');
+    const source = fs.readFileSync(SORT_SCRIPT, 'utf8');
+    expect(html).toContain('id="review-toggle"');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('is-collapsed');
+    expect(source).toContain('renderReview');
+    expect(source).toContain('先看 ');
+    expect(source).toContain('该');
+  });
+
+  it('开始页能滚时给出可见提示，滚到底换个说法', () => {
+    const html = fs.readFileSync(path.join(DOCS, 'demo-sort.html'), 'utf8');
+    const source = fs.readFileSync(SORT_SCRIPT, 'utf8');
+    expect(html).toContain('id="start-scroll"');
+    expect(html).toContain('id="start-scroll-hint"');
+    expect(html).toContain('上下滑动查看完整规则');
+    expect(source).toContain('updateScrollHint');
+    expect(source).toContain('已到底 · 点「开始」开局');
+  });
+
+  it('节拍收紧，但判定停留时间不缩短', () => {
+    expect(RULES.chipMs).toEqual([2600, 2300]);
+    expect(RULES.verdictMs).toBe(1200);
   });
 });

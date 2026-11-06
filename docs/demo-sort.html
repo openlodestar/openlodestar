@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>证据分拣 · OpenLodestar — 上甩收下，下甩放走</title>
-<meta name="description" content="两件器物、二十条说法，每条只给你三秒多。把能当直接支撑的收下，其余放走。每条说法属于哪个判据状态，由构建时跑的真实引擎算出，一局结束可以逐条核对。">
+<meta name="description" content="两件器物、二十条说法，每条只给你两三秒。把能当直接支撑的收下，其余放走。每条说法属于哪个判据状态，由构建时跑的真实引擎算出，一局结束可以逐条核对。">
 <link rel="canonical" href="https://openlodestar.github.io/openlodestar/demo-sort.html">
 <link rel="icon" href="assets/favicon.ico" sizes="any">
 <link rel="stylesheet" href="assets/site-nav.css">
@@ -137,13 +137,14 @@ a{color:var(--gold)}
 .chip-claim{display:flex;gap:6px;align-items:baseline;font-size:.72rem;color:#8A7F6C;min-width:0}
 .chip-claim em{font-style:normal;font-size:.6rem;letter-spacing:.08em;padding:0 4px;border-radius:4px;background:#E7DCC6;color:#7A6E58;flex:0 0 auto}
 .chip-claim span{white-space:normal;overflow-wrap:anywhere;line-height:1.35}
-.chip-now{display:flex;gap:6px;align-items:baseline;min-width:0}
+.chip-now{display:flex;gap:6px;align-items:baseline;min-width:0;flex-wrap:wrap}
 .chip-now em{font-style:normal;font-size:.6rem;letter-spacing:.08em;padding:0 4px;border-radius:4px;background:#2E3A4E;color:#EFE7D8;flex:0 0 auto}
 .chip-value{font-size:clamp(.94rem,3vw,1.1rem);font-weight:650;overflow-wrap:anywhere}
 .chip-tag{font-size:.6rem;padding:1px 5px;border-radius:99px;background:#EDE2C8;color:#7A5A16;white-space:nowrap;flex:0 0 auto}
 /* 判定就写在这张卡自己的区域里：不再贴在下一张牌的上方，归属一眼可见 */
+/* 判定行固定高度：文字长短都不改卡片高，舞台不跟着跳 */
 .verdict-line{
-  margin:7px 0 0;min-height:2.5em;padding:6px 8px 2px;border-top:1px dashed rgba(21,26,36,.18);
+  margin:7px 0 0;height:3.4em;overflow:hidden;padding:6px 8px 2px;border-top:1px dashed rgba(21,26,36,.18);
   display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;
   font-size:clamp(.8rem,2.8vw,.92rem);font-weight:650;line-height:1.35;color:#8A7F6C;
   transition:color .1s;
@@ -204,12 +205,28 @@ a{color:var(--gold)}
 
 /* ---- 覆盖层 ---- */
 .overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(6,12,24,.86);backdrop-filter:blur(3px)}
+/* 外壳不滚，内容在内层滚：滚动条贴着面板内缘，一眼能看出「下面还有」 */
 .sheet{
-  width:100%;max-width:560px;max-height:100%;display:flex;flex-direction:column;gap:12px;
+  width:100%;max-width:560px;max-height:100%;display:flex;flex-direction:column;gap:10px;
   border-radius:18px;padding:18px;border:1px solid rgba(244,238,226,.18);
   background:linear-gradient(180deg,rgba(22,38,68,.98),rgba(10,20,40,.98));box-shadow:0 24px 60px rgba(0,0,0,.5);
-  overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  overflow:hidden;overscroll-behavior:contain;
 }
+.sheet-scroll{
+  flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  display:flex;flex-direction:column;gap:12px;padding-right:6px;
+  scrollbar-width:thin;scrollbar-color:rgba(233,196,106,.55) rgba(244,238,226,.08);
+}
+.sheet-scroll::-webkit-scrollbar{width:7px}
+.sheet-scroll::-webkit-scrollbar-track{background:rgba(244,238,226,.08);border-radius:99px}
+.sheet-scroll::-webkit-scrollbar-thumb{background:rgba(233,196,106,.55);border-radius:99px}
+.sheet-scroll::-webkit-scrollbar-thumb:hover{background:rgba(233,196,106,.8)}
+.scroll-hint{
+  flex:0 0 auto;margin:0;padding:7px 10px;border-radius:99px;text-align:center;
+  font-size:.72rem;letter-spacing:.06em;color:var(--gold);
+  background:rgba(233,196,106,.12);border:1px solid rgba(233,196,106,.28);
+}
+.scroll-hint.is-done{color:rgba(244,238,226,.7);background:rgba(244,238,226,.08);border-color:rgba(244,238,226,.16)}
 .sheet-kicker{margin:0;font-size:.68rem;letter-spacing:.22em;color:rgba(244,238,226,.5)}
 .sheet h1,.sheet h2{margin:0;font-size:clamp(1.25rem,4.4vw,1.7rem);letter-spacing:.02em}
 .sheet p{margin:0;font-size:.86rem;color:rgba(244,238,226,.78)}
@@ -239,7 +256,23 @@ a{color:var(--gold)}
 .result-stats{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none}
 .result-stats li{font-size:.72rem;padding:3px 8px;border-radius:99px;background:rgba(244,238,226,.1);color:rgba(244,238,226,.82)}
 .result-stats li b{color:var(--cream)}
-.review-wrap{flex:1;min-height:0;overflow:auto;border:1px solid rgba(244,238,226,.13);border-radius:12px;padding:2px 10px}
+.review-wrap{flex:1;min-height:0;overflow:auto;border:1px solid rgba(244,238,226,.13);border-radius:12px;padding:0 10px 2px;scrollbar-width:thin;scrollbar-color:rgba(233,196,106,.55) rgba(244,238,226,.08)}
+.review-wrap::-webkit-scrollbar{width:7px}
+.review-wrap::-webkit-scrollbar-track{background:rgba(244,238,226,.08);border-radius:99px}
+.review-wrap::-webkit-scrollbar-thumb{background:rgba(233,196,106,.55);border-radius:99px}
+/* 复盘头：默认只列要改的，其余折叠。头贴在滚动区顶部，翻再远也知道怎么展开 */
+.review-head{
+  position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:8px 0;background:linear-gradient(180deg,#101F3A 72%,rgba(16,31,58,0));
+  border-bottom:1px solid rgba(244,238,226,.1);
+}
+.review-head span{font-size:.74rem;color:rgba(244,238,226,.72);line-height:1.4}
+.review-toggle{
+  flex:0 0 auto;font:inherit;font-size:.72rem;font-weight:600;padding:5px 11px;border-radius:99px;
+  border:1px solid rgba(233,196,106,.5);background:rgba(233,196,106,.12);color:var(--gold);cursor:pointer;
+}
+.review-toggle:hover{background:rgba(233,196,106,.22)}
+.review-wrap.is-collapsed .review-list li.is-good{display:none}
 .review-list{margin:0;padding:0;list-style:none}
 .review-list li{display:grid;grid-template-columns:1fr auto;gap:1px 10px;padding:7px 0;border-bottom:1px solid rgba(244,238,226,.08)}
 .review-list li:last-child{border-bottom:0}
@@ -278,7 +311,7 @@ a{color:var(--gold)}
   .chip-slot{font-size:.78rem}
   .chip-claim{font-size:.82rem}
   .chip-value{font-size:1.38rem}
-  .verdict-line{font-size:1.04rem;min-height:2.5em;margin-top:11px;padding-top:10px}
+  .verdict-line{font-size:1.04rem;height:3.6em;margin-top:11px;padding-top:10px}
   .beat-dots{width:560px}
   .act{min-height:80px;font-size:1.12rem;border-radius:16px}
   .controls{max-width:760px;margin:0 auto;width:100%}
@@ -358,16 +391,15 @@ a{color:var(--gold)}
     <div class="beat" id="beat">
       <div class="timer-row" id="timer-row">
         <div class="timer" aria-hidden="true"><span class="timer-fill" id="timer-fill"></span></div>
-        <span class="timer-num" id="timer-num" aria-hidden="true">3.4</span>
+        <span class="timer-num" id="timer-num" aria-hidden="true">2.6</span>
       </div>
       <div class="chip" id="chip" tabindex="0" role="group" aria-label="待分拣的说法">
         <div class="chip-main">
           <span class="chip-slot" id="chip-slot">机构</span>
           <span class="chip-body">
             <span class="chip-claim"><em>本件</em><span id="chip-claim">—</span></span>
-            <span class="chip-now"><em>这条</em><b class="chip-value" id="chip-value">—</b></span>
+            <span class="chip-now"><em>这条</em><b class="chip-value" id="chip-value">—</b><span class="chip-tag" id="chip-tag" hidden title="冻结语料里没有这个写法。判定仍由引擎把这条字面值与器物卡比对，不是假数据">语料外写法</span></span>
           </span>
-          <span class="chip-tag" id="chip-tag" hidden>演示用词</span>
         </div>
         <p class="verdict-line" id="verdict-line" aria-live="polite"><span id="verdict-label"></span><span id="verdict-text">上甩收下 · 下甩放走</span></p>
         <span class="wait-bar" id="wait-bar" aria-hidden="true"><i id="wait-fill"></i></span>
@@ -385,20 +417,24 @@ a{color:var(--gold)}
 
 <div class="overlay" id="start" role="dialog" aria-modal="true" aria-labelledby="start-title">
   <div class="sheet">
-    <p class="sheet-kicker">OpenLodestar</p>
-    <h1 id="start-title">证据分拣</h1>
-    <p class="lead">两件器物、二十条说法，每局从四个内容不同的牌局里抽一副。完全对上就收下，连击会翻倍；说法不同（口径/边缘相容）中段先放走，等每件器物的最后三拍再收——那三拍里收旁证分值翻倍；冲突、没对上、无从判断一律放走。换下一件器物时连击清零。</p>
-    <div class="keys"><span><b>↑</b> 收下</span><span><b>↓</b> 放走</span><span>触屏：上甩 / 下甩（34px 以上）</span><span><b>空格</b> 开始</span><span>点卡片不算数</span></div>
-    <button class="start-btn" id="btn-start" type="button">开始</button>
-    <details>
-      <summary>分值怎么算的</summary>
-      <p id="rules-text"></p>
-      <table class="rule-table">
-        <thead><tr><th>判据</th><th>收下</th><th>放走</th></tr></thead>
-        <tbody id="rules-body"></tbody>
-      </table>
-      <p>每条说法属于哪种判据，是构建时用引擎自己那套维度函数算出来的；一局结束逐条列出来，可以自己核。</p>
-    </details>
+    <div class="sheet-scroll" id="start-scroll">
+      <p class="sheet-kicker">OpenLodestar</p>
+      <h1 id="start-title">证据分拣</h1>
+      <p class="lead">两件器物、二十条说法，每局从四个内容不同的牌局里抽一副。完全对上就收下，连击会翻倍；说法不同（口径/边缘相容）中段先放走，等每件器物的最后三拍再收——那三拍里收旁证分值翻倍；冲突、没对上、无从判断一律放走。换下一件器物时连击清零。</p>
+      <div class="keys"><span><b>↑</b> 收下</span><span><b>↓</b> 放走</span><span>触屏：上甩 / 下甩（34px 以上）</span><span><b>空格</b> 开始</span><span>点卡片不算数</span></div>
+      <button class="start-btn" id="btn-start" type="button">开始</button>
+      <details id="start-details">
+        <summary>分值怎么算的</summary>
+        <p id="rules-text"></p>
+        <table class="rule-table">
+          <thead><tr><th>判据</th><th>收下</th><th>放走</th></tr></thead>
+          <tbody id="rules-body"></tbody>
+        </table>
+        <p>每条说法属于哪种判据，是构建时用引擎自己那套维度函数算出来的；一局结束逐条列出来，可以自己核。</p>
+        <p>标了「语料外写法」徽章的，只是冻结记录里没有这一种写法；判定仍然由引擎把这条字面值与器物卡比对，不是假数据。</p>
+      </details>
+    </div>
+    <p class="scroll-hint" id="start-scroll-hint" hidden>↕ 上下滑动查看完整规则</p>
   </div>
 </div>
 
@@ -415,7 +451,11 @@ a{color:var(--gold)}
       </div>
     </div>
     <ul class="result-stats" id="result-stats"></ul>
-    <div class="review-wrap">
+    <div class="review-wrap" id="review-wrap">
+      <div class="review-head">
+        <span id="review-summary">逐条核对</span>
+        <button class="review-toggle" id="review-toggle" type="button" aria-expanded="false">展开全部</button>
+      </div>
       <ul class="review-list" id="review-body"></ul>
     </div>
     <div class="result-actions">

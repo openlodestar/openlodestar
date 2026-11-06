@@ -1,7 +1,7 @@
 // 由 src/demo-page/build-sort-data.ts 从 docs/assets/demo-game-data.js 生成，不要手改；
 // 改玩法或候选值后重跑 pnpm run demo:sort。
 window.LODESTAR_SORT = {
-  "generatedAt": "2026-11-06T12:58:37.660Z",
+  "generatedAt": "2026-11-06T13:31:29.433Z",
   "generator": "src/demo-page/build-sort-data.ts",
   "note": "由冻结矩阵 docs/assets/demo-game-data.js 生成，不要手改。每条证据的状态是构建时用引擎的维度函数算出来的，页面只查表。",
   "states": {
@@ -110,8 +110,8 @@ window.LODESTAR_SORT = {
   "grades": [
     {
       "grade": "S",
-      "ratio": 0.92,
-      "label": "接近这一局的最优解：命中没漏，旁证也只在兑现窗口里收"
+      "ratio": 0.885,
+      "label": "命中没漏，旁证只在兑现窗口里收；漏一条窗口旁证也还在 S 内"
     },
     {
       "grade": "A",
@@ -126,7 +126,7 @@ window.LODESTAR_SORT = {
     {
       "grade": "C",
       "ratio": 0,
-      "label": "先把两个动作的手感练熟"
+      "label": "这一局的失分点见下面复盘"
     }
   ],
   "runs": [
@@ -464,7 +464,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 175
         },
         {
           "id": "order-2",
@@ -498,7 +500,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 167
         },
         {
           "id": "order-3",
@@ -532,7 +536,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 175
         },
         {
           "id": "order-4",
@@ -566,7 +572,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 191,
+          "slipTwo": 175
         },
         {
           "id": "order-5",
@@ -600,7 +608,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 175
         },
         {
           "id": "order-6",
@@ -634,7 +644,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 175
         }
       ]
     },
@@ -972,7 +984,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 175
         },
         {
           "id": "order-2",
@@ -1006,7 +1020,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 167
         },
         {
           "id": "order-3",
@@ -1040,7 +1056,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 175
         },
         {
           "id": "order-4",
@@ -1074,7 +1092,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 191,
+          "slipTwo": 175
         },
         {
           "id": "order-5",
@@ -1108,7 +1128,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 175
         },
         {
           "id": "order-6",
@@ -1142,7 +1164,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 175
         }
       ]
     },
@@ -1480,7 +1504,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 175
         },
         {
           "id": "order-2",
@@ -1514,7 +1540,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 167
         },
         {
           "id": "order-3",
@@ -1548,7 +1576,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 175
         },
         {
           "id": "order-4",
@@ -1582,7 +1612,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 191,
+          "slipTwo": 175
         },
         {
           "id": "order-5",
@@ -1616,7 +1648,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 175
         },
         {
           "id": "order-6",
@@ -1650,7 +1684,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 175
         }
       ]
     },
@@ -1988,7 +2024,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 175
         },
         {
           "id": "order-2",
@@ -2022,7 +2060,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 167
         },
         {
           "id": "order-3",
@@ -2056,7 +2096,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 175
         },
         {
           "id": "order-4",
@@ -2090,7 +2132,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 191,
+          "slipTwo": 175
         },
         {
           "id": "order-5",
@@ -2124,7 +2168,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 175
         },
         {
           "id": "order-6",
@@ -2158,7 +2204,9 @@ window.LODESTAR_SORT = {
           "best": 199,
           "steady": 199,
           "literal": 127,
-          "eager": 175
+          "eager": 175,
+          "slipOne": 183,
+          "slipTwo": 175
         }
       ]
     }

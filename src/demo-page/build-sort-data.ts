@@ -151,6 +151,10 @@ export interface SortOrder {
   literal: number;
   /** 见旁证就收、不区分中段与收尾的得分，也必须够不到 S */
   eager: number;
+  /** 读对规则、但在兑现窗口里漏收一条旁证的得分——S 线必须容忍这一次手误 */
+  slipOne: number;
+  /** 漏收两条窗口旁证——这一档必须掉出 S，分数线才有意义 */
+  slipTwo: number;
 }
 
 /** 一个牌局：两件器物 + 六种牌序。局与局之间牌面内容不同，不只是换个顺序。 */
@@ -631,6 +635,51 @@ const STEADY_POLICY: Policy = (state, _combo, index, settleFrom) => {
 const EAGER_POLICY: Policy = (state) =>
   state === 'exact' || state === 'caliber' || state === 'edge' ? 'accept' : 'reject';
 
+/**
+ * S 线按最优分的 88.5% 折算，取整后是 177/199。
+ *
+ * 这个比例不是拍的：它刚好让「读对规则、但在兑现窗口里漏收一条旁证」的一次手误
+ * 仍然留在 S 里（183 ≥ 177），两次手误（175）掉出去；同时「只认字面」（127）
+ * 与「见旁证就收」（175）都够不到。上一版定在 92%（184），漏一条窗口旁证就只有
+ * 183，认真读一局的人反而拿不到 S——盲测里 178 分落 A 就是这么来的。
+ */
+const S_RATIO = 0.885;
+
+/** 读对规则，但在整局的前 `slips` 个兑现窗口旁证上手滑放走——用来量 S 线的容忍度 */
+function steadyWithSlips(
+  rounds: SortRound[],
+  plan: number[][],
+  slips: number,
+): number {
+  let remaining = slips;
+  let total = 0;
+  for (let roundIndex = 0; roundIndex < rounds.length; roundIndex += 1) {
+    const round = rounds[roundIndex];
+    const states = plan[roundIndex].map((chipIndex) => round.chips[chipIndex].state);
+    let score = 0;
+    let combo = 0;
+    let lives = SCORING.lives;
+    for (let index = 0; index < states.length; index += 1) {
+      if (lives <= 0) break;
+      const state = states[index];
+      const side = state === 'caliber' || state === 'edge';
+      const inWindow = index >= round.settleFrom;
+      let action: 'accept' | 'reject';
+      if (state === 'exact') action = 'accept';
+      else if (side && inWindow && remaining > 0) {
+        action = 'reject';
+        remaining -= 1;
+      } else action = side && inWindow ? 'accept' : 'reject';
+      const result = actOf(state, action, combo, inWindow);
+      score += result.points;
+      lives += result.life;
+      combo = result.combo === 'up' ? combo + 1 : result.combo === 'reset' ? 0 : combo;
+    }
+    total += score;
+  }
+  return total;
+}
+
 function runSequence(
   states: EvidenceDimensionState[],
   settleFrom: number,
@@ -724,8 +773,10 @@ function buildOrders(rounds: SortRound[]): SortOrder[] {
       literal += runSequence(states, round.settleFrom, LITERAL_POLICY);
       eager += runSequence(states, round.settleFrom, EAGER_POLICY);
     }
+    const slipOne = steadyWithSlips(rounds, plan, 1);
+    const slipTwo = steadyWithSlips(rounds, plan, 2);
 
-    const sMin = Math.round(best * 0.92);
+    const sMin = Math.ceil(best * S_RATIO);
     if (steady !== best) {
       throw new Error(`牌序 ${variant + 1} 的稳健打法不是最优（${steady} ≠ ${best}），最优解不可解释`);
     }
@@ -738,6 +789,16 @@ function buildOrders(rounds: SortRound[]): SortOrder[] {
     if (eager >= sMin) {
       throw new Error(`牌序 ${variant + 1} 见旁证就收也能拿到 S（${eager} ≥ ${sMin}），条件没做成取舍`);
     }
+    // S 线必须容得下「读对规则、手滑漏收一条窗口旁证」，否则认真读一局也摸不到最高档
+    if (slipOne < sMin) {
+      throw new Error(
+        `牌序 ${variant + 1} 漏收一条窗口旁证就掉出 S（${slipOne} < ${sMin}），S 线定得过严`,
+      );
+    }
+    // 但两条就掉出去，S 才有区分度
+    if (slipTwo >= sMin) {
+      throw new Error(`牌序 ${variant + 1} 漏收两条窗口旁证仍是 S（${slipTwo} ≥ ${sMin}），S 线太松`);
+    }
     orders.push({
       id: `order-${variant + 1}`,
       label: variant === 0 ? '教学顺序' : `牌序 ${variant + 1}`,
@@ -746,6 +807,8 @@ function buildOrders(rounds: SortRound[]): SortOrder[] {
       steady,
       literal,
       eager,
+      slipOne,
+      slipTwo,
     });
   }
   return orders;
@@ -879,10 +942,10 @@ function buildData(): SortData {
     states: STATES,
     scoring: SCORING,
     grades: [
-      { grade: 'S', ratio: 0.92, label: '接近这一局的最优解：命中没漏，旁证也只在兑现窗口里收' },
+      { grade: 'S', ratio: S_RATIO, label: '命中没漏，旁证只在兑现窗口里收；漏一条窗口旁证也还在 S 内' },
       { grade: 'A', ratio: 0.72, label: '取舍方向对了一半：要么把兑现窗口里的旁证全放走了，要么在中段收旁证断了连击' },
       { grade: 'B', ratio: 0.5, label: '只按字面分：命中的都收了，但旁证全放走，兑现窗口一分没拿' },
-      { grade: 'C', ratio: 0, label: '先把两个动作的手感练熟' },
+      { grade: 'C', ratio: 0, label: '这一局的失分点见下面复盘' },
     ],
     runs,
     stats: {

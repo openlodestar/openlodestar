@@ -34,6 +34,17 @@ const SORT_DATA = path.join(DOCS, 'assets', 'demo-sort-data.js');
 const SORT_SCRIPT = path.join(DOCS, 'assets', 'demo-sort.js');
 const DEMO_DATA = path.join(DOCS, 'assets', 'demo-data.js');
 
+/**
+ * 读源码做文本断言前，先把 CRLF 归一成 LF。
+ *
+ * 断言里写死的 `\n` 描述的是 git 里存的形态；Windows 上 `core.autocrlf=true`
+ * 检出的是 CRLF，直接比会莫名其妙地挂（与业务逻辑无关）。归一之后，
+ * 两种检出结果走同一套断言。
+ */
+function readText(file: string): string {
+  return fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+}
+
 type SlotKey = 'auctionHouse' | 'dateText' | 'sessionName';
 type Action = 'accept' | 'reject' | 'timeout';
 
@@ -758,7 +769,7 @@ describe('文案说对了', () => {
   });
 
   it('页面脚本里窗口文案是行动语言，不是「不会再发命中」', () => {
-    const source = fs.readFileSync(SORT_SCRIPT, 'utf8');
+    const source = readText(SORT_SCRIPT);
     expect(source).toContain('现在收不亏倍率');
     expect(source).toContain('这拍多给 0.8 秒');
     expect(source).not.toContain('这三拍不会再发命中');
@@ -767,14 +778,14 @@ describe('文案说对了', () => {
   });
 
   it('页面脚本没有用局部变量遮蔽 window', () => {
-    const source = fs.readFileSync(SORT_SCRIPT, 'utf8');
+    const source = readText(SORT_SCRIPT);
     // 上一次改到一半时写的 `var window = inWindow()` 会把 window 变成布尔值，
     // 同一函数里的 window.setTimeout 直接抛错，游戏卡在第一拍。
     expect(source).not.toMatch(/\b(?:var|let|const)\s+window\b/);
   });
 
   it('判定行写进卡片自身区域（不再作为卡片外的兄弟节点）', () => {
-    const html = fs.readFileSync(path.join(DOCS, 'demo-sort.html'), 'utf8');
+    const html = readText(path.join(DOCS, 'demo-sort.html'));
     const chipBlock = html.slice(html.indexOf('id="chip"'), html.indexOf('id="wait-bar"'));
     expect(chipBlock).toContain('id="verdict-line"');
     expect(chipBlock).toContain('id="chip-value"');
@@ -783,7 +794,7 @@ describe('文案说对了', () => {
   });
 
   it('判定行是固定高度占位，文案长短不改卡片高', () => {
-    const html = fs.readFileSync(path.join(DOCS, 'demo-sort.html'), 'utf8');
+    const html = readText(path.join(DOCS, 'demo-sort.html'));
     const rule = html.slice(html.indexOf('.verdict-line{'), html.indexOf('.verdict-line #verdict-label'));
     expect(rule).toContain('height:3.4em');
     expect(rule).not.toContain('min-height');
@@ -823,7 +834,7 @@ describe('文案说对了', () => {
   });
 
   it('「语料外写法」徽章挨着这条值，措辞说清不是假数据', () => {
-    const html = fs.readFileSync(path.join(DOCS, 'demo-sort.html'), 'utf8');
+    const html = readText(path.join(DOCS, 'demo-sort.html'));
     const chipBlock = html.slice(html.indexOf('id="chip"'), html.indexOf('id="wait-bar"'));
     expect(chipBlock).toContain('id="chip-tag"');
     expect(chipBlock.indexOf('id="chip-value"')).toBeLessThan(chipBlock.indexOf('id="chip-tag"'));
@@ -833,8 +844,8 @@ describe('文案说对了', () => {
   });
 
   it('复盘默认只展开要改的，其余折叠', () => {
-    const html = fs.readFileSync(path.join(DOCS, 'demo-sort.html'), 'utf8');
-    const source = fs.readFileSync(SORT_SCRIPT, 'utf8');
+    const html = readText(path.join(DOCS, 'demo-sort.html'));
+    const source = readText(SORT_SCRIPT);
     expect(html).toContain('id="review-toggle"');
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain('is-collapsed');
@@ -844,8 +855,8 @@ describe('文案说对了', () => {
   });
 
   it('开始页能滚时给出可见提示，滚到底换个说法', () => {
-    const html = fs.readFileSync(path.join(DOCS, 'demo-sort.html'), 'utf8');
-    const source = fs.readFileSync(SORT_SCRIPT, 'utf8');
+    const html = readText(path.join(DOCS, 'demo-sort.html'));
+    const source = readText(SORT_SCRIPT);
     expect(html).toContain('id="start-scroll"');
     expect(html).toContain('id="start-scroll-hint"');
     expect(html).toContain('上下滑动查看完整规则');
@@ -876,8 +887,8 @@ describe('文案说对了', () => {
 });
 
 describe('暂停与重来', () => {
-  const html = fs.readFileSync(path.join(DOCS, 'demo-sort.html'), 'utf8');
-  const source = fs.readFileSync(SORT_SCRIPT, 'utf8');
+  const html = readText(path.join(DOCS, 'demo-sort.html'));
+  const source = readText(SORT_SCRIPT);
 
   it('局中入口清楚：按钮写明键位，开始页也列了 P / Esc', () => {
     expect(html).toContain('id="btn-pause"');
@@ -958,8 +969,8 @@ describe('暂停与重来', () => {
 });
 
 describe('历史成绩', () => {
-  const html = fs.readFileSync(path.join(DOCS, 'demo-sort.html'), 'utf8');
-  const source = fs.readFileSync(SORT_SCRIPT, 'utf8');
+  const html = readText(path.join(DOCS, 'demo-sort.html'));
+  const source = readText(SORT_SCRIPT);
 
   it('只在真的更高时才算破纪录，其余五种情况各有各的说法', () => {
     const best = { score: 100, grade: 'A' };

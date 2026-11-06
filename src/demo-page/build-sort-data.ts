@@ -997,6 +997,23 @@ function buildData(): SortData {
   };
   for (const chip of runs[0].rounds.flatMap((round) => round.chips)) byState[chip.state] += 1;
 
+  const grades: SortData['grades'] = [
+    {
+      grade: 'S',
+      ratio: S_RATIO,
+      requiresClean: true,
+      label:
+        '命中没漏，旁证只在兑现窗口里收，整局没有误收冲突/没对上；漏一条窗口旁证仍在 S 内',
+    },
+    { grade: 'A', ratio: 0.72, label: '取舍方向对了一半：要么把兑现窗口里的旁证全放走了，要么在中段收旁证断了连击' },
+    { grade: 'B', ratio: 0.5, label: '只按字面分：命中的都收了，但旁证全放走，兑现窗口一分没拿' },
+    { grade: 'C', ratio: 0, label: '这一局的失分点见下面复盘' },
+  ];
+  const sGrade = grades.find((grade) => grade.grade === 'S');
+  if (!sGrade || !sGrade.requiresClean) {
+    throw new Error('S 档没有声明 requiresClean：分数够线时误收也能拿最高档，干净闸形同虚设');
+  }
+
   return {
     generatedAt: new Date().toISOString(),
     generator: 'src/demo-page/build-sort-data.ts',
@@ -1005,18 +1022,7 @@ function buildData(): SortData {
       '每条证据的状态是构建时用引擎的维度函数算出来的，页面只查表。',
     states: STATES,
     scoring: SCORING,
-    grades: [
-      {
-        grade: 'S',
-        ratio: S_RATIO,
-        requiresClean: true,
-        label:
-          '命中没漏，旁证只在兑现窗口里收，整局没有误收冲突/没对上；漏一条窗口旁证仍在 S 内',
-      },
-      { grade: 'A', ratio: 0.72, label: '取舍方向对了一半：要么把兑现窗口里的旁证全放走了，要么在中段收旁证断了连击' },
-      { grade: 'B', ratio: 0.5, label: '只按字面分：命中的都收了，但旁证全放走，兑现窗口一分没拿' },
-      { grade: 'C', ratio: 0, label: '这一局的失分点见下面复盘' },
-    ],
+    grades,
     runs,
     stats: {
       chips: runs[0].rounds.reduce((sum, round) => sum + round.chips.length, 0),

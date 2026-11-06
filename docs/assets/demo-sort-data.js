@@ -1,7 +1,7 @@
 // 由 src/demo-page/build-sort-data.ts 从 docs/assets/demo-game-data.js 生成，不要手改；
 // 改玩法或候选值后重跑 pnpm run demo:sort。
 window.LODESTAR_SORT = {
-  "generatedAt": "2026-11-06T14:08:15.188Z",
+  "generatedAt": "2026-11-06T14:18:27.528Z",
   "generator": "src/demo-page/build-sort-data.ts",
   "note": "由冻结矩阵 docs/assets/demo-game-data.js 生成，不要手改。每条证据的状态是构建时用引擎的维度函数算出来的，页面只查表。",
   "states": {

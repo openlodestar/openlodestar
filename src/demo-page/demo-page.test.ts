@@ -23,6 +23,16 @@ const DOCS = path.join(ROOT, 'docs');
 const EXAMPLES = path.join(ROOT, 'examples');
 const TEMP_DIRS: string[] = [];
 
+/**
+ * 读源码做文本断言前，先把 CRLF 归一成 LF。
+ *
+ * 断言里的 `\n` 描述的是 git 里存的形态；Windows 上 `core.autocrlf=true`
+ * 检出的是 CRLF，直接比会与业务逻辑无关地挂掉。归一之后两种检出走同一套断言。
+ */
+function readText(file: string): string {
+  return fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+}
+
 interface DemoField {
   key: string;
   label: string;
@@ -156,7 +166,7 @@ describe('页面装载', () => {
       expect(html).toContain(`src="${script}"`);
       expect(fs.existsSync(path.join(DOCS, script))).toBe(true);
     }
-    const dataScript = fs.readFileSync(path.join(DOCS, 'assets/demo-data.js'), 'utf8');
+    const dataScript = readText(path.join(DOCS, 'assets/demo-data.js'));
     // 可以有一行生成注释，但数据必须是内嵌常量，不能是等着页面去取的文件
     expect(/^(?:\/\/[^\n]*\n)*window\.LODESTAR_DEMO = /.test(dataScript)).toBe(true);
     expect(dataScript).not.toContain('LODESTAR_DEMO.json');

@@ -33,6 +33,7 @@ import { quoteMatches } from '../src/lodestar/adjudicate/compare';
 import { buildRecordQueries } from '../src/lodestar/adjudicate/retrieval';
 import { DEFAULT_CAPS } from '../src/lodestar/adjudicate';
 import { measureLiveRecall, type LiveRecallFixture, type LiveRecallResult } from '../src/lodestar/live-recall';
+import type { DomainCheckFixture } from '../src/lodestar/domain-gate';
 import {
   FETCH_FAILURE_KINDS,
   FETCH_FAILURE_LABELS,
@@ -172,12 +173,15 @@ function hashSample(root: string, samples: SampleSet): string {
   return hash.digest('hex');
 }
 
-/** 检索样本锁：只用真正参与读数的文件（输入 + 冻结结果），按 slug/文件名排序后逐个哈希 */
+/**
+ * 检索样本锁：只用真正参与读数的文件（输入 + 冻结结果 + 域名判定），按 slug/文件名排序后逐个哈希。
+ * `domains.json` 必须计入：域名闸会淘汰候选，读数跟着变，不锁它就看不出"判定换了"。
+ */
 function hashLiveRecall(root: string, config: { version: string; samples: string[] }): string {
   const hash = crypto.createHash('sha256');
   const files: string[] = [];
   for (const slug of [...config.samples].sort()) {
-    for (const name of ['input.json', 'search-results.json']) {
+    for (const name of ['input.json', 'search-results.json', 'domains.json']) {
       const relative = `examples/replay-search/${slug}/${name}`;
       if (fs.existsSync(path.join(root, relative))) files.push(relative);
     }
@@ -198,7 +202,7 @@ function hashPageChecks(root: string, config: { version: string; samples: string
   const hash = crypto.createHash('sha256');
   const files: string[] = [];
   for (const slug of [...config.samples].sort()) {
-    for (const name of ['search-results.json', 'page-checks.json']) {
+    for (const name of ['search-results.json', 'domains.json', 'page-checks.json']) {
       const relative = `examples/replay-search/${slug}/${name}`;
       if (fs.existsSync(path.join(root, relative))) files.push(relative);
     }
@@ -306,6 +310,12 @@ function formatFieldStats(stats: PageVerificationResult['fieldStats']): string {
   return stats.map((row) => `${row.key} ${row.verbatim}/${row.pages}`).join(' · ');
 }
 
+/** 读某个检索样本的域名判定（没有就返回 undefined：全部按 unknown 保留） */
+function readDomainFixture(root: string, slug: string): DomainCheckFixture | undefined {
+  const file = path.join(root, 'examples', 'replay-search', slug, 'domains.json');
+  return fs.existsSync(file) ? readJson<DomainCheckFixture>(file) : undefined;
+}
+
 /**
  * 在线召回率：从冻结的检索回放样本离线重算（零外部调用）。
  * 没有配置样本或样本缺失 → 返回 null（显示「未测」，不是 0）。
@@ -320,7 +330,7 @@ function computeLiveRecall(
     const file = path.join(root, 'examples', 'replay-search', slug, 'search-results.json');
     if (!fs.existsSync(file)) return null;
     const fixture = readJson<LiveRecallFixture>(file);
-    results.push(measureLiveRecall(fixture, porcelainPack));
+    results.push(measureLiveRecall({ ...fixture, domains: readDomainFixture(root, slug) }, porcelainPack));
   }
   const issued = results.reduce((sum, row) => sum + row.issued, 0);
   const hit = results.reduce((sum, row) => sum + row.hit, 0);
@@ -333,6 +343,7 @@ function computeLiveRecall(
       value: issued === 0 ? null : Math.round((hit / issued) * 1000) / 10,
       calls,
       rows: results.flatMap((row) => row.rows),
+      domainRejected: results.flatMap((row) => row.domainRejected),
       basis: 'static-self-consistency-no-fetch',
     },
     results,
@@ -601,6 +612,9 @@ async function main(): Promise<void> {
           : `${liveRecall.results
               .map((row) => `${row.slug} ${row.hit}/${row.issued}`)
               .join('；')}；实际发出 ${liveRecall.result.calls} 条查询` +
+            (liveRecall.result.domainRejected.length > 0
+              ? `；域名闸淘汰 ${liveRecall.result.domainRejected.length} 条候选（地址不存在，不进证据链）`
+              : '；域名闸没有淘汰候选') +
             '；判据=静态自洽（通过候选过滤且摘要含本场关键值），不抓页、不核逐字引用——页面里到底有没有这条事实，看下一项「可核率」',
       meaning: '变差意味着：同样的问题在线越来越捞不到"看着相关"的页面——判据再准，没有页面可裁也只能判 not_found。注意它不等于页面真有这条事实。',
     },

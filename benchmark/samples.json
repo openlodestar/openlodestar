@@ -10,11 +10,11 @@
     "demo-batch-14"
   ],
   "liveRecall": {
-    "version": "live-2026-11-09",
+    "version": "live-2026-11-09-gate",
     "samples": ["porcelain-2021-autumn", "cg-2021-autumn"]
   },
   "pageChecks": {
-    "version": "page-2026-11-09",
+    "version": "page-2026-11-09-gate",
     "samples": ["porcelain-2021-autumn", "cg-2021-autumn"]
   }
 }

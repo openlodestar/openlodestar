@@ -22,6 +22,7 @@
 import type { SearchResultItem } from '../integrations/search-providers/types';
 import type { DomainPack } from './packs/pack';
 import { filterAndRankCandidates, planZeroRecallRepairs } from './adjudicate/retrieval';
+import { gateCandidatesByDomain, type DomainCheckFixture } from './domain-gate';
 import { normalizeText } from './normalize';
 
 /** 冻结样本里的一条轨（源轨或补发轨） */
@@ -41,6 +42,8 @@ export interface LiveRecallFixture {
   matchTerms?: string[];
   /** 没有 matchTerms 时的回退：记录的关键字段值 */
   values?: Record<string, string | null>;
+  /** 域名真实性闸的冻结判定（不在样本里的域名按 unknown 保留） */
+  domains?: DomainCheckFixture;
 }
 
 export interface LiveRecallRow {
@@ -71,6 +74,8 @@ export interface LiveRecallResult {
   /** 实际检索调用数：源查询 + 0 召回补发 */
   calls: number;
   rows: LiveRecallRow[];
+  /** 被域名真实性闸淘汰的候选（域名解析不到，按"这个地址不存在"记） */
+  domainRejected: Array<{ queryIndex: number; url: string; domain: string }>;
   /** 判据层级：静态自洽（不抓页核逐字引用） */
   basis: 'static-self-consistency-no-fetch';
 }
@@ -91,6 +96,7 @@ export function measureLiveRecall(fixture: LiveRecallFixture, pack: DomainPack):
       value: null,
       calls: 0,
       rows: [],
+      domainRejected: [],
       basis: 'static-self-consistency-no-fetch',
     };
   }
@@ -110,6 +116,7 @@ export function measureLiveRecall(fixture: LiveRecallFixture, pack: DomainPack):
     .filter((value) => value !== '');
 
   const rows: LiveRecallRow[] = [];
+  const domainRejected: Array<{ queryIndex: number; url: string; domain: string }> = [];
   for (const [index, query] of fixture.queries.entries()) {
     const sourceItems = sourceTrack.results.filter((item) => item.queryIndex === index);
     let repairQuery: string | null = null;
@@ -130,7 +137,12 @@ export function measureLiveRecall(fixture: LiveRecallFixture, pack: DomainPack):
     for (const item of [...sourceItems, ...repairItems]) if (!byUrl.has(item.url)) byUrl.set(item.url, item);
     const allItems = [...byUrl.values()];
     const { candidates } = filterAndRankCandidates(allItems, pack);
-    const adjudicable = candidates.filter((candidate) => {
+    // 域名真实性闸：解析不到的地址直接淘汰，不算召回成功，也不进证据链
+    const gated = gateCandidatesByDomain(candidates, fixture.domains);
+    for (const rejected of gated.rejected) {
+      domainRejected.push({ queryIndex: index, url: rejected.url, domain: rejected.domain });
+    }
+    const adjudicable = gated.kept.filter((candidate) => {
       const item = byUrl.get(candidate.url);
       const text = normalizeText(`${candidate.title} ${item?.snippet ?? ''}`);
       return needles.some((needle) => text.includes(needle));
@@ -156,6 +168,7 @@ export function measureLiveRecall(fixture: LiveRecallFixture, pack: DomainPack):
     value: issued === 0 ? null : Math.round((hit / issued) * 1000) / 10,
     calls: issued + plan.indexes.length,
     rows,
+    domainRejected,
     basis: 'static-self-consistency-no-fetch',
   };
 }

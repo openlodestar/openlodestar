@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "kind": "domain-check-replay",
+  "capturedAt": "2026-11-09T11:06:13.181Z",
+  "checks": [
+    {
+      "domain": "antiquesandthearts.com",
+      "verdict": "exists",
+      "detail": "141.193.213.20, 141.193.213.21"
+    },
+    {
+      "domain": "artnet.com",
+      "verdict": "exists",
+      "detail": "104.18.22.72, 104.18.23.72"
+    },
+    {
+      "domain": "artron.net",
+      "verdict": "exists",
+      "detail": "124.202.145.231"
+    },
+    {
+      "domain": "chinadaily.com.cn",
+      "verdict": "exists",
+      "detail": "111.13.49.147"
+    },
+    {
+      "domain": "invaluable.com",
+      "verdict": "exists",
+      "detail": "18.189.211.250, 3.146.99.141, 3.23.150.65"
+    },
+    {
+      "domain": "liveauctioneers.com",
+      "verdict": "exists",
+      "detail": "18.244.214.20, 18.244.214.57, 18.244.214.29"
+    },
+    {
+      "domain": "polyauction.com",
+      "verdict": "nonexistent",
+      "detail": "Error: getaddrinfo ENOTFOUND polyauction.com"
+    },
+    {
+      "domain": "polyauction.com.cn",
+      "verdict": "nonexistent",
+      "detail": "Error: getaddrinfo ENOTFOUND polyauction.com.cn"
+    },
+    {
+      "domain": "thevalue.com",
+      "verdict": "exists",
+      "detail": "13.212.208.240"
+    }
+  ]
+}

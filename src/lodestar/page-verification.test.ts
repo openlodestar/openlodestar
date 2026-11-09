@@ -26,6 +26,7 @@ function recall(rows: Array<{ query: string; urls: string[] }>): LiveRecallResul
       candidateUrls: row.urls,
       hit: row.urls.length > 0,
     })),
+    domainRejected: [],
     basis: 'static-self-consistency-no-fetch',
   };
 }

@@ -30,6 +30,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchSinglePageHtml } from '../src/integrations/scraper-strategies/single-page-fetch';
 import { processHtml } from '../src/integrations/scraper-strategies/scraper-utils';
+import type { DomainCheckFixture } from '../src/lodestar/domain-gate';
 import { measureLiveRecall, type LiveRecallFixture } from '../src/lodestar/live-recall';
 import {
   classifyFetchFailure,
@@ -94,7 +95,15 @@ async function main(): Promise<void> {
   const input = { ...(JSON.parse(fs.readFileSync(inputPath, 'utf8')) as SampleInput), slug };
   const search = JSON.parse(fs.readFileSync(searchPath, 'utf8')) as LiveRecallFixture;
   const matchTerms = input.matchTerms && input.matchTerms.length > 0 ? input.matchTerms : null;
-  const recall = measureLiveRecall({ ...search, slug, matchTerms: matchTerms ?? search.matchTerms }, porcelainPack);
+  // 域名闸：解析不到的地址不进抓页清单（与评分卡同一份 domains.json）
+  const domainsPath = path.join(sampleDir, 'domains.json');
+  const domains = fs.existsSync(domainsPath)
+    ? (JSON.parse(fs.readFileSync(domainsPath, 'utf8')) as DomainCheckFixture)
+    : undefined;
+  const recall = measureLiveRecall(
+    { ...search, slug, matchTerms: matchTerms ?? search.matchTerms, domains },
+    porcelainPack,
+  );
 
   // 只抓"已经召回、且当前仍通过候选过滤"的页；同一 URL 只抓一次
   const seen = new Set<string>();

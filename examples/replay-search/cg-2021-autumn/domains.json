@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "kind": "domain-check-replay",
+  "capturedAt": "2026-11-09T11:06:15.165Z",
+  "checks": [
+    {
+      "domain": "artnet.com",
+      "verdict": "exists",
+      "detail": "104.18.22.72, 104.18.23.72"
+    },
+    {
+      "domain": "barrons.com",
+      "verdict": "exists",
+      "detail": "65.8.54.11, 65.8.54.63, 65.8.54.26"
+    },
+    {
+      "domain": "china-guardian.com",
+      "verdict": "nonexistent",
+      "detail": "Error: getaddrinfo ENOTFOUND china-guardian.com"
+    },
+    {
+      "domain": "chinadaily.com.cn",
+      "verdict": "exists",
+      "detail": "111.13.49.147"
+    },
+    {
+      "domain": "chinaguardian.com",
+      "verdict": "nonexistent",
+      "detail": "Error: getaddrinfo ENOTFOUND chinaguardian.com"
+    },
+    {
+      "domain": "scmp.com",
+      "verdict": "exists",
+      "detail": "2a03:2880:f10c:83:face:b00c:0:25de, 69.171.247.71"
+    }
+  ]
+}

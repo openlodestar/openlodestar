@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "kind": "render-check-replay",
+  "slug": "porcelain-2021-autumn",
+  "capturedAt": "2026-11-09T11:20:35.214Z",
+  "policy": {
+    "timeoutMs": 30000,
+    "networkIdleMs": 8000,
+    "scrollToBottom": true,
+    "waitAfterScrollMs": 3000,
+    "headless": true,
+    "browser": "playwright chromium（本机 ms-playwright 缓存，未下载）",
+    "allowBrowser": true
+  },
+  "fields": [
+    {
+      "key": "auctionHouse",
+      "value": "北京保利"
+    },
+    {
+      "key": "dateText",
+      "value": "2021年12月5日"
+    },
+    {
+      "key": "sessionName",
+      "value": "禹贡Ⅰ—盛清御瓷新风尚"
+    }
+  ],
+  "note": "一次性定向实测：只渲染这两页；不参与评分卡、不新增分项。正文不落盘，只存字符数与判定。",
+  "attempts": [
+    { "url": "https://www.artron.net/auction/2021-winter-poly-auction-catalog", "result": "正文 0 字符", "times": 4 },
+    { "url": "https://www.thevalue.com/auctionnews/117655", "result": "正文 2369 / 1691 / 1429 字符（三次均无任何关键字段）", "times": 3 },
+    { "url": "https://www.thevalue.com/auctionnews/117655", "result": "page.goto 超时 30 秒", "times": 1 }
+  ],
+  "checks": [
+    {
+      "url": "https://www.artron.net/auction/2021-winter-poly-auction-catalog",
+      "domain": "artron.net",
+      "status": "failed",
+      "failure": "non-html",
+      "message": "渲染并滚动、多等 3 秒后正文只有 0 字符（低于 200）",
+      "title": "雅昌艺术网:传艺术之美-权威艺术门户网站"
+    },
+    {
+      "url": "https://www.thevalue.com/auctionnews/117655",
+      "domain": "thevalue.com",
+      "status": "rendered",
+      "chars": 1429,
+      "textHash": "ca83b5662e9caa8d",
+      "title": "THE VALUE | 連結藝術新聞、藝術展覽、拍賣新聞、藝術行家的藝術平台",
+      "fields": [
+        {
+          "key": "auctionHouse",
+          "value": "北京保利",
+          "verbatim": false
+        },
+        {
+          "key": "dateText",
+          "value": "2021年12月5日",
+          "verbatim": false
+        },
+        {
+          "key": "sessionName",
+          "value": "禹贡Ⅰ—盛清御瓷新风尚",
+          "verbatim": false
+        }
+      ],
+      "verified": false
+    }
+  ]
+}

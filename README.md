@@ -255,7 +255,7 @@ docs/assertion-routing-e2e.md 断言路由五个分支的句子级落点表（�
 docs/triage-landing.md      预筛层句子级落点表：四类拒收各自花多少检索，以及两类会误杀可核断言的情况
 docs/search-replay.md       冻结检索结果回放：语言探针、0 召回补发、编造链接判据、域名真实性闸、静态自洽 4/8 与抓页可核 0/8
 docs/scorecard.md           评分卡：八个分项各自出分、样本锁与历史表，以及进步/退步/没变化的前后对照
-docs/browser-render-evaluation.md 浏览器渲染的代价评估：四条可选路径、预估收益、对安装/CI/离线的影响（只评估，未引入依赖）
+docs/browser-render-evaluation.md 浏览器渲染的代价评估与定向实测：四条路径、684 MB 内核、实测两页 0 可核（只评估，未引入依赖）
 benchmark/                  评分卡的固定考卷：批次清单、检索样本清单、抓页样本清单、人工金标准、基线读数与历史表
 scripts/scorecard.ts        离线评分卡（零外部调用、重跑同分；用例数不进分）
 scripts/capture-page-checks.ts  抓页可核：只抓已召回候选页，逐字核对关键字段，冻成回放样本（默认不联网）

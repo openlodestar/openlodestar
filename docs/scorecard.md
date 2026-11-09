@@ -51,7 +51,7 @@ npx tsx scripts/scorecard.ts
 
 ## 六个分项
 
-当前读数（提交 `ec0449e` 之后的工作区，`frozen-2026-11-09` / `live-2026-11-09`）：
+当前读数（提交 `bb9e939`，`frozen-2026-11-09` / `live-2026-11-09`）：
 
 | 分项 | 当前 | 方向 | 这一项变差，意味着发生了什么坏事 |
 | --- | --- | --- | --- |
@@ -108,7 +108,7 @@ npx tsx scripts/scorecard.ts
 每次跑追加一行，格式：
 
 ```json
-{"commit":"ec0449e","date":"2026-11-09","recordedAt":"2026-11-09T10:50:00.000Z","sampleVersion":"frozen-2026-11-09","sampleHash":"d1e88f56…","liveRecallSampleVersion":"live-2026-11-09","liveRecallSampleHash":"ea99181f…","metrics":{"gateAgreement":100,"negativeRejection":100,"positiveNotFalselyRejected":100,"traceability":100,"liveRecall":62.5,"retrievalQueriesPerClaim":1.33}}
+{"commit":"bb9e939","date":"2026-11-09","recordedAt":"2026-11-09T10:44:03.163Z","sampleVersion":"frozen-2026-11-09","sampleHash":"d1e88f56…","liveRecallSampleVersion":"live-2026-11-09","liveRecallSampleHash":"ea99181f…","metrics":{"gateAgreement":100,"negativeRejection":100,"positiveNotFalselyRejected":100,"traceability":100,"liveRecall":62.5,"retrievalQueriesPerClaim":1.33}}
 ```
 
 同一提交、同一组读数重跑不会重复追加。看趋势读整张表，不要只跟上一行比。

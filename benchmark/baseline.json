@@ -1,15 +1,17 @@
 {
-  "commit": "91bf926",
+  "commit": "bb9e939",
   "date": "2026-11-09",
-  "recordedAt": "2026-11-09T10:21:48.665Z",
+  "recordedAt": "2026-11-09T10:44:03.163Z",
   "sampleVersion": "frozen-2026-11-09",
   "sampleHash": "d1e88f56885298f129d3f73bc04a09c20846bb302a5eb7c56a9a62d7d86587be",
+  "liveRecallSampleVersion": "live-2026-11-09",
+  "liveRecallSampleHash": "ea99181f995b821a7820591fe14a4716f233906be0af7c44cb7eb705d003edfd",
   "metrics": {
     "gateAgreement": 100,
     "negativeRejection": 100,
     "positiveNotFalselyRejected": 100,
     "traceability": 100,
-    "retrievalQueriesPerClaim": 1.33,
-    "liveRecall": null
+    "liveRecall": 62.5,
+    "retrievalQueriesPerClaim": 1.33
   }
 }

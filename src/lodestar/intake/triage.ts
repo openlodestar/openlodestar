@@ -75,6 +75,12 @@ export function applyTriage(
   options: { minStabilityHits: number; recordStability: Map<string, boolean> },
 ): ClaimRecord[] {
   for (const claim of claims) {
+    // 已有"不通过"结论的不再重判（当前唯一来源是超出单记录字段预算）：
+    // 那是上游按预算下的定论，覆盖它等于把"没送查"的字段悄悄送进检索。
+    if (!claim.triage.passed) {
+      claim.state = 'rejected';
+      continue;
+    }
     const recordStable = claim.recordId ? options.recordStability.get(claim.recordId) ?? false : false;
     const outcome = triageClaim({ claim, minStabilityHits: options.minStabilityHits, recordStable });
     claim.triage = { passed: outcome.passed, reason: outcome.reason };

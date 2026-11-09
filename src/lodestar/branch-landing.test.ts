@@ -13,9 +13,10 @@
  * 检索段是冻结桩（`frozen-stub`，永远返回空结果）；翻译桩固定失败 → 只跑单轨，
  * 所以 `searchCalls` 等于实际发出的查询条数。没有抓页、没有比对调用、没有联网。
  *
- * 其中四条样本（未来事件的相对说法、主观评价的口语说法、含主观修饰的可核断言）
- * 钉的是**当前落点**，与"应该落在哪"不一致；原因与处置见
- * `docs/assertion-routing-e2e.md`。改路由规则时这几条要一起改，不要当成回归。
+ * 2026-11-09 的修法：未来事件补相对年份词（有过去年份在场时按混合句放行）、
+ * 主观评价与真伪判断只看命题字段（谓语＋宾语）而不是整句子串。
+ * 结构判据的失效场景（提取把评价写进主语／原子句、隐晦评价没有词表词）见
+ * `docs/assertion-routing-e2e.md`，不要把那几类当成"规则保证能拦住"。
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -230,7 +231,7 @@ describe('分支落点：未来事件', () => {
     expect(searchMock).not.toHaveBeenCalled();
   });
 
-  it('「明年将办」只是相对说法，现规则认不出未来：落 verify 并花 4 次检索（当前落点，待裁决）', async () => {
+  it('「明年将办」按相对年份拒收，不花检索', async () => {
     const { store, result } = await runOneSample({
       text: '中国嘉德明年将举办秋季瓷器专场',
       subject: '中国嘉德',
@@ -239,11 +240,10 @@ describe('分支落点：未来事件', () => {
     });
 
     const [claim] = await claimsOf(store);
-    // 期望是拒收 future-event；现规则只认四位年份，相对说法直接送去核
-    expect(claim?.routing).toMatchObject({ route: 'verify' });
-    expect(claim?.state).toBe('adjudicated');
-    expect(result.stats.searchCalls).toBe(4);
-    expect(searchMock).toHaveBeenCalledTimes(1);
+    expect(claim?.routing).toMatchObject({ route: 'reject', reason: 'future-event' });
+    expect(claim?.state).toBe('rejected');
+    expect(result.stats.searchCalls).toBe(0);
+    expect(searchMock).not.toHaveBeenCalled();
   });
 });
 
@@ -268,9 +268,9 @@ describe('分支落点：主观评价', () => {
   it('命中策略包词表的评语整条拒收，不花检索', async () => {
     const { store, result } = await runOneSample({
       text: '这场瓷器专场极具价值',
-      subject: '中国嘉德',
+      subject: '这场瓷器专场',
       predicate: '评价',
-      object: '这场瓷器专场',
+      object: '极具价值',
     });
 
     const [claim] = await claimsOf(store);
@@ -280,7 +280,7 @@ describe('分支落点：主观评价', () => {
     expect(searchMock).not.toHaveBeenCalled();
   });
 
-  it('「我认为这是真品」没命中词表：落 verify 并花 4 次检索（当前落点，待裁决）', async () => {
+  it('「我认为这是真品」按真伪判断拒收，不花检索', async () => {
     const { store, result } = await runOneSample({
       text: '我认为这是真品',
       subject: '我',
@@ -289,16 +289,15 @@ describe('分支落点：主观评价', () => {
     });
 
     const [claim] = await claimsOf(store);
-    // 期望是拒收（个人判断没法用网页证据裁）；现词表只收"极具价值"这类书面评价
-    expect(claim?.routing).toMatchObject({ route: 'verify' });
-    expect(claim?.state).toBe('adjudicated');
-    expect(result.stats.searchCalls).toBe(4);
-    expect(searchMock).toHaveBeenCalledTimes(1);
+    expect(claim?.routing).toMatchObject({ route: 'reject', reason: 'subjective-value' });
+    expect(claim?.state).toBe('rejected');
+    expect(result.stats.searchCalls).toBe(0);
+    expect(searchMock).not.toHaveBeenCalled();
   });
 });
 
-describe('两个方向的错：漏判（该核却被整条拒收）', () => {
-  it('含「值得收藏」的可核断言被整条当成主观评价拒收，0 次检索（当前落点，待裁决）', async () => {
+describe('两个方向的错：漏判已收口（可核部分不再被整条丢掉）', () => {
+  it('句尾带「值得收藏」的可核断言照常送核，花 4 次检索', async () => {
     const { store, result } = await runOneSample({
       text: '中国嘉德2021年秋季拍卖会瓷器专场推出多件值得收藏的官窑重器',
       subject: '中国嘉德',
@@ -307,12 +306,11 @@ describe('两个方向的错：漏判（该核却被整条拒收）', () => {
     });
 
     const [claim] = await claimsOf(store);
-    // 期望：存在性部分（某机构某年办过某专场）可核，应送 verify；
-    // 现规则按子串命中"值得收藏"，把整句丢了——这是漏判，不是世界没这条。
-    expect(claim?.routing).toMatchObject({ route: 'reject', reason: 'subjective-value' });
-    expect(claim?.state).toBe('rejected');
-    expect(result.stats.searchCalls).toBe(0);
-    expect(searchMock).not.toHaveBeenCalled();
+    // 评价词只在原子句里、不在命题字段里：按命题结构判，整句不再是"主观评价"
+    expect(claim?.routing).toMatchObject({ route: 'verify' });
+    expect(claim?.state).toBe('adjudicated');
+    expect(result.stats.searchCalls).toBe(4);
+    expect(await verdictsOf(store)).toHaveLength(1);
   });
 });
 

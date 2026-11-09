@@ -108,8 +108,48 @@ describe('路由：分类学只路由不打分，拒收要说清是哪一类', (
     const nextYear = new Date().getFullYear() + 1;
     const base = { subject: '中国嘉德', predicate: '举办专场', object: '瓷器专场', fieldKey: 'sessionName', fieldRole: 'key' as const };
     expect(porcelainPack.route({ ...base, atomicText: `${nextYear}年中国嘉德将办瓷器专场` }).reason).toBe('future-event');
+    expect(porcelainPack.route({ ...base, atomicText: '中国嘉德明年将办瓷器专场' }).reason).toBe('future-event');
     expect(porcelainPack.route({ ...base, atomicText: '我的训练数据里有这场瓷器专场' }).reason).toBe('self-referential');
-    expect(porcelainPack.route({ ...base, atomicText: '这场瓷器专场极具价值' }).reason).toBe('subjective-value');
+    expect(
+      porcelainPack.route({ ...base, predicate: '评价', object: '极具价值', atomicText: '这场瓷器专场极具价值' }).reason,
+    ).toBe('subjective-value');
+  });
+
+  it('未来事件的相对说法遇到过去年份时按混合句放行（宁可花检索，也不整条误杀）', () => {
+    const routing = porcelainPack.route({
+      atomicText: '2021年举办过瓷器专场，明年将办下一届',
+      subject: '中国嘉德',
+      predicate: '举办专场',
+      object: '瓷器专场',
+      fieldKey: 'sessionName',
+      fieldRole: 'key',
+    });
+    expect(routing.route).toBe('verify');
+  });
+
+  it('真伪判断按命题字段拒收（鉴定意见不是网页能裁的事）', () => {
+    expect(
+      porcelainPack.route({
+        atomicText: '我认为这是真品',
+        subject: '我',
+        predicate: '真伪判断',
+        object: '真品',
+        fieldKey: null,
+        fieldRole: 'secondary',
+      }).reason,
+    ).toBe('subjective-value');
+  });
+
+  it('主观评价只看命题字段：句尾带"值得收藏"的可核断言照常送核', () => {
+    const routing = porcelainPack.route({
+      atomicText: '中国嘉德2021年秋季拍卖会瓷器专场推出多件值得收藏的官窑重器',
+      subject: '中国嘉德',
+      predicate: '专场内容',
+      object: '官窑重器',
+      fieldKey: null,
+      fieldRole: 'secondary',
+    });
+    expect(routing.route).toBe('verify');
   });
 
   it('关键字段走 verify/L1，次要字段走 verify/L2', () => {

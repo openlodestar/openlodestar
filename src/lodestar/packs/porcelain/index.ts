@@ -344,18 +344,28 @@ export const porcelainPack: DomainPack = {
     if (input.fieldKey === 'totalHammer' || /总成交额|成交额|成交率|均价|共计|总计/.test(text)) {
       return { route: 'decompose', mode: 'L3', reason: 'aggregate-statistic' };
     }
-    // 未来事件：当前无法查证
+    // 未来事件：当前无法查证。
+    // 两位以上年份按"是否晚于今年"判断；相对说法（明年／后年／来年／下一年）没有年份，
+    // 但只要有过去年份在场，就按"混合句"放行去核——宁可花检索，也不整条误杀。
     const currentYear = new Date().getFullYear();
-    const fromYear = input.atomicText.match(/(1[89]\d{2}|20\d{2})/);
-    if (fromYear && Number(fromYear[1]) > currentYear) {
+    const years = [...input.atomicText.matchAll(/(1[89]\d{2}|20\d{2})/g)].map((match) => Number(match[1]));
+    const hasPastYear = years.some((year) => year <= currentYear);
+    const hasFutureYear = years.some((year) => year > currentYear);
+    const hasRelativeFuture = /明年|后年|来年|下一年/.test(text);
+    if (hasFutureYear || (hasRelativeFuture && !hasPastYear)) {
       return { route: 'reject', mode: null, reason: 'future-event' };
     }
     // 自指（关于模型自己／训练语料）
     if (/训练数据|预训练|我的记忆|模型记忆/.test(text)) {
       return { route: 'reject', mode: null, reason: 'self-referential' };
     }
-    // 主观评价：写不出"一致／矛盾"的判定规则
-    if (/最精美|极具价值|值得收藏|艺术价值极高/.test(text)) {
+    // 主观评价：写不出"一致／矛盾"的判定规则。
+    // 只看命题本身（谓语＋宾语），不看整句子串——句尾带"值得收藏"不等于整句是评价。
+    const proposition = `${input.predicate} ${input.object}`;
+    const evaluation = /最精美|极具价值|值得收藏|艺术价值极高/.test(proposition);
+    // 真伪判断是鉴定意见，网页证据裁不了；同一把尺子只看命题字段
+    const authenticity = /真品|赝品|真迹|仿品|真伪|真假/.test(proposition);
+    if (evaluation || authenticity) {
       return { route: 'reject', mode: null, reason: 'subjective-value' };
     }
     return {

@@ -54,6 +54,8 @@ export interface LiveRecallRow {
   repairReturned: number;
   /** 通过过滤且与本场相关的候选页数 */
   adjudicable: number;
+  /** 这些候选页的 URL（抓页可核率按它挑页，顺序即召回顺序） */
+  candidateUrls: string[];
   /** 本查询是否召回到至少一条可裁真页 */
   hit: boolean;
 }
@@ -140,6 +142,7 @@ export function measureLiveRecall(fixture: LiveRecallFixture, pack: DomainPack):
       repairQuery,
       repairReturned: repairItems.length,
       adjudicable: adjudicable.length,
+      candidateUrls: adjudicable.map((candidate) => candidate.url),
       hit: adjudicable.length > 0,
     });
   }

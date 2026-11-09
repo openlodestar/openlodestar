@@ -33,6 +33,14 @@ import { quoteMatches } from '../src/lodestar/adjudicate/compare';
 import { buildRecordQueries } from '../src/lodestar/adjudicate/retrieval';
 import { DEFAULT_CAPS } from '../src/lodestar/adjudicate';
 import { measureLiveRecall, type LiveRecallFixture, type LiveRecallResult } from '../src/lodestar/live-recall';
+import {
+  FETCH_FAILURE_KINDS,
+  FETCH_FAILURE_LABELS,
+  measurePageVerification,
+  type FetchFailureKind,
+  type PageCheckFixture,
+  type PageVerificationResult,
+} from '../src/lodestar/page-verification';
 import porcelainPack from '../src/lodestar/packs/porcelain';
 import type { ClaimRecord, EvidenceRecord } from '../src/lodestar/types';
 
@@ -46,6 +54,14 @@ interface SampleSet {
    * 与判定样本分开记版本与锁：换检索样本不影响门禁类读数，反之亦然。
    */
   liveRecall?: {
+    version: string;
+    samples: string[];
+  };
+  /**
+   * 抓页可核率专用的冻结抓页样本（examples/replay-search/<slug>/page-checks.json）。
+   * 与检索样本分开记版本与锁：抓页结果换了不影响静态自洽读数，反之亦然。
+   */
+  pageChecks?: {
     version: string;
     samples: string[];
   };
@@ -95,6 +111,9 @@ interface HistoryRow {
   /** 在线召回率样本的版本与锁（与判定样本分开；旧行没有这两个字段） */
   liveRecallSampleVersion?: string;
   liveRecallSampleHash?: string;
+  /** 抓页可核率样本的版本与锁（旧行没有这两个字段） */
+  pageCheckSampleVersion?: string;
+  pageCheckSampleHash?: string;
   metrics: Record<string, number | null>;
 }
 
@@ -169,6 +188,122 @@ function hashLiveRecall(root: string, config: { version: string; samples: string
     hash.update(fs.readFileSync(path.join(root, relative), 'utf8').replace(/\r\n/g, '\n'));
   }
   return hash.digest('hex');
+}
+
+/**
+ * 抓页样本锁：检索结果 + 抓页读数都参与（可核率的分子分母都依赖当前候选集，
+ * 只锁抓页文件会让"检索样本换了、抓页没换"这种组合不被发现）。
+ */
+function hashPageChecks(root: string, config: { version: string; samples: string[] }): string {
+  const hash = crypto.createHash('sha256');
+  const files: string[] = [];
+  for (const slug of [...config.samples].sort()) {
+    for (const name of ['search-results.json', 'page-checks.json']) {
+      const relative = `examples/replay-search/${slug}/${name}`;
+      if (fs.existsSync(path.join(root, relative))) files.push(relative);
+    }
+  }
+  for (const relative of files.sort()) {
+    hash.update(relative);
+    hash.update(fs.readFileSync(path.join(root, relative), 'utf8').replace(/\r\n/g, '\n'));
+  }
+  return hash.digest('hex');
+}
+
+/** 一组合计的抓页读数（跨样本相加；分母为零的比率返回 null） */
+interface PageCheckAggregate {
+  result: PageVerificationResult;
+  results: PageVerificationResult[];
+  /** 有抓页样本的 slug */
+  measured: string[];
+  /** 配了但没抓页 / 没样本的 slug：不计入分母，读数上按「未测」标 */
+  unmeasured: string[];
+}
+
+function ratio(hit: number, total: number): number | null {
+  if (total === 0) return null;
+  return Math.round((hit / total) * 1000) / 10;
+}
+
+/**
+ * 抓页可核率：每个样本读自己的检索冻结结果 + 抓页读数，离线重算（零外部调用）。
+ * 没配抓页样本、或某个样本没有 page-checks.json → 该样本不进分母，读数显示「未测」。
+ */
+function computePageChecks(
+  root: string,
+  config: { version: string; samples: string[] } | undefined,
+  liveRecallResults: LiveRecallResult[],
+): PageCheckAggregate | null {
+  if (config === undefined || config.samples.length === 0) return null;
+  const results: PageVerificationResult[] = [];
+  const measured: string[] = [];
+  const unmeasured: string[] = [];
+  for (const slug of config.samples) {
+    const file = path.join(root, 'examples', 'replay-search', slug, 'page-checks.json');
+    const recall = liveRecallResults.find((row) => row.slug === slug);
+    if (!fs.existsSync(file) || recall === undefined) {
+      unmeasured.push(slug);
+      continue;
+    }
+    results.push(measurePageVerification({ fixture: readJson<PageCheckFixture>(file), recall }));
+    measured.push(slug);
+  }
+  if (results.length === 0) return null;
+
+  const sum = (pick: (row: PageVerificationResult) => number): number =>
+    results.reduce((total, row) => total + pick(row), 0);
+  const attempted = sum((row) => row.attempted);
+  const fetched = sum((row) => row.fetched);
+  const verifiedPages = sum((row) => row.verifiedPages);
+  const issued = sum((row) => row.issued);
+  const queryHits = sum((row) => row.queryHits);
+  const failures = Object.fromEntries(FETCH_FAILURE_KINDS.map((kind) => [kind, 0])) as Record<FetchFailureKind, number>;
+  for (const row of results) for (const kind of FETCH_FAILURE_KINDS) failures[kind] += row.failures[kind];
+  // 字段逐字命中按字段名合并（同一批样本的关键字段是同一组），不逐样本重复列
+  const fieldStats = new Map<string, { key: string; value: string; pages: number; verbatim: number }>();
+  for (const row of results) {
+    for (const stat of row.fieldStats) {
+      const current = fieldStats.get(stat.key) ?? { key: stat.key, value: stat.value, pages: 0, verbatim: 0 };
+      current.pages += stat.pages;
+      current.verbatim += stat.verbatim;
+      fieldStats.set(stat.key, current);
+    }
+  }
+  return {
+    result: {
+      slug: measured.join('+'),
+      attempted,
+      fetched,
+      verifiedPages,
+      issued,
+      queryHits,
+      fetchSuccessRate: ratio(fetched, attempted),
+      verbatimPassRate: ratio(verifiedPages, fetched),
+      verifiableRate: ratio(queryHits, issued),
+      failures,
+      fieldStats: [...fieldStats.values()],
+      rows: results.flatMap((row) => row.rows),
+      orphaned: sum((row) => row.orphaned),
+      basis: 'fetch-verbatim-key-fields',
+    },
+    results,
+    measured,
+    unmeasured,
+  };
+}
+
+/** 把抓不到页的原因分档写成一行（只列非零档） */
+function formatFailureBuckets(failures: Record<FetchFailureKind, number>): string {
+  const rows = FETCH_FAILURE_KINDS.filter((kind) => failures[kind] > 0).map(
+    (kind) => `${FETCH_FAILURE_LABELS[kind]} ${failures[kind]}`,
+  );
+  return rows.length === 0 ? '没有抓不到的页' : `抓不到：${rows.join(' · ')}`;
+}
+
+/** 每个关键字段的逐字命中（定位是哪一维核不上） */
+function formatFieldStats(stats: PageVerificationResult['fieldStats']): string {
+  if (stats.length === 0) return '';
+  return stats.map((row) => `${row.key} ${row.verbatim}/${row.pages}`).join(' · ');
 }
 
 /**
@@ -354,6 +489,8 @@ async function main(): Promise<void> {
   const sampleHash = hashSample(root, samples);
   const liveRecallHash = samples.liveRecall ? hashLiveRecall(root, samples.liveRecall) : null;
   const liveRecall = computeLiveRecall(root, samples.liveRecall);
+  const pageCheckHash = samples.pageChecks ? hashPageChecks(root, samples.pageChecks) : null;
+  const pageChecks = computePageChecks(root, samples.pageChecks, liveRecall?.results ?? []);
 
   const outcomes = new Map<string, BatchOutcome>();
   for (const batch of samples.batches) {
@@ -452,7 +589,7 @@ async function main(): Promise<void> {
     },
     {
       key: 'liveRecall',
-      label: '在线召回率（可裁真页）',
+      label: '静态自洽召回率（未抓页核验）',
       value: liveRecall?.result.value ?? null,
       display: liveRecall === null ? '未测' : `${liveRecall.result.hit}/${liveRecall.result.issued}`,
       unit: '%',
@@ -464,8 +601,58 @@ async function main(): Promise<void> {
           : `${liveRecall.results
               .map((row) => `${row.slug} ${row.hit}/${row.issued}`)
               .join('；')}；实际发出 ${liveRecall.result.calls} 条查询` +
-            '；判据=静态自洽（通过候选过滤且摘要含本场关键值），不抓页、不核逐字引用',
-      meaning: '变差意味着：同样的问题在线越来越捞不到能裁的页面——判据再准，没有页面可裁也只能判 not_found。',
+            '；判据=静态自洽（通过候选过滤且摘要含本场关键值），不抓页、不核逐字引用——页面里到底有没有这条事实，看下一项「可核率」',
+      meaning: '变差意味着：同样的问题在线越来越捞不到"看着相关"的页面——判据再准，没有页面可裁也只能判 not_found。注意它不等于页面真有这条事实。',
+    },
+    {
+      key: 'liveRecallVerifiable',
+      label: '可核率（抓页 + 逐字核上）',
+      value: pageChecks?.result.verifiableRate ?? null,
+      display: pageChecks === null ? '未测' : `${pageChecks.result.queryHits}/${pageChecks.result.issued}`,
+      unit: '%',
+      direction: 'up',
+      threshold: 0,
+      detail:
+        pageChecks === null
+          ? '未配置冻结抓页样本（benchmark/samples.json 缺 pageChecks），本项未测；不以 0 记'
+          : `${pageChecks.results
+              .map((row) => `${row.slug} ${row.queryHits}/${row.issued}`)
+              .join('；')}；判据=该页抓到、且机构/专场名/日期在正文里逐字命中；` +
+            `抓了 ${pageChecks.result.attempted} 页、核上 ${pageChecks.result.verifiedPages} 页` +
+            (pageChecks.unmeasured.length > 0
+              ? `；未抓页的样本不计入分母：${pageChecks.unmeasured.join('、')}`
+              : ''),
+      meaning: '变差意味着：召回到的页面里根本没有这条事实（或压根抓不到）——只看摘要的召回率会高估这条链路，用户按着线索去核会扑空。',
+    },
+    {
+      key: 'pageFetchSuccess',
+      label: '抓页成功率',
+      value: pageChecks?.result.fetchSuccessRate ?? null,
+      display: pageChecks === null ? '未测' : `${pageChecks.result.fetched}/${pageChecks.result.attempted}`,
+      unit: '%',
+      direction: 'up',
+      threshold: 0,
+      detail:
+        pageChecks === null
+          ? '未抓页，未测'
+          : `${formatFailureBuckets(pageChecks.result.failures)}；分母=尝试抓的候选页，抓不到单独记一类（不算召回成功、也不算失败）` +
+            (pageChecks.result.orphaned > 0 ? `；另有 ${pageChecks.result.orphaned} 页已不在当前候选集，未计入` : ''),
+      meaning: '变差意味着：候选页要么被拦、要么是死链/脚本壳——不是"没有这条事实"，而是这条链路拿不到能核的材料，处理方式完全不同。',
+    },
+    {
+      key: 'pageVerbatimPass',
+      label: '逐字核验通过率（抓到的页里）',
+      value: pageChecks?.result.verbatimPassRate ?? null,
+      display: pageChecks === null ? '未测' : `${pageChecks.result.verifiedPages}/${pageChecks.result.fetched}`,
+      unit: '%',
+      direction: 'up',
+      threshold: 0,
+      detail:
+        pageChecks === null
+          ? '未抓页，未测'
+          : `关键字段逐字命中：${formatFieldStats(pageChecks.result.fieldStats) || '无'}；分母=抓到的页，关键字=机构、专场名、日期` +
+            '；判据与引擎引文核验同一条（空白与不可见字符不计，标点必须一致）',
+      meaning: '变差意味着：抓回来的页面讲的是别的事（同名不同场/文章只提价目）——召回层把"同名同题"当成了"同一场"。',
     },
     {
       key: 'retrievalQueriesPerClaim',
@@ -509,6 +696,11 @@ async function main(): Promise<void> {
     liveRecallHash !== null &&
     baseline.liveRecallSampleHash !== undefined &&
     baseline.liveRecallSampleHash !== liveRecallHash;
+  const pageCheckSampleChanged =
+    baseline !== null &&
+    pageCheckHash !== null &&
+    baseline.pageCheckSampleHash !== undefined &&
+    baseline.pageCheckSampleHash !== pageCheckHash;
   const warnings = metrics
     .filter((metric) => isRegression(metric, baseline?.metrics[metric.key]))
     .map((metric) => `⚠ 退步：${metric.label}`);
@@ -525,6 +717,14 @@ async function main(): Promise<void> {
     );
   } else {
     console.log('检索样本：未配置（在线召回率显示「未测」）');
+  }
+  if (samples.pageChecks && pageCheckHash !== null) {
+    console.log(
+      `抓页样本 ${samples.pageChecks.version} · ${samples.pageChecks.samples.join(' / ')} · sha256:${pageCheckHash.slice(0, 16)}…` +
+        (pageCheckSampleChanged ? `（与基线不同：基线 ${baseline!.pageCheckSampleHash!.slice(0, 16)}…）` : ''),
+    );
+  } else {
+    console.log('抓页样本：未配置（可核率、抓页成功率、逐字核验通过率显示「未测」）');
   }
   console.log(`提交 ${meta.commit} · ${meta.date}`);
   console.log('');
@@ -574,6 +774,12 @@ async function main(): Promise<void> {
           liveRecallSampleHash: liveRecallHash,
         }
       : {}),
+    ...(samples.pageChecks && pageCheckHash !== null
+      ? {
+          pageCheckSampleVersion: samples.pageChecks.version,
+          pageCheckSampleHash: pageCheckHash,
+        }
+      : {}),
     metrics: Object.fromEntries(metrics.map((metric) => [metric.key, metric.value])),
   };
   if (args.updateBaseline) {
@@ -586,6 +792,7 @@ async function main(): Promise<void> {
       previous.commit === row.commit &&
       previous.sampleHash === row.sampleHash &&
       previous.liveRecallSampleHash === row.liveRecallSampleHash &&
+      previous.pageCheckSampleHash === row.pageCheckSampleHash &&
       JSON.stringify(previous.metrics) === JSON.stringify(row.metrics);
     if (sameAsLast) {
       console.log('历史表已有同一组读数，未重复追加。');

@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "kind": "page-check-replay",
+  "slug": "porcelain-2021-autumn",
+  "capturedAt": "2026-11-09T10:52:06.725Z",
+  "policy": {
+    "maxPages": 12,
+    "perDomainGapMs": 2000,
+    "timeoutMs": 15000,
+    "allowBrowser": false
+  },
+  "fields": [
+    {
+      "key": "auctionHouse",
+      "value": "北京保利"
+    },
+    {
+      "key": "dateText",
+      "value": "2021年12月5日"
+    },
+    {
+      "key": "sessionName",
+      "value": "禹贡Ⅰ—盛清御瓷新风尚"
+    }
+  ],
+  "checks": [
+    {
+      "url": "https://www.thevalue.com/auctionnews/117655",
+      "domain": "thevalue.com",
+      "status": "fetched",
+      "chars": 720,
+      "textHash": "d198601ca68340fb",
+      "fields": [
+        {
+          "key": "auctionHouse",
+          "value": "北京保利",
+          "verbatim": false
+        },
+        {
+          "key": "dateText",
+          "value": "2021年12月5日",
+          "verbatim": false
+        },
+        {
+          "key": "sessionName",
+          "value": "禹贡Ⅰ—盛清御瓷新风尚",
+          "verbatim": false
+        }
+      ],
+      "verified": false
+    },
+    {
+      "url": "https://www.artnet.com/news/poly-auction-beijing-2021-high-qing-imperial-porcelain/",
+      "domain": "artnet.com",
+      "status": "failed",
+      "failure": "blocked",
+      "message": "HTTP 403: Forbidden"
+    },
+    {
+      "url": "https://www.antiquesandthearts.com/poly-auction-beijing-2021-high-qing-imperial-porcelain-new-trends/",
+      "domain": "antiquesandthearts.com",
+      "status": "failed",
+      "failure": "blocked",
+      "message": "HTTP 403: Forbidden"
+    },
+    {
+      "url": "https://www.chinadaily.com.cn/a/202112/06/WS61ac9d5ea310cdd39bc7a4b8.html",
+      "domain": "chinadaily.com.cn",
+      "status": "failed",
+      "failure": "dead-link",
+      "message": "HTTP 404: Not Found"
+    },
+    {
+      "url": "https://www.polyauction.com/hk/en/auctions/2021-beijing-winter-auction",
+      "domain": "polyauction.com",
+      "status": "failed",
+      "failure": "dead-link",
+      "message": "无法解析主机名 www.polyauction.com：getaddrinfo ENOTFOUND www.polyauction.com"
+    },
+    {
+      "url": "https://www.polyauction.com.cn/en/auction/2021-winter",
+      "domain": "polyauction.com.cn",
+      "status": "failed",
+      "failure": "dead-link",
+      "message": "无法解析主机名 www.polyauction.com.cn：getaddrinfo ENOTFOUND www.polyauction.com.cn"
+    },
+    {
+      "url": "https://www.artron.net/auction/2021-winter-poly-auction-catalog",
+      "domain": "artron.net",
+      "status": "failed",
+      "failure": "non-html",
+      "message": "正文只有 0 字符（低于 200），按页面结构不符记"
+    },
+    {
+      "url": "https://www.artnet.com/auctions/poly-auction-2021-winter-catalog",
+      "domain": "artnet.com",
+      "status": "failed",
+      "failure": "blocked",
+      "message": "HTTP 403: Forbidden"
+    },
+    {
+      "url": "https://www.invaluable.com/catalog/poly-auction-2021-winter-catalog",
+      "domain": "invaluable.com",
+      "status": "failed",
+      "failure": "dead-link",
+      "message": "HTTP 404: Not Found"
+    },
+    {
+      "url": "https://www.liveauctioneers.com/catalog/poly-auction-2021-winter-catalog",
+      "domain": "liveauctioneers.com",
+      "status": "failed",
+      "failure": "non-html",
+      "message": "正文只有 0 字符（低于 200），按页面结构不符记"
+    },
+    {
+      "url": "https://www.polyauction.com/en/auction/2021-autumn",
+      "domain": "polyauction.com",
+      "status": "failed",
+      "failure": "dead-link",
+      "message": "无法解析主机名 www.polyauction.com：getaddrinfo ENOTFOUND www.polyauction.com"
+    },
+    {
+      "url": "https://www.polyauction.com/en/auction/2021-winter",
+      "domain": "polyauction.com",
+      "status": "failed",
+      "failure": "dead-link",
+      "message": "无法解析主机名 www.polyauction.com：getaddrinfo ENOTFOUND www.polyauction.com"
+    }
+  ]
+}

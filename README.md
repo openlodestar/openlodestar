@@ -253,10 +253,11 @@ docs/demo-design-guide.md   演示方法论：一条演示该证明什么、怎�
 docs/time-window-rules.md   时间窗口的两条口径：断言侧不扩、证据侧上下各放宽一个月
 docs/assertion-routing-e2e.md 断言路由五个分支的句子级落点表（离线端到端，含两个错误方向的样本）
 docs/triage-landing.md      预筛层句子级落点表：四类拒收各自花多少检索，以及两类会误杀可核断言的情况
-docs/search-replay.md       冻结检索结果回放：语言探针、0 召回补发、编造链接判据、在线召回率 5/8
-docs/scorecard.md           评分卡：六个分项各自出分、样本锁与历史表，以及进步/退步/没变化的前后对照
-benchmark/                  评分卡的固定考卷：批次清单、检索样本清单、人工金标准、基线读数与历史表
+docs/search-replay.md       冻结检索结果回放：语言探针、0 召回补发、编造链接判据、静态自洽 5/8 与抓页可核 0/8
+docs/scorecard.md           评分卡：八个分项各自出分、样本锁与历史表，以及进步/退步/没变化的前后对照
+benchmark/                  评分卡的固定考卷：批次清单、检索样本清单、抓页样本清单、人工金标准、基线读数与历史表
 scripts/scorecard.ts        离线评分卡（零外部调用、重跑同分；用例数不进分）
+scripts/capture-page-checks.ts  抓页可核：只抓已召回候选页，逐字核对关键字段，冻成回放样本（默认不联网）
 scripts/capture-search-replay.ts 检索结果采集与冻结（默认干跑只列查询，--allow-spend 才联网）
 scripts/probe-search-language.ts 语言探针：同义中英文查询的控制变量对照（只走 llm-web，默认干跑）
 examples/replay-search/     冻结的检索回放样本（采集时的模型名、上限、逐条结果）

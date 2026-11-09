@@ -12,5 +12,9 @@
   "liveRecall": {
     "version": "live-2026-11-09",
     "samples": ["porcelain-2021-autumn", "cg-2021-autumn"]
+  },
+  "pageChecks": {
+    "version": "page-2026-11-09",
+    "samples": ["porcelain-2021-autumn", "cg-2021-autumn"]
   }
 }

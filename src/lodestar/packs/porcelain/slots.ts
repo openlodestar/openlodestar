@@ -488,6 +488,71 @@ export function sessionRefutationTargetsClaim(
   return 'no';
 }
 
+/** 断言原话里被「」包住的专场名（模板生成断言时专场名一定在书名号里） */
+function claimSessionNameIn(claimText: string): string | null {
+  const match = /「([^」]{2,80})」/.exec(claimText ?? '');
+  return match ? match[1].trim() : null;
+}
+
+/** 引文里出现的、除断言那家之外的已知机构（名字太短的别名不参与，避免"保利"以外的单字误撞） */
+function otherHouseIn(hay: string, asserted: string[]): boolean {
+  return HOUSE_ALIASES.some(([canonical, aliases]) =>
+    [canonical, ...aliases].some((form) => {
+      const key = matchKey(form);
+      if (key.length < 2) return false;
+      if (asserted.some((own) => own !== '' && (own.includes(key) || key.includes(own)))) return false;
+      return hay.includes(key);
+    }),
+  );
+}
+
+/**
+ * 写入侧的第三道机械断言（支持与反驳两个方向都调用）：这串引文说的是**不是被裁的那个对象**。
+ *
+ * 前两道管"引文是不是页面上的原话""有没有写到这个字段"，都管不到"说的是哪一件东西"。
+ * 机构维的病灶是实测出来的：断言「中国嘉德」，引文是「北京保利2021年秋季拍卖会圆满收官」——
+ * `houseClueIn` 为了让合法反驳能引另一家，认名册里任意一家就算"写到了机构字段"，
+ * 于是这篇写别家的报道既可能被记成支持、也可能被记成反驳。
+ *
+ * 判据（只覆盖能机械认出的形状，其余一律放行）：
+ * - 引文写到了断言那一家：支持方向 `yes`；反驳方向 `unknown`（比如"两家联合举办"，交回模型）；
+ * - 引文只写了别家、没写断言那家：支持方向 `no`——它不可能是这一家的支持；
+ *   反驳方向只有引文锚到了被裁那一场（断言原话「」里的专场名）才算"同一场、不同主办方"，
+ *   锚到了同系列另一场（禹贡Ⅰ 对 禹贡Ⅲ）判 `no`，锚不上就 `unknown`；
+ * - 写不到任何机构、或断言没点名专场：`unknown`（自指"本公司"也走这里）。
+ *
+ * 与另外两道同一条纪律：本域规则判不了的情况，不许由引擎升级成拒收。
+ */
+export function evidenceTargetsClaim(input: {
+  fieldKey: string | null;
+  value: string | null | undefined;
+  quote: string;
+  claimText: string;
+  relation: 'supports' | 'refutes';
+}): PageMention {
+  const text = (input.quote ?? '').trim();
+  const raw = (input.value ?? '').trim();
+  if (text === '' || raw === '') return 'unknown';
+  const { fieldKey, relation } = input;
+  // 专场名维度：支持方向没有可靠的反向锚（整场汇总里提到另一场也会被引成支持），只保留既有的反驳规则。
+  if (fieldKey === 'sessionName') {
+    return relation === 'refutes' ? sessionRefutationTargetsClaim(fieldKey, raw, text) : 'unknown';
+  }
+  if (fieldKey !== 'auctionHouse') return 'unknown';
+
+  const hay = matchKey(text);
+  const asserted = normalizedSlot('auctionHouse', raw).equals;
+  const namesAsserted = asserted.some((form) => form !== '' && hay.includes(form));
+  if (namesAsserted) return relation === 'supports' ? 'yes' : 'unknown';
+  if (!otherHouseIn(hay, asserted)) return 'unknown';
+  if (relation === 'supports') return 'no';
+
+  const claimSession = claimSessionNameIn(input.claimText);
+  if (claimSession === null) return 'unknown';
+  const sessionVerdict = sessionRefutationTargetsClaim('sessionName', claimSession, text);
+  return sessionVerdict;
+}
+
 /** 把页面正文里的时间线索抽成可比对的槽（预筛与后续"时间窗是否重叠"的机械校验共用） */
 export function pageTimeCues(pageText: string): Array<{ year: number; month: number | null; seasonWord: string | null }> {
   const text = normalizeText(pageText);

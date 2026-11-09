@@ -13,6 +13,7 @@ import { normalizeText } from '../../normalize';
 import { assertionTimeWindow, evidenceTimeWindow, parseTimeScope, SEASON_RANGES } from './rules';
 import porcelainPack from './index';
 import {
+  evidenceTargetsClaim,
   normalizedSlot,
   pageMentions,
   pageTimeCues,
@@ -327,7 +328,88 @@ describe('反驳引文须针对被裁那一场（写入侧第三道断言）', (
   });
 
   it('策略包确实把这条规则接到了接口上（没接上＝护栏形同虚设）', () => {
-    expect(porcelainPack.refutationTargetsClaim?.('sessionName', '禹贡Ⅲ—盛清御瓷新风尚', '禹贡Ⅰ专场举槌')).toBe('no');
+    expect(
+      porcelainPack.evidenceTargetsClaim?.({
+        fieldKey: 'sessionName',
+        value: '禹贡Ⅲ—盛清御瓷新风尚',
+        quote: '禹贡Ⅰ专场举槌',
+        claimText: '北京保利于2021年12月举办「禹贡Ⅲ—盛清御瓷新风尚」专场',
+        relation: 'refutes',
+      }),
+    ).toBe('no');
+  });
+});
+
+/**
+ * 机构维的第三道断言：断言写中国嘉德，引文却是写北京保利的一篇报道。
+ *
+ * 第二道护栏为了让合法反驳能引另一家，认名册里任意一家就放行；这条补的是"说的是哪一家"。
+ * 支持方向要求写到断言那一家；反驳方向要求锚到断言原话里的那一场（否则分不清是同一场换了
+ * 主办方，还是根本就是另一家的场次）。判不了照旧 unknown 放行。
+ */
+describe('机构维须针对被裁对象（写入侧第三道断言）', () => {
+  const input = (over: Partial<Parameters<typeof evidenceTargetsClaim>[0]> = {}) => ({
+    fieldKey: 'auctionHouse',
+    value: '中国嘉德',
+    quote: '',
+    claimText: '中国嘉德于2021年秋季举办「禹贡Ⅲ—盛清御瓷新风尚」专场',
+    relation: 'supports' as const,
+    ...over,
+  });
+
+  it('实测形状：断言嘉德、引文只写保利 → 支持方向 no', () => {
+    expect(evidenceTargetsClaim(input({ quote: '北京保利2021年秋季拍卖会圆满收官' }))).toBe('no');
+  });
+
+  it('引文写到了断言那一家 → yes；只写"本公司" → unknown（判不了照常比对）', () => {
+    expect(evidenceTargetsClaim(input({ quote: '中国嘉德2021年秋季拍卖会圆满收官' }))).toBe('yes');
+    expect(evidenceTargetsClaim(input({ quote: '本公司定于十一月举办秋季拍卖会' }))).toBe('unknown');
+  });
+
+  it('反驳方向：引文锚到了被裁那一场 → yes；只写别家、锚不上 → unknown', () => {
+    expect(
+      evidenceTargetsClaim(
+        input({ relation: 'refutes', quote: '「禹贡Ⅲ—盛清御瓷新风尚」专场由北京保利举办' }),
+      ),
+    ).toBe('yes');
+    expect(evidenceTargetsClaim(input({ relation: 'refutes', quote: '北京保利2021年秋季拍卖会圆满收官' }))).toBe(
+      'unknown',
+    );
+  });
+
+  it('反驳方向：引文点的是同一系列的另一场 → no（另一家的另一场证明不了这一场）', () => {
+    expect(
+      evidenceTargetsClaim(
+        input({ relation: 'refutes', quote: '「禹贡Ⅰ—盛清御瓷新风尚」专场由北京保利举办' }),
+      ),
+    ).toBe('no');
+  });
+
+  it('专场名维度维持原规则：反驳查邻场，支持方向放行', () => {
+    expect(
+      evidenceTargetsClaim({
+        fieldKey: 'sessionName',
+        value: '禹贡Ⅲ—盛清御瓷新风尚',
+        quote: '「禹贡Ⅰ—盛清御瓷新风尚」专场举槌',
+        claimText: '中国嘉德于2021年秋季举办「禹贡Ⅲ—盛清御瓷新风尚」专场',
+        relation: 'refutes',
+      }),
+    ).toBe('no');
+    expect(
+      evidenceTargetsClaim({
+        fieldKey: 'sessionName',
+        value: '禹贡Ⅲ—盛清御瓷新风尚',
+        quote: '「禹贡Ⅰ—盛清御瓷新风尚」专场举槌',
+        claimText: '中国嘉德于2021年秋季举办「禹贡Ⅲ—盛清御瓷新风尚」专场',
+        relation: 'supports',
+      }),
+    ).toBe('unknown');
+  });
+
+  it('其余字段、缺值、空引文 → unknown', () => {
+    expect(evidenceTargetsClaim(input({ fieldKey: 'dateText', quote: '2021年秋季' }))).toBe('unknown');
+    expect(evidenceTargetsClaim(input({ value: null, quote: '北京保利2021年秋季拍卖会' }))).toBe('unknown');
+    expect(evidenceTargetsClaim(input({ quote: '' }))).toBe('unknown');
   });
 });
 

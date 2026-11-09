@@ -279,14 +279,21 @@ export async function compareClaimToPage(input: {
         continue;
       }
     }
-    // 第三道：反驳方向的引文必须反驳的是**被裁的那个对象**——前两道管"是不是原话""有没有说到这个字段"，
-    // 都管不到"说的是哪一件东西"。实测里断言「禹贡Ⅲ」被一篇写「禹贡Ⅰ」的报道判成 refutes：
-    // 逐字命中、也写明专场名，只是那说的是另一场。判不了（unknown）一律放行，不许升级成拒收。
-    if (outcome.relation === 'refutes') {
+    // 第三道：引文必须说的是**被裁的那个对象**——前两道管"是不是原话""有没有说到这个字段"，
+    // 都管不到"说的是哪一件东西"。实测两种病灶：断言「禹贡Ⅲ」被一篇写「禹贡Ⅰ」的报道判成 refutes；
+    // 断言「中国嘉德」拿一篇写「北京保利…圆满收官」的报道当支持。判不了（unknown）一律放行，
+    // 不许把规则覆盖不到的情况升级成拒收。
+    if (outcome.relation === 'supports' || outcome.relation === 'refutes') {
       const onTarget =
-        input.pack.refutationTargetsClaim?.(input.claim.fieldKey, input.claim.object, outcome.quote) ?? 'unknown';
+        input.pack.evidenceTargetsClaim?.({
+          fieldKey: input.claim.fieldKey,
+          value: input.claim.object,
+          quote: outcome.quote,
+          claimText: input.claim.atomicText,
+          relation: outcome.relation,
+        }) ?? 'unknown';
       if (onTarget === 'no') {
-        lastRejection = `引文反驳的不是被裁的对象（页面讲的是另一场/另一件东西，不是这条断言的否定）：${outcome.quote.slice(0, 60)}`;
+        lastRejection = `引文说的不是被裁的对象（页面讲的是另一场/另一家，不是这条断言支持或否定的那件事）：${outcome.quote.slice(0, 60)}`;
         continue;
       }
     }

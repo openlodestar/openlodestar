@@ -618,7 +618,7 @@ describe('反驳须针对被裁对象（写入侧第三道断言）', () => {
     expect(outcome).toMatchObject({ relation: 'refutes', contentWeight: 1 });
   });
 
-  it('supports 方向不受这条约束（这条只管反驳，误伤确证比漏判更糟）', async () => {
+  it('专场名维度的 supports 方向不受这条约束（整场汇总里提到相邻场不算跑题）', async () => {
     (invokeLLM as Mock).mockResolvedValue({
       content: '{"relation":"supports","quote":"「禹贡Ⅰ—盛清御瓷新风尚」","contentWeight":1}',
     });
@@ -629,9 +629,88 @@ describe('反驳须针对被裁对象（写入侧第三道断言）', () => {
 
   it('策略包没实现这条规则 → 放行（判不了不许由引擎升级成拒收）', async () => {
     (invokeLLM as Mock).mockResolvedValue({ content: MIS_TARGETED });
-    const barePack = { ...porcelainPack, refutationTargetsClaim: undefined };
+    const barePack = { ...porcelainPack, evidenceTargetsClaim: undefined };
     const outcome = await compareClaimToPage({ claim: claim(), page, pack: barePack });
     expect(outcome).toMatchObject({ relation: 'refutes' });
     expect((invokeLLM as Mock).mock.calls).toHaveLength(1);
+  });
+});
+
+/**
+ * 机构维的"错对象放行"：断言中国嘉德，引文来自一篇写北京保利的报道。
+ *
+ * 第二道护栏为了让合法反驳能引另一家，认名册里任意一家都放行；于是这篇写别家的报道
+ * 既能被记成支持、也能被记成反驳。第三道现在覆盖机构维：支持方向必须写到断言那一家；
+ * 反驳方向必须锚到断言原话里的那一场，否则分不清是"同一场换了主办方"还是"另一家的场次"。
+ */
+describe('机构须针对被裁对象（写入侧第三道断言）', () => {
+  const houseClaim = (over: Partial<ClaimRecord> = {}): ClaimRecord => ({
+    claimId: 'cl-20261109-house',
+    queryId: 'q-1',
+    recordId: 'rec-1',
+    fieldRole: 'key',
+    rawText: '',
+    atomicText: '中国嘉德于2021年秋季举办「禹贡Ⅲ—盛清御瓷新风尚」专场',
+    subject: '中国嘉德',
+    predicate: '举办',
+    object: '中国嘉德',
+    timeScope: { from: '2021-09-01', to: '2021-11-30' },
+    channel: 'enumerative',
+    provenance: { stabilityRuns: 3, stabilityHits: 3, promptedDetail: false, selectionReason: null },
+    triage: { passed: true, reason: 'specific-and-decidable' },
+    state: 'verifying',
+    fieldKey: 'auctionHouse',
+    createdAt: '2026-11-09T10:00:00+08:00',
+    ...over,
+  });
+  const housePage: CapturedPage = {
+    url: 'https://www.example.com/house',
+    text:
+      '北京保利2021年秋季艺术品拍卖会圆满收官。' +
+      '中国嘉德2021年秋季拍卖会同期举行。' +
+      '据公告，「禹贡Ⅲ—盛清御瓷新风尚」专场由北京保利举办。' +
+      '另一场「禹贡Ⅰ—盛清御瓷新风尚」专场由北京保利举办。',
+    snapshotRef: 'snapshots/house.html',
+    fetchedAt: '2026-11-09T10:00:00+08:00',
+    strategy: 'fetch',
+  };
+  const OTHER_HOUSE_SUPPORTS =
+    '{"relation":"supports","quote":"北京保利2021年秋季艺术品拍卖会圆满收官","contentWeight":1}';
+  const OWN_HOUSE_SUPPORTS = '{"relation":"supports","quote":"中国嘉德2021年秋季拍卖会同期举行","contentWeight":1}';
+  const SAME_SALE_REFUTES =
+    '{"relation":"refutes","quote":"「禹贡Ⅲ—盛清御瓷新风尚」专场由北京保利举办","contentWeight":1}';
+  const OTHER_SALE_REFUTES =
+    '{"relation":"refutes","quote":"「禹贡Ⅰ—盛清御瓷新风尚」专场由北京保利举办","contentWeight":1}';
+
+  beforeEach(() => {
+    (invokeLLM as Mock).mockReset();
+  });
+
+  it('支持方向引文只写了别家 → 拒收（这种报道不可能是这一家的支持）', async () => {
+    (invokeLLM as Mock).mockResolvedValue({ content: OTHER_HOUSE_SUPPORTS });
+    const outcome = await compareClaimToPage({ claim: houseClaim(), page: housePage, pack: porcelainPack });
+    expect(outcome).toMatchObject({ rejected: true });
+    expect(String((outcome as { reason: string }).reason)).toContain('对象');
+    expect((invokeLLM as Mock).mock.calls).toHaveLength(2);
+  });
+
+  it('重试改引写到断言那一家的话 → 照常采信（护栏不挡真支持）', async () => {
+    (invokeLLM as Mock)
+      .mockResolvedValueOnce({ content: OTHER_HOUSE_SUPPORTS })
+      .mockResolvedValueOnce({ content: OWN_HOUSE_SUPPORTS });
+    const outcome = await compareClaimToPage({ claim: houseClaim(), page: housePage, pack: porcelainPack });
+    expect(outcome).toMatchObject({ relation: 'supports' });
+  });
+
+  it('反驳方向引文点了别家、也锚到了被裁那一场 → 采信为"同一场换了主办方"', async () => {
+    (invokeLLM as Mock).mockResolvedValue({ content: SAME_SALE_REFUTES });
+    const outcome = await compareClaimToPage({ claim: houseClaim(), page: housePage, pack: porcelainPack });
+    expect(outcome).toMatchObject({ relation: 'refutes' });
+  });
+
+  it('反驳方向引文点的是同一系列的另一场（禹贡Ⅰ 对 禹贡Ⅲ）→ 拒收', async () => {
+    (invokeLLM as Mock).mockResolvedValue({ content: OTHER_SALE_REFUTES });
+    const outcome = await compareClaimToPage({ claim: houseClaim(), page: housePage, pack: porcelainPack });
+    expect(outcome).toMatchObject({ rejected: true });
   });
 });

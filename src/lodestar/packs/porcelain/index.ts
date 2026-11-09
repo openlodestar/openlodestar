@@ -33,8 +33,8 @@ import {
 import {
   pageMentions,
   querySurfaces,
+  evidenceTargetsClaim,
   quoteBearsFieldClue,
-  sessionRefutationTargetsClaim,
   sourceMentions,
 } from './slots';
 import { normalizeText } from '../../normalize';
@@ -307,8 +307,8 @@ export const porcelainPack: DomainPack = {
     return quoteBearsFieldClue(fieldKey, value, quote);
   },
 
-  refutationTargetsClaim(fieldKey, value, quote) {
-    return sessionRefutationTargetsClaim(fieldKey, value, quote);
+  evidenceTargetsClaim(input) {
+    return evidenceTargetsClaim(input);
   },
 
   enumerationPhrasings(query, runCount) {

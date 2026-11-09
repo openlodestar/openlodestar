@@ -199,16 +199,25 @@ export interface DomainPack {
   quoteBearsFieldClue(fieldKey: string | null, value: string | null, quote: string): PageMention;
 
   /**
-   * 写入侧的第三道机械断言（可选，只在反驳方向调用）：这串引文反驳的是**不是被裁的那个对象**。
+   * 写入侧的第三道机械断言（可选，支持与反驳两个方向都调用）：这串引文说的是**不是被裁的那个对象**。
    *
-   * 前两道管"引文是不是页面上的原话""有没有说到这个字段"，都管不到"说的是哪一件东西"。
-   * 实测病灶——断言「禹贡Ⅲ」，引文来自一篇写「禹贡Ⅰ」的报道：逐字命中、也写到了专场名，
-   * 却把"另一场存在"当成了"这一场不存在"的反证。
+   * 前两道管"引文是不是页面上的原话""有没有写到这个字段"，都管不到"说的是哪一件东西"。
+   * 实测两种病灶：
+   * - 断言「禹贡Ⅲ」，引文来自一篇写「禹贡Ⅰ」的报道——把"另一场存在"当成了"这一场不存在"的反证；
+   * - 断言「中国嘉德」，引文是「北京保利2021年秋季拍卖会圆满收官」——页面说的是另一家，
+   *   机构名册里的任一家都能让第二道放行，于是它也能被当成这条断言的支持。
    *
-   * 不实现（或判不了）就是 `unknown` 放行：这条只用来挡本域能机械认出的那一种错，
-   * 不许引擎把"规则覆盖不到"升级成拒收。
+   * 判 `yes` 放行、判 `no` 拒收（调用方会让模型改一次再判），判不了必须返回 `unknown`：
+   * 这条只用来挡本域能机械认出的那一种错，不许把"规则覆盖不到"升级成拒收。
    */
-  refutationTargetsClaim?(fieldKey: string | null, value: string | null, quote: string): PageMention;
+  evidenceTargetsClaim?(input: {
+    fieldKey: string | null;
+    value: string | null;
+    quote: string;
+    /** 断言原话（断言里点名的专场、年份都从这句里取，用来判"引文锚没锚到同一场"） */
+    claimText: string;
+    relation: 'supports' | 'refutes';
+  }): PageMention;
 
   /** 枚举式提问的措辞变体（第一条即正式提问，其余为换措辞复问；顺序不可颠倒） */
   enumerationPhrasings(query: string, runCount: number): string[];

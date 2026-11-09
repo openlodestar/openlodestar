@@ -1,7 +1,7 @@
 // 由 src/demo-page/build-demo-game.ts 从 examples/ 与 demo-data.js 生成，不要手改；改候选词或批次后重跑 pnpm run demo:game。
 // 每条组合只冻结"逐维比对结果 + 组合级结论 + 指向哪条冻结记录"；逐条证据、引文与快照在 demo-data.js。
+// 不写墙钟时间：同一份输入重跑必须字字相同，CI 靠「重跑后没有差异」抓生成物漂移；生成时间看 git log。
 window.LODESTAR_DEMO_GAME = {
-  "generatedAt": "2026-11-05T18:00:18.463Z",
   "generator": "src/demo-page/build-demo-game.ts",
   "note": "组合矩阵在构建时用引擎的维度函数算好：每个词与冻结证据里的原文值逐维比对，结论取最差的那一维；至少两个词达到「口径相容」及以上才算覆盖。标了 demoOnly 的候选是演示用词，不在冻结底稿里出现过，页面必须标出来。",
   "slots": [

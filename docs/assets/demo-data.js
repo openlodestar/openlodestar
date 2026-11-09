@@ -1,6 +1,6 @@
 // 由 src/demo-page/build-demo-data.ts 从 examples/ 生成，不要手改；改数据请改冻结批次后重跑 pnpm run demo:data。
+// 不写墙钟时间：同一份底稿重跑必须字字相同，CI 靠「重跑后没有差异」抓生成物漂移；生成时间看 git log。
 window.LODESTAR_DEMO = {
-  "generatedAt": "2026-11-05T17:33:25.682Z",
   "generator": "src/demo-page/build-demo-data.ts",
   "note": "判定由引擎在构建时算好并冻结：页面只切换展示，不重算计票、门禁与坐标。证据按「记录号＋字段名＋字段值」匹配，字段值对不上就显示「这批证据没覆盖」。",
   "fields": [

@@ -82,7 +82,6 @@ interface DemoCase {
 }
 
 interface DemoData {
-  generatedAt: string;
   buckets: Record<'strong' | 'weak' | 'refuted' | 'not_found', number>;
   cases: DemoCase[];
 }

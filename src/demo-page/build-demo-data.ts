@@ -180,7 +180,6 @@ export interface DemoDerivedExample {
 }
 
 export interface DemoData {
-  generatedAt: string;
   generator: string;
   note: string;
   fields: Array<{ key: string; label: string; role: FieldRole }>;
@@ -574,7 +573,6 @@ async function main(): Promise<void> {
   }
 
   const data: DemoData = {
-    generatedAt: new Date().toISOString(),
     generator: 'src/demo-page/build-demo-data.ts',
     note:
       '判定由引擎在构建时算好并冻结：页面只切换展示，不重算计票、门禁与坐标。' +
@@ -589,6 +587,7 @@ async function main(): Promise<void> {
   await fs.writeFile(
     OUTPUT_PATH,
     `// 由 ${data.generator} 从 examples/ 生成，不要手改；改数据请改冻结批次后重跑 pnpm run demo:data。\n` +
+      '// 不写墙钟时间：同一份底稿重跑必须字字相同，CI 靠「重跑后没有差异」抓生成物漂移；生成时间看 git log。\n' +
       `window.LODESTAR_DEMO = ${JSON.stringify(data, null, 2)};\n`,
     'utf8',
   );

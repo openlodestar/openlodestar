@@ -170,7 +170,6 @@ export interface SortRun {
 }
 
 export interface SortData {
-  generatedAt: string;
   generator: string;
   note: string;
   states: Record<EvidenceDimensionState, SortStateMeta>;
@@ -1015,7 +1014,6 @@ function buildData(): SortData {
   }
 
   return {
-    generatedAt: new Date().toISOString(),
     generator: 'src/demo-page/build-sort-data.ts',
     note:
       '由冻结矩阵 docs/assets/demo-game-data.js 生成，不要手改。' +
@@ -1038,6 +1036,7 @@ function main(): void {
   const body = [
     '// 由 src/demo-page/build-sort-data.ts 从 docs/assets/demo-game-data.js 生成，不要手改；',
     '// 改玩法或候选值后重跑 pnpm run demo:sort。',
+    '// 不写墙钟时间：同一份输入重跑必须字字相同，CI 靠「重跑后没有差异」抓生成物漂移；生成时间看 git log。',
     `window.LODESTAR_SORT = ${JSON.stringify(data, null, 2)};`,
     '',
   ].join('\n');

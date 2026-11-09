@@ -42,9 +42,12 @@ pnpm run demo:real
 ```bash
 pnpm typecheck
 pnpm test
+node scripts/check-site.mjs
 pnpm run demo
 pnpm run demo:real
 ```
+
+**改了领域规则、演示候选词，或动了 `examples/` 下的底稿，记得重新生成站点数据**：依次跑 `pnpm run demo:data`、`pnpm run demo:game`、`pnpm run demo:sort`（顺序不能换，后一个读前一个的产物），把 `docs/assets/` 下的变化一起提交。这三个脚本不写墙钟时间，同一份输入重跑结果字字相同；CI 会重跑一遍并核对 `docs/assets/` 没有差异，忘了重跑会直接失败。
 
 PR 描述里写四件事：改了什么、为什么、怎么验证、有没有联网或计费动作。涉及判据变化的，把改前改后的例子贴出来。
 

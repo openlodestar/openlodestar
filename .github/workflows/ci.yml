@@ -33,8 +33,20 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Build
+        run: pnpm build
+
       - name: Site check
         run: node scripts/check-site.mjs
+
+      # 生成物必须与当前代码一致：改了领域规则或冻结批次却忘记重跑，页面上会留着旧答案。
+      # 三个构建脚本不写墙钟时间，所以同一份输入重跑的结果应当字字相同，有差异就是真的漂了。
+      - name: Generated demo data is fresh
+        run: |
+          pnpm run demo:data
+          pnpm run demo:game
+          pnpm run demo:sort
+          git diff --exit-code -- docs/assets
 
       - name: Offline demo
         run: pnpm run demo

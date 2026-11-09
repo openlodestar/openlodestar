@@ -189,6 +189,46 @@ describe('日期写法解析（关键字段之一：年份）', () => {
   });
 });
 
+describe('非法日期一律弃权：日历上不存在就解析不出，不夹到月末', () => {
+  it.each([
+    ['2021年2月30日', '2021 年 2 月只有 28 天'],
+    ['2021年2月31日', '2 月不可能有 31 日'],
+    ['2021年2月29日', '2021 不是闰年'],
+    ['2020年2月30日', '闰年 2 月也只有 29 日'],
+    ['2021年4月31日', '4 月只有 30 天'],
+    ['2021年11月31日', '11 月只有 30 天'],
+    ['2021年13月', '没有 13 月'],
+    ['2021年0月', '没有 0 月'],
+    ['2021年6月0日', '没有 0 日'],
+  ] as const)('%s → 全 null（%s）', (text, _reason) => {
+    expect(parseTimeScope(text)).toEqual({ from: null, to: null });
+  });
+
+  it('闰年 2 月 29 日放行，非闰年弃权', () => {
+    expect(parseTimeScope('2020年2月29日')).toEqual({ from: '2020-02-29', to: '2020-02-29' });
+    expect(parseTimeScope('2000年2月29日')).toEqual({ from: '2000-02-29', to: '2000-02-29' });
+    expect(parseTimeScope('1900年2月29日')).toEqual({ from: null, to: null }); // 整百年不闰
+    expect(parseTimeScope('2021年2月29日')).toEqual({ from: null, to: null });
+  });
+
+  it('"13 月"不许被改写成"1 月 3 日"、"0 月"不许被读成整年', () => {
+    // 宽松正则最容易在这里"自动修正"：为了凑一个合法组合而回退，把原话里不存在的
+    // 日期静默读成一个真窗口。弃权口径要求原样判伪，不能替说话的人造时间。
+    expect(parseTimeScope('2021年13月')).toEqual({ from: null, to: null });
+    expect(parseTimeScope('2021年0月')).toEqual({ from: null, to: null });
+  });
+
+  it('只有年、只有年月照常解析（精度粗不等于非法）', () => {
+    expect(parseTimeScope('2021年')).toEqual({ from: '2021-01-01', to: '2021-12-31' });
+    expect(parseTimeScope('2021年5月')).toEqual({ from: '2021-05-01', to: '2021-05-31' });
+  });
+
+  it('区间有一端非法 → 整条弃权，不拿前侧合法日期兜底', () => {
+    expect(parseTimeScope('2021年5月至13月')).toEqual({ from: null, to: null });
+    expect(parseTimeScope('2021年5月1日至2月30日')).toEqual({ from: null, to: null });
+  });
+});
+
 describe('列名别名与值清洗', () => {
   it('不同提问的列名归一到本包字段键，"无/不确定"当缺失', () => {
     const mapped = porcelainPack.mapRow({

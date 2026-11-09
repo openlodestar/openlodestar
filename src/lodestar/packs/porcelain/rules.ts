@@ -113,6 +113,21 @@ export function tierOf(domain: string): SourceTier {
   }
 }
 
+/**
+ * 这一天是否真的存在于日历上。
+ *
+ * 为什么要有这道校验：宽松正则会把「13 月」拆成「1 月 3 日」、「2 月 30 日」原样留着，
+ * 于是一个根本不存在的日期被静默读成一个真实窗口——那等于替说这句话的人凭空造出时间。
+ * 用户 2026-11-09 裁的口径是**一律弃权**：不存在就解析不出（返回 null），不夹到月末。
+ * 证据里不许出现一个原话没说过的日期，这与「判不了不许当成没有、不许猜」是同一条原则。
+ */
+function isRealCalendarDate(year: number, month: number | null, day: number | null): boolean {
+  if (month !== null && (month < 1 || month > 12)) return false;
+  if (day === null) return true;
+  if (month === null) return false;
+  return day >= 1 && day <= daysInMonth(year, month);
+}
+
 /** 单个日期串 → 年 / 月 / 日（月日为 null 表示只解析到该精度）；解析不出返回 null */
 function parseSingleDate(
   raw: string,
@@ -129,22 +144,24 @@ function parseSingleDate(
     /(1[89]\d{2}|20\d{2})(?:-?(1[0-2]|0[1-9]|[1-9])(?:-?(3[01]|[12]\d|0[1-9]|[1-9]))?)?/,
   );
   if (match) {
-    return {
-      year: Number(match[1]),
-      month: match[2] ? Number(match[2]) : null,
-      day: match[3] ? Number(match[3]) : null,
-    };
+    // 月/日取自"紧跟在年份后面"的那一段，而不是上面那条正则的分组：那条正则会为了凑一个
+    // 合法组合而回退——「2013 年 13 月」会被拆成「2013-01-03」，「2013 年 0 月」会被读成整年。
+    // 出现在原话里的那个数字必须先被原样取出、再判真伪，不能先被改写成别的日期。
+    const at = cleaned.slice(match.index ?? 0);
+    const exact = at.match(/^(\d{4})-?(\d{1,2})?(?:-?(\d{1,2}))?/);
+    const year = Number(exact?.[1] ?? match[1]);
+    const month = exact?.[2] ? Number(exact[2]) : null;
+    const day = exact?.[3] ? Number(exact[3]) : null;
+    if (!isRealCalendarDate(year, month, day)) return null;
+    return { year, month, day };
   }
   // 区间尾段常省略年份（"2014年5月至6月"）：借前侧年份，只认月/日
   if (fallbackYear !== undefined) {
-    const partial = cleaned.match(/^(?:-?)?(1[0-2]|0[1-9]|[1-9])(?:-?(3[01]|[12]\d|0[1-9]|[1-9]))?/);
-    if (partial) {
-      return {
-        year: fallbackYear,
-        month: Number(partial[1]),
-        day: partial[2] ? Number(partial[2]) : null,
-      };
-    }
+    const partial = cleaned.replace(/^-+/, '').match(/^(\d{1,2})?(?:-?(\d{1,2}))?/);
+    const month = partial?.[1] ? Number(partial[1]) : null;
+    const day = partial?.[2] ? Number(partial[2]) : null;
+    if (month === null || !isRealCalendarDate(fallbackYear, month, day)) return null;
+    return { year: fallbackYear, month, day };
   }
   return null;
 }
@@ -257,7 +274,11 @@ export function parseTimeScope(text: string | null | undefined): { from: string 
   const rangeSplit = normalized.split(/(?:至|~|～|—|－|\s+-\s+|\bto\b)/i);
   const first = parseSingleDate(rangeSplit[0] ?? '');
   if (!first) return empty;
-  const last = rangeSplit.length > 1 ? parseSingleDate(rangeSplit[rangeSplit.length - 1] ?? '', first.year) : null;
+  const isRange = rangeSplit.length > 1;
+  const last = isRange ? parseSingleDate(rangeSplit[rangeSplit.length - 1] ?? '', first.year) : null;
+  // 区间有一端不存在（"2021年5月至13月"），整条说法就是无效的：不能拿前半段的合法日期兜底，
+  // 那等于把「5 月到 13 月」悄悄改写成「5 月」——一个原话没主张过的更窄窗口。
+  if (isRange && !last) return empty;
 
   /** 单侧解析结果 → 起止（月份缺失时：季节档查唯一季节表，其余按整年/半年放宽） */
   const spanOf = (parsed: { year: number; month: number | null; day: number | null }, hint: string) => {

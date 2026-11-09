@@ -83,6 +83,20 @@ describe('时间维度：复用现有窗口读数，不复制季节表', () => {
   it('任一侧解析不出 → 无从判断', () => {
     expect(compareTimeDimension('那一年秋天前后', '2021年秋季')).toMatchObject({ state: 'unknown' });
   });
+
+  it('断言写了不存在的日期 → 无从判断，不拿空窗口判成冲突', () => {
+    // 「说法本身无效」不等于「说错了时间」。没有窗口就没有可比的区间，
+    // 若在这里返回 conflict，等于用一个不存在的日期去否掉别人的记录。
+    const result = compareTimeDimension('2021年2月30日', '2021年秋季');
+    expect(result.state).toBe('unknown');
+    expect(result.state).not.toBe('conflict');
+    expect(assertionTimeWindow('2021年2月30日')).toBeNull();
+  });
+
+  it('证据写了不存在的日期 → 同样无从判断，不替它编一个日期出来', () => {
+    expect(compareTimeDimension('2021年5月', '2021年2月30日')).toMatchObject({ state: 'unknown' });
+    expect(evidenceTimeWindow('2021年2月30日')).toBeNull();
+  });
 });
 
 describe('机构维度：同名与地点限定词', () => {

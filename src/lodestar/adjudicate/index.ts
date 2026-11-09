@@ -21,7 +21,7 @@ import type { DomainPack, FieldSpec } from '../packs/pack';
 import type { LodestarStore } from '../storage/adapter';
 import type {
   ClaimRecord,
-  EvidenceDimensionState,
+  EvidenceDimensionStatus,
   EvidenceRecord,
   SearchFootprint,
   VerdictRecord,
@@ -374,13 +374,19 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
 
     /**
      * 判据层：值的比较交给该字段注册的维度实现（纯函数）。
-     * 没接实现、页面没给出可回链的值、或值不是引文子串而被打回 → unknown，
-     * 老证据缺这两列同样按 unknown 读，绝不因为"没提到"就降分。
+     *
+     * 三种情况必须分得开（分值都是 0，解释却是三件事）：
+     * - 字段没接维度实现（如 category、totalHammer）→ `unchecked`：这一维从没送进核验；
+     * - 接了实现、但页面没给出可回链的逐字值 → `unknown`：核过了，摘不出可比的；
+     * - 摘到值且比较出结论 → 用比较结果（`conflict` 是真冲突，不是判不了）。
+     * 老证据缺状态列时汇总层按 `unchecked` 读，所以这里每条新行都写状态，不留空。
      */
     const dimension = claim.fieldKey ? dimensionForField(pack.id, claim.fieldKey) : undefined;
     const matchedValue = outcome.matchedValue;
-    let dimensionState: EvidenceDimensionState | undefined;
-    if (dimension) {
+    let dimensionState: EvidenceDimensionStatus;
+    if (!dimension) {
+      dimensionState = 'unchecked';
+    } else {
       dimensionState =
         matchedValue === '' ? 'unknown' : dimension.compare({ claimValue: claim.object, matchedValue }).state;
     }
@@ -401,7 +407,8 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
       traceId: input.traceId,
       fieldKey: claim.fieldKey,
       recordId: claim.recordId,
-      ...(dimension ? { dimension: dimension.id, state: dimensionState } : {}),
+      ...(dimension ? { dimension: dimension.id } : {}),
+      state: dimensionState,
       ...(matchedValue !== '' ? { matchedValue } : {}),
       ...(outcome.pageTopic ? { note: `页面主题：${outcome.pageTopic}` } : {}),
     };

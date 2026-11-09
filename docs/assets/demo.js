@@ -58,15 +58,16 @@
     coverage: '这批候选来源没覆盖到',
     genuinely_absent: '这批来源里确实没有'
   };
-  // 判据六态：与窗口上的 LODESTAR_MATCH.DIMENSION_STATE_LABELS 一一对应，图例只给短名
-  var DIMENSION_ORDER = ['exact', 'caliber', 'edge', 'conflict', 'mismatch', 'unknown'];
+  // 判据状态：六种比较结果 + “没送进核验”，与窗口上的 LODESTAR_MATCH.DIMENSION_STATE_LABELS 一一对应，图例只给短名
+  var DIMENSION_ORDER = ['exact', 'caliber', 'edge', 'conflict', 'mismatch', 'unknown', 'unchecked'];
   var DIMENSION_SHORT = {
     exact: '完全对上',
     caliber: '口径相容',
     edge: '边缘相容',
     conflict: '冲突候选',
     mismatch: '没对上',
-    unknown: '无从判断'
+    unknown: '判不了',
+    unchecked: '没送进核验'
   };
   var DIMENSION_HINTS = {
     exact: '断言与原文同一写法',
@@ -74,7 +75,8 @@
     edge: '没有矛盾，但这不能证明',
     conflict: '只作候选，不压成「反对」',
     mismatch: '原文写的是另一回事',
-    unknown: '原文里没有可判的写法'
+    unknown: '核过了，但摘不出可回链的值',
+    unchecked: '这一维没核过（字段没接实现或老证据缺列）'
   };
 
   var state = { filter: 'all', current: 0 };
@@ -421,9 +423,9 @@
           '</span></span>'
       );
     });
-    parts.push('<div class="legend-item legend-dim-item"><span class="legend-dim-title">判据六态</span>' + dimParts.join('') + '</div>');
+    parts.push('<div class="legend-item legend-dim-item"><span class="legend-dim-title">判据状态</span>' + dimParts.join('') + '</div>');
     parts.push(
-      '<p class="legend-note">判据说的是「这条证据与断言在某个维度上的关系」，不是整条记录的结论。口径相容只说明说法不同；边缘相容是没有矛盾、但这不能证明；冲突候选不压成「反对」；无从判断表示原文里没有可判的写法。</p>'
+      '<p class="legend-note">判据说的是「这条证据与断言在某个维度上的关系」，不是整条记录的结论。口径相容只说明说法不同；边缘相容是没有矛盾、但这不能证明；冲突候选不压成「反对」；判不了表示核过了、但摘不出可回链的值；没送进核验表示这一维压根没查过（字段没接维度实现，或证据行是判据层上线前的旧行）——「没查」与「判不了」不混着说。</p>'
     );
     document.getElementById('legend').innerHTML = parts.join('');
   }

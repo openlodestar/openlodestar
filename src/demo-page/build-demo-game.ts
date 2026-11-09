@@ -36,7 +36,7 @@ import {
 import { compareInstitutionDimension } from '../lodestar/dimensions/institution';
 import { compareTimeDimension } from '../lodestar/dimensions/time';
 import { compareTextDimension } from '../lodestar/dimensions/text';
-import type { EvidenceDimensionState } from '../lodestar/types';
+import type { EvidenceDimensionState, EvidenceDimensionStatus } from '../lodestar/types';
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = path.resolve(MODULE_DIR, '../..');
@@ -321,6 +321,19 @@ const STATE_SEVERITY: EvidenceDimensionState[] = [
   'exact',
 ];
 
+/**
+ * 这条证据行是不是真做过比对（六态之一）。
+ * `unchecked`＝这一维没核过，`undefined`＝维度层上线前的老行——两者都不能拿来当"证据写了什么"。
+ */
+function isComparedState(state: EvidenceDimensionStatus | undefined): state is EvidenceDimensionState {
+  return state !== undefined && state !== 'unchecked';
+}
+
+/** 排序用：没核过的行不该被选成"证据写了什么"，给最低分（正常已被上面的过滤挡掉） */
+function stateScore(state: EvidenceDimensionStatus | undefined): number {
+  return state !== undefined && state !== 'unchecked' ? STATE_SCORE[state] : -3;
+}
+
 const SLOT_KEYS: GameSlotKey[] = ['auctionHouse', 'dateText', 'sessionName'];
 
 const GATE_RANK: Record<'strong' | 'weak' | 'rejected', number> = {
@@ -394,9 +407,11 @@ function compareSlot(
 function referenceOf(record: DemoRecord, fieldKey: string): string | null {
   const rows = record.evidence.filter((row) => row.fieldKey === fieldKey);
   for (const relation of ['supports', 'refutes', 'irrelevant'] as const) {
-    const bucket = rows.filter((row) => row.relation === relation && row.matchedValue);
+    const bucket = rows.filter(
+      (row) => row.relation === relation && row.matchedValue && isComparedState(row.state),
+    );
     if (bucket.length === 0) continue;
-    const best = bucket.slice().sort((a, b) => STATE_SCORE[b.state] - STATE_SCORE[a.state])[0];
+    const best = bucket.slice().sort((a, b) => stateScore(b.state) - stateScore(a.state))[0];
     if (best && best.matchedValue) return best.matchedValue;
   }
   const claim = record.fields.find((field) => field.key === fieldKey);

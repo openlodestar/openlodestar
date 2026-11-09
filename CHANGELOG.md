@@ -6,6 +6,13 @@
 
 ### Changed
 
+- **判据维度把「没核过」从「判不了」里拆出来：新增 `unchecked`，不再混成一个 `unknown`**（`src/lodestar/types.ts`、`src/lodestar/dimensions/index.ts`、`src/lodestar/adjudicate/index.ts`、`scripts/backfill-evidence-dimensions.ts`、`src/demo-page/build-demo-data.ts`、`src/demo-page/build-demo-game.ts`、`src/lodestar/examples.test.ts`、`docs/evidence-grading-proposal.md`、`docs/time-window-rules.md`、`docs/assets/demo.js`、`docs/assets/demo-match.js`、`docs/demo.html`）：
+  - **三种情况分开落**：`unchecked`＝这一维从没送进核验（字段没接维度实现，或证据行是判据层上线前、回填也没补标记的旧行）；`unknown`＝核过了，但原文里摘不出可回链的逐字值；`conflict`＝摘到了，但与断言矛盾。三者折算权重都是 0，**分值一个都没变**，变的是"为什么这张单只有弱坐标"的解释——"没查"和"查了判不了"不再说成同一句话。
+  - **先把可得性补上，再改语义**：裁决链现在每条新证据都写 `state`（没接维度实现就写 `unchecked`）；回填脚本也把三种情况分开写（没实现/断言不在库里 → `unchecked`；摘不出值或值不是引文子串 → `dimension` + `unknown`；摘到值 → 六态之一）。7 批冻结语料 82 条证据里，此前 12 条没有判据列：10 条字段有实现、摘不出值，回填后落 `unknown`；2 条是 `fieldKey` 为空的场次级证据（`ev-0019` 支持、`ev-0020` 反驳），落 `unchecked`。回填没有新增支持、没有新增冲突，9 份演示记录的 `gate`、坐标档位与分数逐条不变，`poly-2021-autumn` 的 22 条读数逐字不变。
+  - **汇总层跟着改**：同一维度多行时 `unchecked` 排最后，不许盖掉核过的行；弱坐标的解释分支从「没有任何维度给出正向线索」改成三句——全是没核过 / 混着没核过与判不了 / 全判不了；有分数时也点名"另有哪几维没送进核验，未计入这个分数"。`DimensionGrade` 新增 `uncheckedDimensions`。
+  - **声明了却没有实现的字段有了明确身份**：策略包声明了 `category`、`totalHammer`，但没有维度实现，汇总层记 `unchecked`（没核过），不是 `unknown`（判不了）；`totalHammer` 还会被路由打成 decompose，压根不进裁决链。要进计分得先各写一份维度实现，见 `docs/evidence-grading-proposal.md`。
+  - **读数**：`npx vitest run src/lodestar src/demo-page` 27 文件 **427 例**全通过（新增 6 例：三态分开、权重都为 0、解释分支、混入 `unchecked` 不盖掉核过结论、冻结语料每条证据都有判据状态）；`npx tsc --noEmit` 通过；`pnpm run demo:data` / `demo:game` / `demo:sort` 重跑两次产物字节一致（`demo-game-data.js`、`demo-sort-data.js` 与提交内容完全相同，`demo-data.js` 只多出 `uncheckedDimensions` 与 10 条证据的 `dimension` 名）；全程零联网、零模型调用，Serper 消耗 0。
+
 - **时间维度撤掉「月份紧贴季节开场就升口径相容」这一档**（`src/lodestar/dimensions/time.ts`、`docs/time-window-rules.md`、`docs/evidence-grading-proposal.md`、`src/demo-page/build-demo-data.ts`、`src/demo-page/build-sort-data.ts`、`docs/demo-sort.md`）：此前断言写「2021年8月」、证据写「2021年秋季」会被判成口径相容（0.7 倍，可撑强坐标），理由是季节词写法常有提前量。2026-11-09 全库离线复核——82 条冻结证据、39 条断言，时间字段断言 12 条，写成"月"级的只有 5 月、10 月、12 月，四个季节各自的"开场前一个月"一条样本都没有；全部冻结快照里也没有任何一页把季节开场前的那一个月与季节词写在一起。这条分档因此没有任何真实案例支撑，却把弱证据升成 0.7，等于替证据多说话，现已删除；这类样本统一落到边缘相容（0.3 倍，只说明没被排除）。
   - **影响一（口径）**：验收例「秋季＋北京嘉德 对 8月＋北京市的嘉德」由强坐标（1.7）变为弱坐标（1.3——累计分过线，但只有机构维过了 0.7 倍上限）。`docs/evidence-grading-proposal.md` 的验收例改用真实语料里存在的口径相容对「2019年秋季 对 2019年10月」，仍是强坐标。
   - **影响二（演示）**：展示页 `derived-autumn-jd` 改用 10 月对秋季；小游戏第二件器物里的「2021年8月」换成「2021年11月15日」那件（8 月的写法收紧后只剩一个能凑出口径相容的候选词，排不出两拍）。三份站点数据已重新生成，六态分布与三档打法分数不变（199 / 127 / 175）。

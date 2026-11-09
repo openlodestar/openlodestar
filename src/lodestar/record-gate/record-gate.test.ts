@@ -92,7 +92,7 @@ function gateFor(claims: ClaimRecord[], evidence: EvidenceRecord[], verdicts: Ve
   const byClaim = new Map<string, EvidenceRecord[]>();
   for (const row of evidence) {
     // 夹具按"回填后每条证据都带维度状态"构造：门禁单测关心的是汇总与共现，
-    // 抽取与比较另有专门测试；没有状态的行会诚实地按无从判断处理，不升强坐标。
+    // 抽取与比较另有专门测试；没有状态的行会诚实地按"没送进核验"（unchecked）处理，不升强坐标。
     const claim = claimById.get(row.claimId);
     const withState: EvidenceRecord =
       row.state === undefined

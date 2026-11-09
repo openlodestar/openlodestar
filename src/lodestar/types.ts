@@ -39,9 +39,24 @@ export type EvidenceRelation = 'supports' | 'refutes' | 'irrelevant';
  * - edge：边缘相容（只擦到边），只抬可信度，不撑强坐标；
  * - conflict：明确冲突候选，否决强坐标但不自动判"反对"；
  * - mismatch：没对上；
- * - unknown：无从判断（没提到、解析不出、老证据没有这一列）。
+ * - unknown：核过了，但判不了（原文里摘不出可回链的值、或断言值本身解析不出）；
  */
 export type EvidenceDimensionState = 'exact' | 'caliber' | 'edge' | 'conflict' | 'mismatch' | 'unknown';
+
+/**
+ * 证据行在判据维度上的**处置状态**：六种比较结果之一，或"从没送进核验"。
+ *
+ * 为什么把它和六态分开（2026-11-09 裁）——三种情况此前都落到 `unknown`，说出来的话却是三件事：
+ * - `unchecked`：这一维**根本没被核过**——字段没接维度实现（如 `category`、`totalHammer`），
+ *   或这行是维度层上线前的旧行、回填也没为它补上判据列；
+ * - `unknown`：**核过了，但判不了**——原文里摘不出可回链的逐字值，或断言值本身解析不出；
+ * - `conflict`：**摘到了，但与断言矛盾**——这是真冲突，不是判不了。
+ *
+ * 三者折算权重都是 0，所以分值一张都不变；变的是"为什么这张单只有弱坐标"的解释：
+ * "没查"与"查了判不了"必须能分开说。比较函数只许返回六态（`DimensionCompareResult`），
+ * `unchecked` 只由汇总层与回填脚本写，避免把"没核过"伪装成一次比较结论。
+ */
+export type EvidenceDimensionStatus = EvidenceDimensionState | 'unchecked';
 
 /** 四分类裁决（分类学只路由不打分，档位不是置信度） */
 export type Verdict = 'supported' | 'refuted' | 'conflicting' | 'not_found';
@@ -173,11 +188,14 @@ export interface EvidenceRecord {
   note?: string;
   /**
    * 这条证据落在哪个判据维度上（形如 `porcelain:dateText`，只取维度注册表里的名字）。
-   * 可选：老证据没有这一列，读作"无从判断"。
+   * 可选：老证据没有这一列，读作"从没送进核验"（`unchecked`）；`state === 'unchecked'` 的行没有这一列。
    */
   dimension?: string;
-  /** 该证据在本维度上的状态；可选：老证据缺列读作 unknown，不进共现、不升坐标 */
-  state?: EvidenceDimensionState;
+  /**
+   * 该证据行的判据处置状态：六种比较结果之一，或 `unchecked`（这一维从没被核过，如字段没接实现）。
+   * 可选：老证据缺这一列，同样读作 `unchecked`，不进共现、不升坐标。
+   */
+  state?: EvidenceDimensionStatus;
   /**
    * 页面里写出该维度值的**逐字原文片段**：必须是本行 `quote` 的子串。
    * 校验不通过时清空（状态降为 unknown），不许用改写后的值参与比较。

@@ -38,7 +38,7 @@ beforeEach(async () => {
     await fs.copyFile(path.join(EXAMPLE_DIR, file), path.join(workDir, file));
   }
   // 回填产物优先（旁挂文件，冻结底稿不动）：维度状态是判据汇总的输入，
-  // 原始 evidence.jsonl 没有这三列，按新口径一律算无从判断、撑不起强坐标。
+  // 原始 evidence.jsonl 没有这三列，按新口径一律算"没送进核验"（unchecked）、撑不起强坐标。
   const enriched = await fs
     .access(path.join(EXAMPLE_DIR, 'evidence.enriched.jsonl'))
     .then(() => 'evidence.enriched.jsonl')
@@ -106,5 +106,36 @@ describe('瓷器示例底稿', () => {
     expect(isReadableAnchor(weak!)).toBe(false);
 
     expect(outcome.anchors.some((anchor) => anchor.recordId === 'rec-example-2019-sothebys')).toBe(false);
+  });
+});
+
+describe('冻结语料的判据列（三态分开的数据前提）', () => {
+  it('回填产物里每条证据都写了判据状态：没核过的写 unchecked，核过但判不了的写 unknown', async () => {
+    const root = path.resolve(import.meta.dirname, '../../examples');
+    const batches = (await fs.readdir(root, { withFileTypes: true })).filter((entry) => entry.isDirectory());
+    let rows = 0;
+    for (const batch of batches) {
+      const file = path.join(root, batch.name, 'evidence.enriched.jsonl');
+      const exists = await fs.access(file).then(() => true).catch(() => false);
+      if (!exists) continue;
+      const text = await fs.readFile(file, 'utf8');
+      for (const line of text.split(/\r?\n/)) {
+        if (line.trim() === '') continue;
+        const row = JSON.parse(line) as EvidenceRecord;
+        rows += 1;
+        const at = `${batch.name}/${row.evidenceId}`;
+        // 没有状态列＝汇总层只能按"没送进核验"猜；回填后必须每条都有明确处置
+        expect(row.state, at).toBeDefined();
+        if (row.state === 'unchecked') {
+          // 没核过的行不许带可比值：带了就说明它其实比过，状态写错了
+          expect(row.matchedValue, at).toBeUndefined();
+        } else {
+          // 六种比较结果都必须落在某个已注册维度上
+          expect(row.dimension, at).toBeDefined();
+        }
+      }
+    }
+    // 7 批冻结语料共 82 条证据；条数变化意味着读数要重算，先让测试红
+    expect(rows).toBe(82);
   });
 });

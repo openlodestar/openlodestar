@@ -35,6 +35,7 @@ import type {
   AnchorRecord,
   ClaimRecord,
   EvidenceDimensionState,
+  EvidenceDimensionStatus,
   EvidenceRecord,
   FieldRole,
   RecordSummary,
@@ -70,7 +71,7 @@ export interface DemoFieldVerdict {
    * 该字段的判据状态，只从「支持」的证据行里取。
    * null 表示这条断言没有任何「支持」行 —— 页面不显示判据，免得把无关页的状态挂在字段旁边。
    */
-  dimensionState: EvidenceDimensionState | null;
+  dimensionState: EvidenceDimensionStatus | null;
   /**
    * 模型判「支持」、判据判「冲突候选」的证据行。
    * 这些行不计入支持、也不进累计分；页面要把「模型裁决与判据不一致」显式写出来，
@@ -102,8 +103,8 @@ export interface DemoEvidenceRow {
   note: string | null;
   /** 判据维度（形如 porcelain:dateText）；老证据没有这一列 → null */
   dimension: string | null;
-  /** 该证据在本维度上的状态；老证据缺列 → unknown */
-  state: EvidenceDimensionState;
+  /** 该证据在本维度上的处置状态；老证据缺列 → unchecked（没核过，不是判不了） */
+  state: EvidenceDimensionStatus;
   /** 页面里逐字摘出的原文值；老证据没有这一列 → null */
   matchedValue: string | null;
 }
@@ -136,7 +137,8 @@ export interface DemoRecord {
       score: number;
       basis: string;
       conflictDimensions: string[];
-      entries: Array<{ dimension: string; label: string; state: EvidenceDimensionState; cap: number }>;
+      uncheckedDimensions: string[];
+      entries: Array<{ dimension: string; label: string; state: EvidenceDimensionStatus; cap: number }>;
     };
     anchor: {
       grade: AnchorRecord['anchorGrade'];
@@ -390,7 +392,7 @@ export async function buildCase(exampleName: string): Promise<DemoCaseData> {
             fetchedAt: row.fetchedAt,
             note: row.note ?? null,
             dimension: row.dimension ?? null,
-            state: row.state ?? 'unknown',
+            state: row.state ?? 'unchecked',
             matchedValue: row.matchedValue ?? null,
           };
         }),
@@ -405,6 +407,7 @@ export async function buildCase(exampleName: string): Promise<DemoCaseData> {
             score: dimensionGrade.score,
             basis: dimensionGrade.basis,
             conflictDimensions: dimensionGrade.conflictDimensions,
+            uncheckedDimensions: dimensionGrade.uncheckedDimensions,
             entries: dimensionGrade.entries,
           },
           anchor: anchor

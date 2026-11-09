@@ -117,8 +117,9 @@ export function decideGate(input: GateInput): GateOutcome {
   } else {
     /**
      * 最后一道：判据维度是否够得上强坐标。
-     * 冲突否决先于算分（任一维明确冲突直接降弱）；没有任何维度给出状态的行
-     * 就是"无从判断"，它不升坐标——老数据由回填脚本补齐状态，不在这里留兼容分支。
+     * 冲突否决先于算分（任一维明确冲突直接降弱）；没有判据列的行按"没送进核验"（unchecked）、
+     * 有判据列但比较不出的按"判不了"（unknown）读，两者都不升坐标——老数据由回填脚本补齐状态，
+     * 不在这里留兼容分支。
      */
     const dimensional = gradeRecordDimensions(input.fieldClaimIds, input.claims, input.evidenceByClaim);
     if (dimensional.grade === 'strong') {

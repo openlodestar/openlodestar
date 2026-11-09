@@ -105,7 +105,7 @@
 ## 现在接在哪
 
 - 证据行写入 `dimension` / `state` / `matchedValue`（`src/lodestar/adjudicate/index.ts`），时间字段的状态由本维度实现当场算出。
-- 既有证据没有这三列时由回填脚本补齐（`scripts/backfill-evidence-dimensions.ts`，产物写旁挂的 `evidence.enriched.jsonl`，冻结底稿不动）：规则先解，解不出的才在 `--llm` 下让模型只摘原文值，摘出的值必须通过逐字子串校验，否则留「无从判断」。没有这三列的行就是「无从判断」，汇总层不为它留兼容分支。
+- 既有证据没有这三列时由回填脚本补齐（`scripts/backfill-evidence-dimensions.ts`，产物写旁挂的 `evidence.enriched.jsonl`，冻结底稿不动）：规则先解，解不出的才在 `--llm` 下让模型只摘原文值，摘出的值必须通过逐字子串校验。三种情况分开落：字段没接维度实现（或断言不在库里）写 `unchecked`（没核过）；接了实现但摘不出值、或值不是引文子串写 `unknown`（核过了、判不了）；摘到值才写六态之一。缺 `state` 列的老行按 `unchecked` 读，汇总层不为它留兼容分支。
 - 记录级门禁读这些状态做跨维度累计（`src/lodestar/dimensions/index.ts` 的 `gradeDimensions`，由 `record-gate/cooccurrence.ts` 调用）：任一维明确冲突先否决，再算累计分，最后才看能不能升强坐标；没有任何维度给出状态时不升强坐标。
 - 小游戏的组合矩阵走的是同一套维度函数（时间维也是这一份实现），不是字面值相等：因而不受"字面不同但口径相容"的困扰，`2021年11月15日` 对 `2021年秋季` 会如实判成口径相容，`2021年8月` 对 `2021年12月5日` 会如实判成冲突候选。矩阵在构建时算好冻结，页面只查表。
 

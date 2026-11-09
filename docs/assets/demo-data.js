@@ -379,6 +379,7 @@ window.LODESTAR_DEMO = {
               "score": 3.5,
               "basis": "「auctionHouse」「dateText」「location」「sessionName」在各自维度上对上（累计 3.5，≥ 1.2）",
               "conflictDimensions": [],
+              "uncheckedDimensions": [],
               "entries": [
                 {
                   "dimension": "porcelain:auctionHouse",
@@ -607,6 +608,7 @@ window.LODESTAR_DEMO = {
               "conflictDimensions": [
                 "dateText"
               ],
+              "uncheckedDimensions": [],
               "entries": [
                 {
                   "dimension": "porcelain:auctionHouse",
@@ -766,6 +768,7 @@ window.LODESTAR_DEMO = {
               "score": 3,
               "basis": "「auctionHouse」「dateText」「sessionName」在各自维度上对上（累计 3，≥ 1.2）",
               "conflictDimensions": [],
+              "uncheckedDimensions": [],
               "entries": [
                 {
                   "dimension": "porcelain:auctionHouse",
@@ -985,6 +988,7 @@ window.LODESTAR_DEMO = {
               "score": 2,
               "basis": "「auctionHouse」「dateText」在各自维度上对上（累计 2，≥ 1.2）",
               "conflictDimensions": [],
+              "uncheckedDimensions": [],
               "entries": [
                 {
                   "dimension": "porcelain:auctionHouse",
@@ -1192,7 +1196,7 @@ window.LODESTAR_DEMO = {
               "snapshotFile": "snapshots/page-d00dcc.txt",
               "fetchedAt": "2026-11-04T09:17:13.079Z",
               "note": "页面主题：介绍保利拍卖（香港）的公司背景及其2021至2022年间的拍卖市场动态与新闻摘要",
-              "dimension": null,
+              "dimension": "porcelain:dateText",
               "state": "unknown",
               "matchedValue": null
             },
@@ -1209,7 +1213,7 @@ window.LODESTAR_DEMO = {
               "snapshotFile": "snapshots/page-704f73.txt",
               "fetchedAt": "2026-11-04T09:14:20.974Z",
               "note": "页面主题：介绍北京保利2024年春季艺术品拍卖会的整体成交情况及各专场拍品详情",
-              "dimension": null,
+              "dimension": "porcelain:sessionName",
               "state": "unknown",
               "matchedValue": null
             },
@@ -1226,7 +1230,7 @@ window.LODESTAR_DEMO = {
               "snapshotFile": "snapshots/page-6bfad1.txt",
               "fetchedAt": "2026-11-04T09:15:51.383Z",
               "note": "页面主题：盘点2022年度艺术品市场高价成交瓷器排行榜及相关拍品来源信息",
-              "dimension": null,
+              "dimension": "porcelain:sessionName",
               "state": "unknown",
               "matchedValue": null
             },
@@ -1243,7 +1247,7 @@ window.LODESTAR_DEMO = {
               "snapshotFile": "snapshots/page-00903b.txt",
               "fetchedAt": "2026-11-04T09:18:55.473Z",
               "note": "页面主题：该页面讲的是北京保利2022年秋季艺术品拍卖会（含中国古董珍玩专场）的日程安排与拍品介绍",
-              "dimension": null,
+              "dimension": "porcelain:sessionName",
               "state": "unknown",
               "matchedValue": null
             }
@@ -1312,13 +1316,8 @@ window.LODESTAR_DEMO = {
                 "auctionHouse",
                 "dateText"
               ],
+              "uncheckedDimensions": [],
               "entries": [
-                {
-                  "dimension": "field:sessionName",
-                  "label": "sessionName",
-                  "state": "unknown",
-                  "cap": 1
-                },
                 {
                   "dimension": "porcelain:auctionHouse",
                   "label": "auctionHouse",
@@ -1329,6 +1328,12 @@ window.LODESTAR_DEMO = {
                   "dimension": "porcelain:dateText",
                   "label": "dateText",
                   "state": "conflict",
+                  "cap": 1
+                },
+                {
+                  "dimension": "porcelain:sessionName",
+                  "label": "sessionName",
+                  "state": "unknown",
                   "cap": 1
                 }
               ]
@@ -1452,7 +1457,7 @@ window.LODESTAR_DEMO = {
               "snapshotFile": "snapshots/page-8e90b7.txt",
               "fetchedAt": "2026-11-04T10:10:05.695Z",
               "note": "页面主题：苏富比2021年10月在香港举办的“一德堂藏康熙、雍正、乾隆朝御瓷”拍卖专场结果页",
-              "dimension": null,
+              "dimension": "porcelain:dateText",
               "state": "unknown",
               "matchedValue": null
             },
@@ -1599,6 +1604,7 @@ window.LODESTAR_DEMO = {
               "score": 3,
               "basis": "「auctionHouse」「dateText」「sessionName」在各自维度上对上（累计 3，≥ 1.2）",
               "conflictDimensions": [],
+              "uncheckedDimensions": [],
               "entries": [
                 {
                   "dimension": "porcelain:auctionHouse",
@@ -1725,7 +1731,7 @@ window.LODESTAR_DEMO = {
               "snapshotFile": "snapshots/page-07e788.txt",
               "fetchedAt": "2026-11-04T10:17:35.901Z",
               "note": "页面主题：介绍菲利普斯与保利拍卖合作于2021年6月在北京和香港联合举办现当代艺术及设计专场的文章",
-              "dimension": null,
+              "dimension": "porcelain:auctionHouse",
               "state": "unknown",
               "matchedValue": null
             },
@@ -1810,7 +1816,7 @@ window.LODESTAR_DEMO = {
               "snapshotFile": "snapshots/page-07e788.txt",
               "fetchedAt": "2026-11-04T10:17:35.901Z",
               "note": "页面主题：该页面是一则关于菲利普斯与保利拍卖合作于2021年春季举办两地同步当代艺术与设计专场的新闻报道。",
-              "dimension": null,
+              "dimension": "porcelain:dateText",
               "state": "unknown",
               "matchedValue": null
             },
@@ -1958,6 +1964,7 @@ window.LODESTAR_DEMO = {
               "score": 3,
               "basis": "「auctionHouse」「dateText」「sessionName」在各自维度上对上（累计 3，≥ 1.2）",
               "conflictDimensions": [],
+              "uncheckedDimensions": [],
               "entries": [
                 {
                   "dimension": "porcelain:auctionHouse",
@@ -2110,7 +2117,7 @@ window.LODESTAR_DEMO = {
               "snapshotFile": "snapshots/page-16465e.txt",
               "fetchedAt": "2026-11-04T09:25:47.222Z",
               "note": "页面主题：雅昌艺术网关于中国嘉德2021春季拍卖会“宸赏—明清御瓷珍玩”专场的资讯与拍品介绍页面",
-              "dimension": null,
+              "dimension": "porcelain:dateText",
               "state": "unknown",
               "matchedValue": null
             },
@@ -2127,7 +2134,7 @@ window.LODESTAR_DEMO = {
               "snapshotFile": "snapshots/page-5be883.txt",
               "fetchedAt": "2026-11-04T09:24:40.409Z",
               "note": "页面主题：该页面展示的是中国嘉德2026年秋季拍卖会的各专场日程与拍品信息。",
-              "dimension": null,
+              "dimension": "porcelain:sessionName",
               "state": "unknown",
               "matchedValue": null
             },
@@ -2144,7 +2151,7 @@ window.LODESTAR_DEMO = {
               "snapshotFile": "snapshots/page-16465e.txt",
               "fetchedAt": "2026-11-04T09:25:47.222Z",
               "note": "页面主题：该页面介绍的是中国嘉德2021年春季拍卖会“宸赏—明清御瓷珍玩”专场的预展安排与部分拍品详情。",
-              "dimension": null,
+              "dimension": "porcelain:sessionName",
               "state": "unknown",
               "matchedValue": null
             },
@@ -2221,17 +2228,18 @@ window.LODESTAR_DEMO = {
               "score": 2,
               "basis": "「auctionHouse」「sessionName」在各自维度上对上（累计 2，≥ 1.2）",
               "conflictDimensions": [],
+              "uncheckedDimensions": [],
               "entries": [
-                {
-                  "dimension": "field:dateText",
-                  "label": "dateText",
-                  "state": "unknown",
-                  "cap": 1
-                },
                 {
                   "dimension": "porcelain:auctionHouse",
                   "label": "auctionHouse",
                   "state": "exact",
+                  "cap": 1
+                },
+                {
+                  "dimension": "porcelain:dateText",
+                  "label": "dateText",
+                  "state": "unknown",
                   "cap": 1
                 },
                 {
@@ -2488,6 +2496,7 @@ window.LODESTAR_DEMO = {
               "conflictDimensions": [
                 "dateText"
               ],
+              "uncheckedDimensions": [],
               "entries": [
                 {
                   "dimension": "porcelain:auctionHouse",

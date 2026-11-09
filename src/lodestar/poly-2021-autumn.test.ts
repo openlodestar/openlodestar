@@ -50,7 +50,7 @@ beforeEach(async () => {
     await fs.copyFile(path.join(EXAMPLE_DIR, file), path.join(workDir, file));
   }
   // 回填产物优先（旁挂文件，冻结底稿不动）：维度状态是判据汇总的输入，
-  // 原始 evidence.jsonl 没有这三列，按新口径一律算无从判断。
+  // 原始 evidence.jsonl 没有这三列，按新口径一律算"没送进核验"（unchecked）。
   const enriched = await fs
     .access(path.join(EXAMPLE_DIR, 'evidence.enriched.jsonl'))
     .then(() => 'evidence.enriched.jsonl')

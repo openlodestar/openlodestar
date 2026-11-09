@@ -12,7 +12,12 @@
  * 2. 模型兜底：规则摘不出的行，只有显式加 `--llm` 才调用模型，且只让模型摘值；
  * 3. 强制校验：`matchedValue` 必须是该行引文的逐字子串（忽略空白换行），
  *    对不上就留 unknown，绝不凑、不编；
- * 4. 可比读数：覆盖率、状态分布、子串校验失败率打到 stdout。
+ * 4. **三种未比对的情况要分开写**（2026-11-09 裁）：
+ *    - 字段没接维度实现（`category`、`totalHammer`）或断言不在库里 → `state: 'unchecked'`（没核过）；
+ *    - 接了实现但摘不出值、或值不是引文子串 → `dimension` + `state: 'unknown'`（核了但判不了）；
+ *    - 摘到值且比较出结论 → `dimension` + 六态之一（`conflict` 是真冲突）。
+ *    只留下"没有状态列"的行会让三种情况在汇总层又并回一个 `unknown`，所以每条都要落标记；
+ * 5. 可比读数：覆盖率、状态分布、子串校验失败率打到 stdout。
  *
  * 用法：
  *   pnpm run backfill:evidence -- --case examples/poly-2021-autumn --dry-run
@@ -25,7 +30,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ClaimRecord, EvidenceDimensionState, EvidenceRecord } from '../src/lodestar/types';
+import type { ClaimRecord, EvidenceDimensionStatus, EvidenceRecord } from '../src/lodestar/types';
 import { dimensionForField } from '../src/lodestar/dimensions';
 import { CITY_WORDS } from '../src/lodestar/dimensions/institution';
 import { HOUSE_ALIASES } from '../src/lodestar/packs/porcelain/rules';
@@ -198,10 +203,11 @@ async function main(): Promise<void> {
     preserved: 0,
     resolvedByRule: 0,
     resolvedByLlm: 0,
+    unchecked: 0,
     unknown: 0,
     substringFailures: 0,
   };
-  const stateCounts = new Map<EvidenceDimensionState, number>();
+  const stateCounts = new Map<EvidenceDimensionStatus, number>();
 
   const enriched: EvidenceRecord[] = [];
   for (const row of rows) {
@@ -216,8 +222,10 @@ async function main(): Promise<void> {
     const claim = claimById.get(row.claimId);
     const dimension = row.fieldKey ? dimensionForField('porcelain', row.fieldKey) : undefined;
     if (!claim || !dimension) {
-      counters.unknown += 1;
-      stateCounts.set('unknown', (stateCounts.get('unknown') ?? 0) + 1);
+      // 没有维度可落（字段没接实现、或断言不在库里）：这一维从没送进核验，别写成"判不了"
+      next.state = 'unchecked';
+      counters.unchecked += 1;
+      stateCounts.set('unchecked', (stateCounts.get('unchecked') ?? 0) + 1);
       enriched.push(next);
       continue;
     }
@@ -229,6 +237,9 @@ async function main(): Promise<void> {
       viaLlm = matchedValue !== null;
     }
     if (!matchedValue) {
+      // 维度在、但原文里摘不出可回链的值：核过了，判不了
+      next.dimension = dimension.id;
+      next.state = 'unknown';
       counters.unknown += 1;
       stateCounts.set('unknown', (stateCounts.get('unknown') ?? 0) + 1);
       enriched.push(next);
@@ -237,6 +248,8 @@ async function main(): Promise<void> {
     if (!quoteMatches(matchedValue, row.quote)) {
       counters.substringFailures += 1;
       counters.unknown += 1;
+      next.dimension = dimension.id;
+      next.state = 'unknown';
       stateCounts.set('unknown', (stateCounts.get('unknown') ?? 0) + 1);
       console.warn(`[${row.evidenceId}] matchedValue 不是引文子串，留 unknown：${matchedValue.slice(0, 40)}`);
       enriched.push(next);
@@ -269,6 +282,7 @@ async function main(): Promise<void> {
         preserved: counters.preserved,
         resolvedByRule: counters.resolvedByRule,
         resolvedByLlm: counters.resolvedByLlm,
+        unchecked: counters.unchecked,
         unknown: counters.unknown,
         substringFailures: counters.substringFailures,
         substringFailureRate:

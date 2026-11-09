@@ -5,17 +5,18 @@ import {
   DIMENSION_STATE_WEIGHT,
   dimensionForField,
   gradeDimensions,
+  pickDimensionState,
   pickSupportDimensionState,
   registerDimension,
   type DimensionEntry,
 } from './index';
 import { compareTimeDimension } from './time';
 import { cityOf, compareInstitutionDimension } from './institution';
-import type { EvidenceDimensionState, EvidenceRecord, EvidenceRelation } from '../types';
+import type { EvidenceDimensionStatus, EvidenceRecord, EvidenceRelation } from '../types';
 
 function evidenceRow(
   relation: EvidenceRelation,
-  state: EvidenceDimensionState | undefined
+  state: EvidenceDimensionStatus | undefined
 ): EvidenceRecord {
   return {
     evidenceId: 'ev-1',
@@ -33,7 +34,7 @@ function evidenceRow(
     traceId: 'trace',
     fieldKey: 'dateText',
     recordId: 'rec-1',
-    dimension: state === undefined ? undefined : 'porcelain:dateText',
+    dimension: state === undefined || state === 'unchecked' ? undefined : 'porcelain:dateText',
     state,
   };
 }
@@ -188,9 +189,75 @@ describe('展示用判据：只认「支持」行，无关页的状态不算判�
     expect(pickSupportDimensionState(rows)).toBe('caliber');
   });
 
-  it('支持行缺状态列 → 无从判断，而不是回落到无关页', () => {
+  it('支持行没有判据列 → 没送进核验，而不是判不了，也不回落到无关页', () => {
     const rows = [evidenceRow('irrelevant', 'exact'), evidenceRow('supports', undefined)];
-    expect(pickSupportDimensionState(rows)).toBe('unknown');
+    expect(pickSupportDimensionState(rows)).toBe('unchecked');
+  });
+});
+
+describe('三态分开：没核过 / 判不了 / 真冲突', () => {
+  it('一条带状态的核验行都没有 → 没送进核验（unchecked）', () => {
+    expect(pickDimensionState([evidenceRow('irrelevant', undefined)])).toBe('unchecked');
+    expect(pickDimensionState([])).toBe('unchecked');
+  });
+
+  it('核了但摘不出可比值 → 判不了（unknown），与没核过分开', () => {
+    const rows = [evidenceRow('supports', 'unknown'), evidenceRow('irrelevant', 'unknown')];
+    expect(pickDimensionState(rows)).toBe('unknown');
+  });
+
+  it('摘到了但与断言矛盾 → 真冲突（conflict），优先于其它状态', () => {
+    const rows = [evidenceRow('supports', 'unknown'), evidenceRow('refutes', 'conflict')];
+    expect(pickDimensionState(rows)).toBe('conflict');
+  });
+
+  it('混了没接实现的行（unchecked）不盖掉核过的结论', () => {
+    const rows = [evidenceRow('supports', 'unchecked'), evidenceRow('supports', 'caliber')];
+    expect(pickDimensionState(rows)).toBe('caliber');
+  });
+
+  it('三种状态的权重都是 0，分值不受分开影响', () => {
+    expect(DIMENSION_STATE_WEIGHT.unchecked).toBe(0);
+    expect(DIMENSION_STATE_WEIGHT.unknown).toBe(0);
+    expect(DIMENSION_STATE_WEIGHT.conflict).toBe(0);
+    const unchecked = gradeDimensions([entry('porcelain:dateText', 'unchecked')]);
+    const unknown = gradeDimensions([entry('porcelain:dateText', 'unknown')]);
+    expect(unchecked.score).toBe(0);
+    expect(unchecked.grade).toBe('weak');
+    expect(unknown.score).toBe(0);
+  });
+
+  it('弱坐标的解释要分开说：全是没核过 / 混着判不了 / 全判不了', () => {
+    const allUnchecked = gradeDimensions([
+      entry('porcelain:dateText', 'unchecked', 1, '举办时间'),
+      entry('porcelain:category', 'unchecked', 0.5, '品类'),
+    ]);
+    expect(allUnchecked.uncheckedDimensions).toEqual(['品类', '举办时间']);
+    expect(allUnchecked.basis).toContain('没送进核验');
+    expect(allUnchecked.basis).toContain('没查');
+
+    const mixed = gradeDimensions([
+      entry('porcelain:dateText', 'unknown', 1, '举办时间'),
+      entry('porcelain:category', 'unchecked', 0.5, '品类'),
+    ]);
+    expect(mixed.basis).toContain('品类');
+    expect(mixed.basis).toContain('没送进核验');
+    expect(mixed.basis).toContain('核过了');
+
+    const allUnknown = gradeDimensions([entry('porcelain:dateText', 'unknown', 1, '举办时间')]);
+    expect(allUnknown.basis).toContain('核过');
+    expect(allUnknown.basis).not.toContain('没送进核验');
+  });
+
+  it('有分数时也要点名没核过的维度：分数里没有它', () => {
+    const grade = gradeDimensions([
+      entry('porcelain:auctionHouse', 'exact', 1, '拍卖机构'),
+      entry('porcelain:category', 'unchecked', 0.5, '品类'),
+    ]);
+    expect(grade.score).toBe(1);
+    expect(grade.basis).toContain('1');
+    expect(grade.basis).toContain('品类');
+    expect(grade.basis).toContain('没送进核验');
   });
 });
 

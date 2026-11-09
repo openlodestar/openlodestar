@@ -5,12 +5,20 @@
  * 三层分工：
  * - 抽取层（`adjudicate/compare.ts`）只从页面里摘**逐字原文值**，不判这个值算不算对上；
  * - 判据层（本目录下每个维度一份纯函数实现）只把「断言值」与「原文值」比成六态之一；
- * - 汇总层（本文件的 `gradeDimensions`）只认状态，不认时间、城市、季节这类域知识。
+ * - 汇总层（本文件的 `gradeDimensions`）只认状态，不认时间、城市、季节这类域知识；
+ *   它另外要认得第七种处置 `unchecked`——这一维**从没送进核验**（字段没接实现、或老证据缺判据列），
+ *   与"核了但判不了"（`unknown`）、"摘到了但冲突"（`conflict`）分开说。
  *
  * 加一个维度＝注册一份实现，本文件与裁决链一行不改。
  */
 
-import type { ClaimRecord, EvidenceDimensionState, EvidenceRecord, FieldRole } from '../types';
+import type {
+  ClaimRecord,
+  EvidenceDimensionState,
+  EvidenceDimensionStatus,
+  EvidenceRecord,
+  FieldRole,
+} from '../types';
 import { timeDimension } from './time';
 import { institutionDimension } from './institution';
 import { sessionNameDimension } from './text';
@@ -78,14 +86,15 @@ export function dimensionCapOf(role: FieldRole): number {
   return role === 'key' ? 1 : 0.5;
 }
 
-/** 六态 → 折算系数（只有前三态产生正向分量） */
-export const DIMENSION_STATE_WEIGHT: Record<EvidenceDimensionState, number> = {
+/** 六态 → 折算系数（只有前三态产生正向分量；`unchecked` 与 `unknown` 都是 0） */
+export const DIMENSION_STATE_WEIGHT: Record<EvidenceDimensionStatus, number> = {
   exact: 1,
   caliber: 0.7,
   edge: 0.3,
   conflict: 0,
   mismatch: 0,
   unknown: 0,
+  unchecked: 0,
 };
 
 /** 升强坐标的累计分门槛：两条关键维度的口径相容刚好 1.4 过线 */
@@ -98,7 +107,7 @@ export const STRONG_DIMENSION_FLOOR = 0.7;
 export interface DimensionEntry {
   dimension: string;
   label: string;
-  state: EvidenceDimensionState;
+  state: EvidenceDimensionStatus;
   /** 该维度的权重上限 */
   cap: number;
 }
@@ -111,6 +120,8 @@ export interface DimensionGrade {
   basis: string;
   /** 明确冲突的维度标签（冲突不压成"反对"，只挂候选标记） */
   conflictDimensions: string[];
+  /** 从没送进核验的维度标签（没查 ≠ 判不了，解释里要分开说） */
+  uncheckedDimensions: string[];
   entries: DimensionEntry[];
 }
 
@@ -119,28 +130,35 @@ export interface DimensionGrade {
  *
  * 判定顺序是硬性的：
  * 1. 先看冲突：任一维明确冲突 → 直接判弱坐标，不再算分（是不是同一件只有一个答案）；
- * 2. 再算累计分：每维取 `权重上限 × 状态系数`，缺失/无从判断的维度不进分母；
+ * 2. 再算累计分：每维取 `权重上限 × 状态系数`，缺失/判不了/没核过的维度不进分母；
  * 3. 升强坐标要同时满足两条——累计分 ≥ 1.2，且至少两维各过 0.7 倍上限。
  *
  * 因此单维完全对上只有 1.0，够不到 1.2：没有单一维度能单独构成强坐标，
  * 必须有第二个维度陪跑（这是有意的，见 docs/evidence-grading-proposal.md）。
+ *
+ * 解释层要把三件事分开说（分值都一样是 0）：
+ * - `unchecked`：这一维从没送进核验（字段没接实现 / 老证据缺判据列）——"没查"；
+ * - `unknown`：核过了，但原文里摘不出可回链的值——"判不了"；
+ * - `conflict`：摘到了但与断言矛盾——"真冲突"，走上面第 1 条。
  */
 export function gradeDimensions(entries: DimensionEntry[]): DimensionGrade {
   const byDimension = new Map<string, DimensionEntry>();
   for (const entry of entries) {
     const prior = byDimension.get(entry.dimension);
-    // 同一维度多行时，冲突优先；否则取更强的正向状态
+    // 同一维度多行时，冲突优先；否则取更强的正向状态（"没核过"排最后，不许盖掉核过的行）
     if (!prior || rankState(entry.state) < rankState(prior.state)) byDimension.set(entry.dimension, entry);
   }
   const resolved = [...byDimension.values()].sort((a, b) => a.dimension.localeCompare(b.dimension));
 
   const conflictDimensions = resolved.filter((e) => e.state === 'conflict').map((e) => e.label);
+  const uncheckedDimensions = resolved.filter((e) => e.state === 'unchecked').map((e) => e.label);
   if (conflictDimensions.length > 0) {
     return {
       grade: 'weak',
       score: 0,
       basis: `「${conflictDimensions.join('」「')}」明确冲突，先否决强坐标（冲突只作候选，不压成"反对"）`,
       conflictDimensions,
+      uncheckedDimensions,
       entries: resolved,
     };
   }
@@ -157,22 +175,34 @@ export function gradeDimensions(entries: DimensionEntry[]): DimensionGrade {
   // 没有任何可展开的维度＝没有任何维度说话，计 0 分、不升坐标
   const strong = score >= STRONG_SCORE_THRESHOLD && strongDimensions >= 2;
   const qualified = resolved.filter((e) => DIMENSION_STATE_WEIGHT[e.state] >= STRONG_DIMENSION_FLOOR);
+  const checked = resolved.filter((e) => e.state !== 'unchecked');
+  const zeroBasis =
+    checked.length === 0
+      ? `「${uncheckedDimensions.join('」「')}」都没送进核验——这是"没查"，不是"判不了"`
+      : uncheckedDimensions.length > 0
+        ? `「${uncheckedDimensions.join('」「')}」没送进核验；其余维度核过了，但没给出正向线索`
+        : '核过的维度都没给出正向线索（摘不出可回链的值，或没对上）';
+  const uncheckedNote =
+    uncheckedDimensions.length > 0
+      ? `；另有「${uncheckedDimensions.join('」「')}」没送进核验（没查），未计入这个分数`
+      : '';
 
   return {
     grade: strong ? 'strong' : 'weak',
     score,
     basis: strong
-      ? `「${qualified.map((e) => e.label).join('」「')}」在各自维度上对上（累计 ${score}，≥ ${STRONG_SCORE_THRESHOLD}）`
+      ? `「${qualified.map((e) => e.label).join('」「')}」在各自维度上对上（累计 ${score}，≥ ${STRONG_SCORE_THRESHOLD}）${uncheckedNote}`
       : score === 0
-        ? '没有任何维度给出正向线索'
-        : `累计 ${score} 分，未同时满足「≥ ${STRONG_SCORE_THRESHOLD} 且两维各过 ${STRONG_DIMENSION_FLOOR} 倍上限」`,
+        ? zeroBasis
+        : `累计 ${score} 分，未同时满足「≥ ${STRONG_SCORE_THRESHOLD} 且两维各过 ${STRONG_DIMENSION_FLOOR} 倍上限」${uncheckedNote}`,
     conflictDimensions: [],
+    uncheckedDimensions,
     entries: resolved,
   };
 }
 
-/** 状态排序：数字越小越"强"（冲突排最前，汇总时优先被看见） */
-function rankState(state: EvidenceDimensionState): number {
+/** 状态排序：数字越小越"强"（冲突排最前，汇总时优先被看见；"没核过"排最后，不许盖掉核过的行） */
+function rankState(state: EvidenceDimensionStatus): number {
   switch (state) {
     case 'conflict':
       return 0;
@@ -184,16 +214,21 @@ function rankState(state: EvidenceDimensionState): number {
       return 3;
     case 'mismatch':
       return 4;
-    default:
+    case 'unknown':
       return 5;
+    case 'unchecked':
+      return 6;
   }
 }
 
 /**
  * 从一条记录的字段断言与各自的证据行里取每维状态。
  *
- * 老证据行没有 `state` 列 → 记无从判断（缺失维度不进分母，也不升坐标）。
- * 维度名优先取证据行上的 `dimension`；老行没有这一列时按字段键补一个只用于展示的名字。
+ * 三种情况的读法（权重都是 0，但解释必须分开）：
+ * - 行上有 `state` → 用比较结论（`unknown`＝核了但摘不出可回链的值）；
+ * - 行上全是 `unchecked`（或一条状态列都没有的老行）→ 这一维没送进核验，记 `unchecked`；
+ * - 一条证据行都没有 → 没有任何页面走到判据层，同样记 `unchecked`（没查，不是判不了）。
+ * 维度名优先取证据行上的 `dimension`；没有这一列时按字段键补一个只用于展示的名字。
  */
 export function gradeRecordDimensions(
   claimIds: string[],
@@ -224,15 +259,25 @@ export function gradeRecordDimensions(
  * 无关页），改它等于改判定口径；而页面上的「判据」一旦把无关页的状态挂在字段旁边，
  * 就会出现「查不到 · 判据：完全对上」这种自相矛盾的展示。所以展示走这条更窄的路：
  * 没有「支持」行就返回 null，页面干脆不显示判据。
+ * 支持行一条判据列都没有（或全是 `unchecked`）→ `unchecked`，页面上说"没送进核验"，
+ * 不说"判不了"——前者是没查，后者是查了没法比。
  */
-export function pickSupportDimensionState(rows: EvidenceRecord[]): EvidenceDimensionState | null {
+export function pickSupportDimensionState(rows: EvidenceRecord[]): EvidenceDimensionStatus | null {
   const supports = rows.filter((row) => row.relation === 'supports');
   if (supports.length === 0) return null;
-  const order: EvidenceDimensionState[] = ['conflict', 'exact', 'caliber', 'edge', 'mismatch', 'unknown'];
+  const order: EvidenceDimensionStatus[] = [
+    'conflict',
+    'exact',
+    'caliber',
+    'edge',
+    'mismatch',
+    'unknown',
+    'unchecked',
+  ];
   for (const state of order) {
     if (supports.some((row) => row.state === state)) return state;
   }
-  return 'unknown';
+  return 'unchecked';
 }
 
 /**
@@ -246,13 +291,22 @@ export function isContradictorySupport(row: EvidenceRecord): boolean {
   return row.relation === 'supports' && row.state === 'conflict';
 }
 
-/** 一条断言的全部证据行 → 该维度状态（冲突优先，其次取最强的正向状态） */
-export function pickDimensionState(rows: EvidenceRecord[]): EvidenceDimensionState {
+/**
+ * 一条断言的全部证据行 → 该维度状态（冲突优先，其次取最强的正向状态）。
+ *
+ * "没核过"与"判不了"在这里分开：
+ * - 一条带状态的核验行都没有 → `unchecked`（这一维没送进核验，老行也一样读法）；
+ * - 有核验行、但全是 `unchecked`（例如同一条断言混了没接实现的字段行）→ 同样 `unchecked`；
+ * - 有核验行且至少一行真的是比较结论 → 按冲突优先、支持优先的顺序取，比较不出就是 `unknown`。
+ */
+export function pickDimensionState(rows: EvidenceRecord[]): EvidenceDimensionStatus {
   const withState = rows.filter((row) => row.state !== undefined);
-  if (withState.length === 0) return 'unknown';
+  if (withState.length === 0) return 'unchecked';
   if (withState.some((row) => row.state === 'conflict')) return 'conflict';
-  const positive = withState.filter((row) => row.relation === 'supports');
-  const pool = positive.length > 0 ? positive : withState;
+  const checked = withState.filter((row) => row.state !== 'unchecked');
+  if (checked.length === 0) return 'unchecked';
+  const positive = checked.filter((row) => row.relation === 'supports');
+  const pool = positive.length > 0 ? positive : checked;
   const order: EvidenceDimensionState[] = ['exact', 'caliber', 'edge', 'mismatch', 'unknown'];
   for (const state of order) {
     if (pool.some((row) => row.state === state)) return state;

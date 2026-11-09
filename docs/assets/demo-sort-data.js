@@ -814,14 +814,14 @@ window.LODESTAR_SORT = {
           "id": "round-2",
           "index": 1,
           "lot": {
-            "comboId": "g-20",
-            "recordId": "rec-poly-2021-yugong-2",
-            "recordTitle": "北京保利 · 禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术（2021年秋季）",
-            "gate": "weak",
+            "comboId": "g-06",
+            "recordId": "rec-poly-2021-yugong-1",
+            "recordTitle": "北京保利 · 禹贡Ⅰ—盛清御瓷新风尚（2021年12月5日）",
+            "gate": "strong",
             "values": {
               "auctionHouse": "北京保利",
-              "dateText": "2021年8月",
-              "sessionName": "中國古董珍玩專場"
+              "dateText": "2021年11月15日",
+              "sessionName": "禹贡Ⅰ—盛清御瓷新风尚"
             }
           },
           "truth": [
@@ -834,14 +834,14 @@ window.LODESTAR_SORT = {
             {
               "slot": "dateText",
               "label": "举办时间",
-              "evidenceValue": "2021年秋季",
-              "state": "caliber"
+              "evidenceValue": "2021年12月5日",
+              "state": "conflict"
             },
             {
               "slot": "sessionName",
               "label": "专场名",
-              "evidenceValue": "禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-              "state": "mismatch"
+              "evidenceValue": "禹贡Ⅰ—盛清御瓷新风尚",
+              "state": "exact"
             }
           ],
           "chips": [
@@ -861,7 +861,7 @@ window.LODESTAR_SORT = {
               "slot": "sessionName",
               "slotLabel": "专场名",
               "short": "专场",
-              "value": "递藏之趣专场",
+              "value": "禹贡Ⅲ—盛清御瓷新风尚",
               "state": "mismatch",
               "note": "归一后仍不是同一个名字",
               "demoOnly": false,
@@ -872,11 +872,11 @@ window.LODESTAR_SORT = {
               "slot": "dateText",
               "slotLabel": "举办时间",
               "short": "时间",
-              "value": "2021年秋季",
+              "value": "2021秋季",
               "state": "caliber",
-              "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量",
+              "note": "同一段时间的粗写与细写（证据窗口更宽）",
               "demoOnly": false,
-              "fromRecord": true
+              "fromRecord": false
             },
             {
               "id": "r2-c4",
@@ -894,11 +894,11 @@ window.LODESTAR_SORT = {
               "slot": "sessionName",
               "slotLabel": "专场名",
               "short": "专场",
-              "value": "中國古董珍玩專場",
+              "value": "禹贡Ⅰ—盛清御瓷新风尚",
               "state": "exact",
               "note": "归一后完全一致",
               "demoOnly": false,
-              "fromRecord": false
+              "fromRecord": true
             },
             {
               "id": "r2-c6",
@@ -916,10 +916,10 @@ window.LODESTAR_SORT = {
               "slot": "dateText",
               "slotLabel": "举办时间",
               "short": "时间",
-              "value": "2021年8月",
+              "value": "2021年11月15日",
               "state": "exact",
               "note": "证据的日期落在断言主张的范围内",
-              "demoOnly": true,
+              "demoOnly": false,
               "fromRecord": false
             },
             {
@@ -949,11 +949,11 @@ window.LODESTAR_SORT = {
               "slot": "sessionName",
               "slotLabel": "专场名",
               "short": "专场",
-              "value": "禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
+              "value": "递藏之趣专场",
               "state": "mismatch",
               "note": "归一后仍不是同一个名字",
               "demoOnly": false,
-              "fromRecord": true
+              "fromRecord": false
             }
           ],
           "settleFrom": 7
@@ -1924,11 +1924,11 @@ window.LODESTAR_SORT = {
               "slot": "dateText",
               "slotLabel": "举办时间",
               "short": "时间",
-              "value": "2021秋季",
+              "value": "2021年秋季",
               "state": "caliber",
               "note": "同一段时间的粗写与细写（证据窗口更宽）",
               "demoOnly": false,
-              "fromRecord": false
+              "fromRecord": true
             },
             {
               "id": "r2-c4",
@@ -1979,10 +1979,10 @@ window.LODESTAR_SORT = {
               "slot": "dateText",
               "slotLabel": "举办时间",
               "short": "时间",
-              "value": "2021年底",
+              "value": "2021秋季",
               "state": "caliber",
               "note": "同一段时间的粗写与细写（证据窗口更宽）",
-              "demoOnly": true,
+              "demoOnly": false,
               "fromRecord": false
             },
             {
@@ -2270,20 +2270,20 @@ window.LODESTAR_SORT = {
       {
         "a": "run-2",
         "b": "run-3",
-        "shared": 10,
-        "sameAnswer": 5
+        "shared": 8,
+        "sameAnswer": 6
       },
       {
         "a": "run-2",
         "b": "run-4",
-        "shared": 13,
+        "shared": 15,
         "sameAnswer": 8
       },
       {
         "a": "run-3",
         "b": "run-4",
         "shared": 9,
-        "sameAnswer": 4
+        "sameAnswer": 3
       }
     ]
   }

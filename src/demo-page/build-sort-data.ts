@@ -299,7 +299,7 @@ const TEMPLATE_PLAIN: Beat[] = [
  */
 const RUN_PLANS: Array<{ id: string; lots: [string, string] }> = [
   { id: 'run-1', lots: ['g-03', 'g-82'] },
-  { id: 'run-2', lots: ['g-52', 'g-20'] },
+  { id: 'run-2', lots: ['g-52', 'g-06'] },
   { id: 'run-3', lots: ['g-01', 'g-62'] },
   { id: 'run-4', lots: ['g-51', 'g-83'] },
 ];

@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **时间维度撤掉「月份紧贴季节开场就升口径相容」这一档**（`src/lodestar/dimensions/time.ts`、`docs/time-window-rules.md`、`docs/evidence-grading-proposal.md`、`src/demo-page/build-demo-data.ts`、`src/demo-page/build-sort-data.ts`、`docs/demo-sort.md`）：此前断言写「2021年8月」、证据写「2021年秋季」会被判成口径相容（0.7 倍，可撑强坐标），理由是季节词写法常有提前量。2026-11-09 全库离线复核——82 条冻结证据、39 条断言，时间字段断言 12 条，写成"月"级的只有 5 月、10 月、12 月，四个季节各自的"开场前一个月"一条样本都没有；全部冻结快照里也没有任何一页把季节开场前的那一个月与季节词写在一起。这条分档因此没有任何真实案例支撑，却把弱证据升成 0.7，等于替证据多说话，现已删除；这类样本统一落到边缘相容（0.3 倍，只说明没被排除）。
+  - **影响一（口径）**：验收例「秋季＋北京嘉德 对 8月＋北京市的嘉德」由强坐标（1.7）变为弱坐标（1.3——累计分过线，但只有机构维过了 0.7 倍上限）。`docs/evidence-grading-proposal.md` 的验收例改用真实语料里存在的口径相容对「2019年秋季 对 2019年10月」，仍是强坐标。
+  - **影响二（演示）**：展示页 `derived-autumn-jd` 改用 10 月对秋季；小游戏第二件器物里的「2021年8月」换成「2021年11月15日」那件（8 月的写法收紧后只剩一个能凑出口径相容的候选词，排不出两拍）。三份站点数据已重新生成，六态分布与三档打法分数不变（199 / 127 / 175）。
+  - **读数**：`npx vitest run src/lodestar src/demo-page` 27 文件 **419 例**全通过；`pnpm typecheck` 通过；`pnpm run demo:data`、`demo:game`、`demo:sort` 三份生成物重跑后与提交内容一致；全程零联网、零模型调用。
+
 ### Added
 
 - **新小游戏「证据分拣」：限时配对 + 连击，把"相容不等于支撑"做成要用手感碰的取舍**（`docs/demo-sort.html`、`docs/assets/demo-sort.js`、`docs/assets/demo-sort-data.js`、`src/demo-page/build-sort-data.ts`、`src/demo-page/demo-sort.test.ts`、`docs/demo-sort.md`）：当时旧的 `docs/demo-lab.html` 一个字未动、仍在导航里；该页已在后续一轮整体删除，见下文「删除旧换词小游戏」。

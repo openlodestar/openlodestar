@@ -59,10 +59,10 @@ describe('时间维度：复用现有窗口读数，不复制季节表', () => {
     expect(compareTimeDimension('2021年10月', '2021年秋季')).toMatchObject({ state: 'caliber' });
   });
 
-  it('秋季 对 8 月 → 口径相容，折算 0.7', () => {
+  it('秋季 对 8 月 → 边缘相容，折算 0.3（不再按"提前量"升口径）', () => {
     const result = compareTimeDimension('2021年8月', '2021年秋季');
-    expect(result.state).toBe('caliber');
-    expect(DIMENSION_STATE_WEIGHT[result.state]).toBe(0.7);
+    expect(result.state).toBe('edge');
+    expect(DIMENSION_STATE_WEIGHT[result.state]).toBe(0.3);
   });
 
   it('秋季 对 12 月 → 边缘相容，折算 0.3', () => {
@@ -122,7 +122,7 @@ describe('机构维度：同名与地点限定词', () => {
 });
 
 describe('跨维度累积与判定顺序', () => {
-  it('验收一：秋季＋北京嘉德 对 8月＋北京市的嘉德 → 强坐标', () => {
+  it('验收一：秋季＋北京嘉德 对 8月＋北京市的嘉德 → 弱坐标（时间只擦到放宽圈）', () => {
     const time = compareTimeDimension('2021年8月', '2021年秋季');
     const institution = compareInstitutionDimension('北京市的嘉德', '北京嘉德');
     const grade = gradeDimensions([
@@ -130,12 +130,14 @@ describe('跨维度累积与判定顺序', () => {
       entry('porcelain:auctionHouse', institution.state, 1, '拍卖机构'),
     ]);
 
-    expect(time.state).toBe('caliber');
+    // 「8 月」不在秋季（9–11 月）里，页面说秋季并没有说这一场在 8 月办。
+    // 它只落在两侧各放宽一个月的圈里，所以只算擦边；机构维再扎实也只有一维过 0.7 倍，
+    // 累计分 1.3 过了 1.2 的门槛，但「两维各过 0.7 倍」不成立，仍然是弱坐标。
+    expect(time.state).toBe('edge');
     expect(institution.state).toBe('exact');
-    expect(grade.score).toBe(1.7);
-    expect(grade.grade).toBe('strong');
-    expect(grade.basis).toContain('举办时间');
-    expect(grade.basis).toContain('拍卖机构');
+    expect(grade.score).toBe(1.3);
+    expect(grade.grade).toBe('weak');
+    expect(grade.basis).toContain('1.3');
   });
 
   it('验收二：秋季 对 12月5日 → 不是强坐标，但高于零', () => {

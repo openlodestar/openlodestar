@@ -1240,8 +1240,8 @@ window.LODESTAR_DEMO_GAME = {
           "score": 4
         },
         {
-          "recordId": "rec-poly-2021-yugong-2",
-          "caseId": "poly-2021-autumn",
+          "recordId": "rec-20261104-a8e3db",
+          "caseId": "demo-batch-11",
           "bucket": "weak",
           "score": 4
         }
@@ -1277,8 +1277,8 @@ window.LODESTAR_DEMO_GAME = {
           "label": "举办时间",
           "value": "2021年8月",
           "evidenceValue": "2021年秋季",
-          "state": "caliber",
-          "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量",
+          "state": "edge",
+          "note": "断言写到月、但落在证据季节之外，只能算擦边",
           "demoOnly": true
         },
         {
@@ -1292,18 +1292,18 @@ window.LODESTAR_DEMO_GAME = {
         }
       ],
       "conclusion": {
-        "code": "caliber",
-        "label": "只找到相容证据",
-        "hint": "有证据，但至少一维最多只到「说法不同」——很可能是同一场，只是写法不一样，这不能算对上",
-        "score": 8,
-        "basis": "拍卖机构：exact · 举办时间：caliber · 专场名：exact"
+        "code": "edge",
+        "label": "没有矛盾，但这不能证明",
+        "hint": "有证据，但至少一维只到「没有矛盾，但这不能证明」，撑不起结论",
+        "score": 7,
+        "basis": "拍卖机构：exact · 举办时间：edge · 专场名：exact"
       },
       "matched": [
         {
           "recordId": "rec-poly-2021-yugong-2",
           "caseId": "poly-2021-autumn",
           "bucket": "weak",
-          "score": 8
+          "score": 7
         },
         {
           "recordId": "rec-poly-2021-yugong-1",
@@ -1349,8 +1349,8 @@ window.LODESTAR_DEMO_GAME = {
           "label": "举办时间",
           "value": "2021年8月",
           "evidenceValue": "2021年秋季",
-          "state": "caliber",
-          "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量",
+          "state": "edge",
+          "note": "断言写到月、但落在证据季节之外，只能算擦边",
           "demoOnly": true
         },
         {
@@ -1367,15 +1367,15 @@ window.LODESTAR_DEMO_GAME = {
         "code": "mismatch",
         "label": "没对上，证据写的是别的",
         "hint": "至少一维的证据明确写的是另一个值",
-        "score": 4,
-        "basis": "拍卖机构：exact · 举办时间：caliber · 专场名：mismatch"
+        "score": 3,
+        "basis": "拍卖机构：exact · 举办时间：edge · 专场名：mismatch"
       },
       "matched": [
         {
           "recordId": "rec-poly-2021-yugong-2",
           "caseId": "poly-2021-autumn",
           "bucket": "weak",
-          "score": 4
+          "score": 3
         },
         {
           "recordId": "rec-poly-2021-yugong-1",
@@ -1421,8 +1421,8 @@ window.LODESTAR_DEMO_GAME = {
           "label": "举办时间",
           "value": "2021年8月",
           "evidenceValue": "2021年秋季",
-          "state": "caliber",
-          "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量",
+          "state": "edge",
+          "note": "断言写到月、但落在证据季节之外，只能算擦边",
           "demoOnly": true
         },
         {
@@ -1439,15 +1439,15 @@ window.LODESTAR_DEMO_GAME = {
         "code": "mismatch",
         "label": "没对上，证据写的是别的",
         "hint": "至少一维的证据明确写的是另一个值",
-        "score": 4,
-        "basis": "拍卖机构：exact · 举办时间：caliber · 专场名：mismatch"
+        "score": 3,
+        "basis": "拍卖机构：exact · 举办时间：edge · 专场名：mismatch"
       },
       "matched": [
         {
           "recordId": "rec-poly-2021-yugong-2",
           "caseId": "poly-2021-autumn",
           "bucket": "weak",
-          "score": 4
+          "score": 3
         },
         {
           "recordId": "rec-poly-2021-yugong-1",
@@ -1473,11 +1473,11 @@ window.LODESTAR_DEMO_GAME = {
       },
       "sentence": "北京保利 在 2021年8月 举办了一场名为「中國古董珍玩專場」的拍卖会。",
       "status": "covered",
-      "recordId": "rec-poly-2021-yugong-2",
-      "caseId": "poly-2021-autumn",
-      "recordTitle": "北京保利 · 禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术（2021年秋季）",
-      "gate": "weak",
-      "bucket": "weak",
+      "recordId": "rec-20261104-f584a0",
+      "caseId": "demo-batch-1",
+      "recordTitle": "保利香港拍賣 · 中國古董珍玩專場（2022年7月14日）",
+      "gate": "rejected",
+      "bucket": "not_found",
       "dimensions": [
         {
           "slot": "auctionHouse",
@@ -1492,40 +1492,40 @@ window.LODESTAR_DEMO_GAME = {
           "slot": "dateText",
           "label": "举办时间",
           "value": "2021年8月",
-          "evidenceValue": "2021年秋季",
-          "state": "caliber",
-          "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量",
+          "evidenceValue": "2022年秋季",
+          "state": "conflict",
+          "note": "两段时间的窗口不相交（冲突只作候选，不压成反对）",
           "demoOnly": true
         },
         {
           "slot": "sessionName",
           "label": "专场名",
           "value": "中國古董珍玩專場",
-          "evidenceValue": "禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-          "state": "mismatch",
-          "note": "归一后仍不是同一个名字",
+          "evidenceValue": "中國古董珍玩專場",
+          "state": "exact",
+          "note": "归一后完全一致",
           "demoOnly": false
         }
       ],
       "conclusion": {
-        "code": "mismatch",
-        "label": "没对上，证据写的是别的",
-        "hint": "至少一维的证据明确写的是另一个值",
+        "code": "conflict",
+        "label": "冲突候选",
+        "hint": "至少一维的原文值与你的说法冲突；冲突只作候选，不压成「反对」",
         "score": 4,
-        "basis": "拍卖机构：exact · 举办时间：caliber · 专场名：mismatch"
+        "basis": "拍卖机构：exact · 举办时间：conflict · 专场名：exact"
       },
       "matched": [
-        {
-          "recordId": "rec-poly-2021-yugong-2",
-          "caseId": "poly-2021-autumn",
-          "bucket": "weak",
-          "score": 4
-        },
         {
           "recordId": "rec-20261104-f584a0",
           "caseId": "demo-batch-1",
           "bucket": "not_found",
           "score": 4
+        },
+        {
+          "recordId": "rec-poly-2021-yugong-2",
+          "caseId": "poly-2021-autumn",
+          "bucket": "weak",
+          "score": 3
         },
         {
           "recordId": "rec-poly-2021-yugong-1",
@@ -3040,8 +3040,8 @@ window.LODESTAR_DEMO_GAME = {
           "score": 0
         },
         {
-          "recordId": "rec-poly-2021-yugong-2",
-          "caseId": "poly-2021-autumn",
+          "recordId": "rec-20261104-a8e3db",
+          "caseId": "demo-batch-11",
           "bucket": "weak",
           "score": 0
         }
@@ -3077,8 +3077,8 @@ window.LODESTAR_DEMO_GAME = {
           "label": "举办时间",
           "value": "2021年8月",
           "evidenceValue": "2021年秋季",
-          "state": "caliber",
-          "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量",
+          "state": "edge",
+          "note": "断言写到月、但落在证据季节之外，只能算擦边",
           "demoOnly": true
         },
         {
@@ -3095,15 +3095,15 @@ window.LODESTAR_DEMO_GAME = {
         "code": "mismatch",
         "label": "没对上，证据写的是别的",
         "hint": "至少一维的证据明确写的是另一个值",
-        "score": 4,
-        "basis": "拍卖机构：mismatch · 举办时间：caliber · 专场名：exact"
+        "score": 3,
+        "basis": "拍卖机构：mismatch · 举办时间：edge · 专场名：exact"
       },
       "matched": [
         {
           "recordId": "rec-poly-2021-yugong-2",
           "caseId": "poly-2021-autumn",
           "bucket": "weak",
-          "score": 4
+          "score": 3
         },
         {
           "recordId": "rec-20261104-bb1fe7",
@@ -3139,25 +3139,25 @@ window.LODESTAR_DEMO_GAME = {
           "slot": "auctionHouse",
           "label": "拍卖机构",
           "value": "中国嘉德国际拍卖有限公司",
-          "evidenceValue": "北京保利",
-          "state": "mismatch",
-          "note": "不是同一家机构",
+          "evidenceValue": "中国嘉德",
+          "state": "exact",
+          "note": "同一机构，地点限定词一致",
           "demoOnly": false
         },
         {
           "slot": "dateText",
           "label": "举办时间",
           "value": "2021年8月",
-          "evidenceValue": "2021年秋季",
-          "state": "caliber",
-          "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量",
+          "evidenceValue": "2021年11月26日至12月13日",
+          "state": "conflict",
+          "note": "两段时间的窗口不相交（冲突只作候选，不压成反对）",
           "demoOnly": true
         },
         {
           "slot": "sessionName",
           "label": "专场名",
           "value": "禹贡Ⅲ—盛清御瓷新风尚",
-          "evidenceValue": "禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
+          "evidenceValue": "宸赏—明清御瓷珍玩",
           "state": "mismatch",
           "note": "归一后仍不是同一个名字",
           "demoOnly": false
@@ -3168,15 +3168,9 @@ window.LODESTAR_DEMO_GAME = {
         "label": "这批证据没覆盖",
         "hint": "没有任何一条冻结记录同时在两个词上对上或相容",
         "score": 0,
-        "basis": "拍卖机构：mismatch · 举办时间：caliber · 专场名：mismatch"
+        "basis": "拍卖机构：exact · 举办时间：conflict · 专场名：mismatch"
       },
       "matched": [
-        {
-          "recordId": "rec-poly-2021-yugong-2",
-          "caseId": "poly-2021-autumn",
-          "bucket": "weak",
-          "score": 0
-        },
         {
           "recordId": "rec-20261104-bb1fe7",
           "caseId": "demo-batch-3",
@@ -3188,6 +3182,12 @@ window.LODESTAR_DEMO_GAME = {
           "caseId": "demo-batch-8",
           "bucket": "not_found",
           "score": 0
+        },
+        {
+          "recordId": "rec-poly-2021-yugong-2",
+          "caseId": "poly-2021-autumn",
+          "bucket": "weak",
+          "score": -1
         }
       ]
     },
@@ -3250,16 +3250,16 @@ window.LODESTAR_DEMO_GAME = {
           "score": 4
         },
         {
-          "recordId": "rec-poly-2021-yugong-2",
-          "caseId": "poly-2021-autumn",
-          "bucket": "weak",
-          "score": 0
-        },
-        {
           "recordId": "rec-20261104-9863c4",
           "caseId": "demo-batch-8",
           "bucket": "not_found",
           "score": 0
+        },
+        {
+          "recordId": "rec-poly-2021-yugong-2",
+          "caseId": "poly-2021-autumn",
+          "bucket": "weak",
+          "score": -1
         }
       ]
     },
@@ -3292,18 +3292,18 @@ window.LODESTAR_DEMO_GAME = {
           "slot": "dateText",
           "label": "举办时间",
           "value": "2021年8月",
-          "evidenceValue": "2021年秋季",
-          "state": "caliber",
-          "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量",
+          "evidenceValue": "2022年秋季",
+          "state": "conflict",
+          "note": "两段时间的窗口不相交（冲突只作候选，不压成反对）",
           "demoOnly": true
         },
         {
           "slot": "sessionName",
           "label": "专场名",
           "value": "中國古董珍玩專場",
-          "evidenceValue": "禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-          "state": "mismatch",
-          "note": "归一后仍不是同一个名字",
+          "evidenceValue": "中國古董珍玩專場",
+          "state": "exact",
+          "note": "归一后完全一致",
           "demoOnly": false
         }
       ],
@@ -3312,15 +3312,9 @@ window.LODESTAR_DEMO_GAME = {
         "label": "这批证据没覆盖",
         "hint": "没有任何一条冻结记录同时在两个词上对上或相容",
         "score": 0,
-        "basis": "拍卖机构：mismatch · 举办时间：caliber · 专场名：mismatch"
+        "basis": "拍卖机构：mismatch · 举办时间：conflict · 专场名：exact"
       },
       "matched": [
-        {
-          "recordId": "rec-poly-2021-yugong-2",
-          "caseId": "poly-2021-autumn",
-          "bucket": "weak",
-          "score": 0
-        },
         {
           "recordId": "rec-20261104-f584a0",
           "caseId": "demo-batch-1",
@@ -3331,6 +3325,12 @@ window.LODESTAR_DEMO_GAME = {
           "recordId": "rec-20261104-bb1fe7",
           "caseId": "demo-batch-3",
           "bucket": "refuted",
+          "score": 0
+        },
+        {
+          "recordId": "rec-20261104-9863c4",
+          "caseId": "demo-batch-8",
+          "bucket": "not_found",
           "score": 0
         }
       ]
@@ -4840,8 +4840,8 @@ window.LODESTAR_DEMO_GAME = {
           "score": -1
         },
         {
-          "recordId": "rec-poly-2021-yugong-2",
-          "caseId": "poly-2021-autumn",
+          "recordId": "rec-20261104-a8e3db",
+          "caseId": "demo-batch-11",
           "bucket": "weak",
           "score": -1
         }
@@ -4877,8 +4877,8 @@ window.LODESTAR_DEMO_GAME = {
           "label": "举办时间",
           "value": "2021年8月",
           "evidenceValue": "2021年秋季",
-          "state": "caliber",
-          "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量",
+          "state": "edge",
+          "note": "断言写到月、但落在证据季节之外，只能算擦边",
           "demoOnly": true
         },
         {
@@ -4895,15 +4895,15 @@ window.LODESTAR_DEMO_GAME = {
         "code": "conflict",
         "label": "冲突候选",
         "hint": "至少一维的原文值与你的说法冲突；冲突只作候选，不压成「反对」",
-        "score": 3,
-        "basis": "拍卖机构：conflict · 举办时间：caliber · 专场名：exact"
+        "score": 2,
+        "basis": "拍卖机构：conflict · 举办时间：edge · 专场名：exact"
       },
       "matched": [
         {
           "recordId": "rec-poly-2021-yugong-2",
           "caseId": "poly-2021-autumn",
           "bucket": "weak",
-          "score": 3
+          "score": 2
         },
         {
           "recordId": "rec-20261104-bb1fe7",
@@ -4949,8 +4949,8 @@ window.LODESTAR_DEMO_GAME = {
           "label": "举办时间",
           "value": "2021年8月",
           "evidenceValue": "2021年秋季",
-          "state": "caliber",
-          "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量",
+          "state": "edge",
+          "note": "断言写到月、但落在证据季节之外，只能算擦边",
           "demoOnly": true
         },
         {
@@ -4967,15 +4967,15 @@ window.LODESTAR_DEMO_GAME = {
         "code": "uncovered",
         "label": "这批证据没覆盖",
         "hint": "没有任何一条冻结记录同时在两个词上对上或相容",
-        "score": -1,
-        "basis": "拍卖机构：conflict · 举办时间：caliber · 专场名：mismatch"
+        "score": -2,
+        "basis": "拍卖机构：conflict · 举办时间：edge · 专场名：mismatch"
       },
       "matched": [
         {
           "recordId": "rec-poly-2021-yugong-2",
           "caseId": "poly-2021-autumn",
           "bucket": "weak",
-          "score": -1
+          "score": -2
         },
         {
           "recordId": "rec-20261104-bb1fe7",
@@ -5053,7 +5053,7 @@ window.LODESTAR_DEMO_GAME = {
           "recordId": "rec-poly-2021-yugong-2",
           "caseId": "poly-2021-autumn",
           "bucket": "weak",
-          "score": -1
+          "score": -2
         },
         {
           "recordId": "rec-20261104-9863c4",
@@ -5092,18 +5092,18 @@ window.LODESTAR_DEMO_GAME = {
           "slot": "dateText",
           "label": "举办时间",
           "value": "2021年8月",
-          "evidenceValue": "2021年秋季",
-          "state": "caliber",
-          "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量",
+          "evidenceValue": "2022年秋季",
+          "state": "conflict",
+          "note": "两段时间的窗口不相交（冲突只作候选，不压成反对）",
           "demoOnly": true
         },
         {
           "slot": "sessionName",
           "label": "专场名",
           "value": "中國古董珍玩專場",
-          "evidenceValue": "禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-          "state": "mismatch",
-          "note": "归一后仍不是同一个名字",
+          "evidenceValue": "中國古董珍玩專場",
+          "state": "exact",
+          "note": "归一后完全一致",
           "demoOnly": false
         }
       ],
@@ -5112,20 +5112,20 @@ window.LODESTAR_DEMO_GAME = {
         "label": "这批证据没覆盖",
         "hint": "没有任何一条冻结记录同时在两个词上对上或相容",
         "score": -1,
-        "basis": "拍卖机构：conflict · 举办时间：caliber · 专场名：mismatch"
+        "basis": "拍卖机构：conflict · 举办时间：conflict · 专场名：exact"
       },
       "matched": [
-        {
-          "recordId": "rec-poly-2021-yugong-2",
-          "caseId": "poly-2021-autumn",
-          "bucket": "weak",
-          "score": -1
-        },
         {
           "recordId": "rec-20261104-f584a0",
           "caseId": "demo-batch-1",
           "bucket": "not_found",
           "score": -1
+        },
+        {
+          "recordId": "rec-poly-2021-yugong-2",
+          "caseId": "poly-2021-autumn",
+          "bucket": "weak",
+          "score": -2
         },
         {
           "recordId": "rec-20261104-bb1fe7",
@@ -6640,8 +6640,8 @@ window.LODESTAR_DEMO_GAME = {
           "score": 3
         },
         {
-          "recordId": "rec-poly-2021-yugong-2",
-          "caseId": "poly-2021-autumn",
+          "recordId": "rec-20261104-a8e3db",
+          "caseId": "demo-batch-11",
           "bucket": "weak",
           "score": 3
         }
@@ -6677,8 +6677,8 @@ window.LODESTAR_DEMO_GAME = {
           "label": "举办时间",
           "value": "2021年8月",
           "evidenceValue": "2021年秋季",
-          "state": "caliber",
-          "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量",
+          "state": "edge",
+          "note": "断言写到月、但落在证据季节之外，只能算擦边",
           "demoOnly": true
         },
         {
@@ -6692,18 +6692,18 @@ window.LODESTAR_DEMO_GAME = {
         }
       ],
       "conclusion": {
-        "code": "caliber",
-        "label": "只找到相容证据",
-        "hint": "有证据，但至少一维最多只到「说法不同」——很可能是同一场，只是写法不一样，这不能算对上",
-        "score": 7,
-        "basis": "拍卖机构：caliber · 举办时间：caliber · 专场名：exact"
+        "code": "edge",
+        "label": "没有矛盾，但这不能证明",
+        "hint": "有证据，但至少一维只到「没有矛盾，但这不能证明」，撑不起结论",
+        "score": 6,
+        "basis": "拍卖机构：caliber · 举办时间：edge · 专场名：exact"
       },
       "matched": [
         {
           "recordId": "rec-poly-2021-yugong-2",
           "caseId": "poly-2021-autumn",
           "bucket": "weak",
-          "score": 7
+          "score": 6
         },
         {
           "recordId": "rec-poly-2021-yugong-1",
@@ -6749,8 +6749,8 @@ window.LODESTAR_DEMO_GAME = {
           "label": "举办时间",
           "value": "2021年8月",
           "evidenceValue": "2021年秋季",
-          "state": "caliber",
-          "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量",
+          "state": "edge",
+          "note": "断言写到月、但落在证据季节之外，只能算擦边",
           "demoOnly": true
         },
         {
@@ -6767,15 +6767,15 @@ window.LODESTAR_DEMO_GAME = {
         "code": "mismatch",
         "label": "没对上，证据写的是别的",
         "hint": "至少一维的证据明确写的是另一个值",
-        "score": 3,
-        "basis": "拍卖机构：caliber · 举办时间：caliber · 专场名：mismatch"
+        "score": 2,
+        "basis": "拍卖机构：caliber · 举办时间：edge · 专场名：mismatch"
       },
       "matched": [
         {
           "recordId": "rec-poly-2021-yugong-2",
           "caseId": "poly-2021-autumn",
           "bucket": "weak",
-          "score": 3
+          "score": 2
         },
         {
           "recordId": "rec-poly-2021-yugong-1",
@@ -6821,8 +6821,8 @@ window.LODESTAR_DEMO_GAME = {
           "label": "举办时间",
           "value": "2021年8月",
           "evidenceValue": "2021年秋季",
-          "state": "caliber",
-          "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量",
+          "state": "edge",
+          "note": "断言写到月、但落在证据季节之外，只能算擦边",
           "demoOnly": true
         },
         {
@@ -6839,15 +6839,15 @@ window.LODESTAR_DEMO_GAME = {
         "code": "mismatch",
         "label": "没对上，证据写的是别的",
         "hint": "至少一维的证据明确写的是另一个值",
-        "score": 3,
-        "basis": "拍卖机构：caliber · 举办时间：caliber · 专场名：mismatch"
+        "score": 2,
+        "basis": "拍卖机构：caliber · 举办时间：edge · 专场名：mismatch"
       },
       "matched": [
         {
           "recordId": "rec-poly-2021-yugong-2",
           "caseId": "poly-2021-autumn",
           "bucket": "weak",
-          "score": 3
+          "score": 2
         },
         {
           "recordId": "rec-20261104-bb1fe7",
@@ -6873,11 +6873,11 @@ window.LODESTAR_DEMO_GAME = {
       },
       "sentence": "保利拍卖 在 2021年8月 举办了一场名为「中國古董珍玩專場」的拍卖会。",
       "status": "covered",
-      "recordId": "rec-poly-2021-yugong-2",
-      "caseId": "poly-2021-autumn",
-      "recordTitle": "北京保利 · 禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术（2021年秋季）",
-      "gate": "weak",
-      "bucket": "weak",
+      "recordId": "rec-20261104-f584a0",
+      "caseId": "demo-batch-1",
+      "recordTitle": "保利香港拍賣 · 中國古董珍玩專場（2022年7月14日）",
+      "gate": "rejected",
+      "bucket": "not_found",
       "dimensions": [
         {
           "slot": "auctionHouse",
@@ -6892,40 +6892,40 @@ window.LODESTAR_DEMO_GAME = {
           "slot": "dateText",
           "label": "举办时间",
           "value": "2021年8月",
-          "evidenceValue": "2021年秋季",
-          "state": "caliber",
-          "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量",
+          "evidenceValue": "2022年秋季",
+          "state": "conflict",
+          "note": "两段时间的窗口不相交（冲突只作候选，不压成反对）",
           "demoOnly": true
         },
         {
           "slot": "sessionName",
           "label": "专场名",
           "value": "中國古董珍玩專場",
-          "evidenceValue": "禹贡Ⅱ—郎世宁绘《纯惠皇贵妃油画像》暨重要宫廷艺术",
-          "state": "mismatch",
-          "note": "归一后仍不是同一个名字",
+          "evidenceValue": "中國古董珍玩專場",
+          "state": "exact",
+          "note": "归一后完全一致",
           "demoOnly": false
         }
       ],
       "conclusion": {
-        "code": "mismatch",
-        "label": "没对上，证据写的是别的",
-        "hint": "至少一维的证据明确写的是另一个值",
+        "code": "conflict",
+        "label": "冲突候选",
+        "hint": "至少一维的原文值与你的说法冲突；冲突只作候选，不压成「反对」",
         "score": 3,
-        "basis": "拍卖机构：caliber · 举办时间：caliber · 专场名：mismatch"
+        "basis": "拍卖机构：caliber · 举办时间：conflict · 专场名：exact"
       },
       "matched": [
-        {
-          "recordId": "rec-poly-2021-yugong-2",
-          "caseId": "poly-2021-autumn",
-          "bucket": "weak",
-          "score": 3
-        },
         {
           "recordId": "rec-20261104-f584a0",
           "caseId": "demo-batch-1",
           "bucket": "not_found",
           "score": 3
+        },
+        {
+          "recordId": "rec-poly-2021-yugong-2",
+          "caseId": "poly-2021-autumn",
+          "bucket": "weak",
+          "score": 2
         },
         {
           "recordId": "rec-poly-2021-yugong-1",
@@ -7303,10 +7303,10 @@ window.LODESTAR_DEMO_GAME = {
     "byConclusion": {
       "strong": 1,
       "weak": 1,
-      "caliber": 8,
-      "edge": 2,
-      "conflict": 11,
-      "mismatch": 38,
+      "caliber": 6,
+      "edge": 4,
+      "conflict": 13,
+      "mismatch": 36,
       "unknown": 7,
       "uncovered": 32
     },

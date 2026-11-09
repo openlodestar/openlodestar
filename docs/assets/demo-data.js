@@ -44,11 +44,11 @@ window.LODESTAR_DEMO = {
   "derivedExamples": [
     {
       "id": "derived-autumn-jd",
-      "title": "秋季＋北京嘉德 对 8月＋北京市的嘉德",
+      "title": "秋季＋北京嘉德 对 10月＋北京市的嘉德",
       "claim": [
         {
           "label": "举办时间",
-          "value": "2021年8月"
+          "value": "2019年10月"
         },
         {
           "label": "拍卖机构",
@@ -58,7 +58,7 @@ window.LODESTAR_DEMO = {
       "evidence": [
         {
           "label": "举办时间",
-          "value": "2021年秋季"
+          "value": "2019年秋季"
         },
         {
           "label": "拍卖机构",
@@ -70,7 +70,7 @@ window.LODESTAR_DEMO = {
           "label": "举办时间",
           "state": "caliber",
           "weight": 0.7,
-          "note": "月份紧贴证据季节的开场边界，属于季节词写法的提前量"
+          "note": "同一段时间的粗写与细写（证据窗口更宽）"
         },
         {
           "label": "拍卖机构",

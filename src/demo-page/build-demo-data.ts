@@ -455,7 +455,11 @@ function buildDerivedExamples(): DemoDerivedExample[] {
   const timeOnly = (claim: string, evidence: string) => compareTimeDimension(claim, evidence);
   const houseOnly = (claim: string, evidence: string) => compareInstitutionDimension(claim, evidence);
 
-  const firstTime = timeOnly('2021年8月', '2021年秋季');
+  // 这里取真实语料里出现过的口径相容对（断言「2019年10月」、页面写「2019年秋季」）：
+  // 10 月落在秋季（9–11 月）之内，两边是同一段的粗写与细写。
+  // 不再用「8 月 对 秋季」——8 月不在秋季里，页面说了秋季不等于说了 8 月，
+  // 那种对法只擦到放宽圈，归边缘相容，撑不起这个示例要讲的「一维口径相容也能升强」。
+  const firstTime = timeOnly('2019年10月', '2019年秋季');
   const firstHouse = houseOnly('北京嘉德', '北京市的嘉德');
   const firstGrade = gradeDimensions([
     {
@@ -488,13 +492,13 @@ function buildDerivedExamples(): DemoDerivedExample[] {
   return [
     {
       id: 'derived-autumn-jd',
-      title: '秋季＋北京嘉德 对 8月＋北京市的嘉德',
+      title: '秋季＋北京嘉德 对 10月＋北京市的嘉德',
       claim: [
-        { label: '举办时间', value: '2021年8月' },
+        { label: '举办时间', value: '2019年10月' },
         { label: '拍卖机构', value: '北京嘉德' },
       ],
       evidence: [
-        { label: '举办时间', value: '2021年秋季' },
+        { label: '举办时间', value: '2019年秋季' },
         { label: '拍卖机构', value: '北京市的嘉德' },
       ],
       dimensions: [

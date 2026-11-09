@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "note": "人工金标准：记录级的门禁档位与坐标档位。来源是各案例卡里人工写下的预期结局（poly-2021-autumn/case.json、porcelain 的示例测试与 README）；不是引擎当前输出。换样本必须升 benchmark/samples.json 的版本号并重记基线。",
+  "records": [
+    {
+      "batch": "poly-2021-autumn",
+      "recordId": "rec-poly-2021-yugong-1",
+      "gate": "strong",
+      "anchor": "strong",
+      "source": "examples/poly-2021-autumn/case.json"
+    },
+    {
+      "batch": "poly-2021-autumn",
+      "recordId": "rec-poly-2021-yugong-1-nov15",
+      "gate": "rejected",
+      "anchor": null,
+      "source": "examples/poly-2021-autumn/case.json"
+    },
+    {
+      "batch": "poly-2021-autumn",
+      "recordId": "rec-poly-2021-yugong-2",
+      "gate": "weak",
+      "anchor": "weak",
+      "source": "examples/poly-2021-autumn/case.json"
+    },
+    {
+      "batch": "poly-2021-autumn",
+      "recordId": "rec-poly-2021-yugong-3",
+      "gate": "rejected",
+      "anchor": null,
+      "source": "examples/poly-2021-autumn/case.json"
+    },
+    {
+      "batch": "porcelain",
+      "recordId": "rec-example-2014-cguardian",
+      "gate": "strong",
+      "anchor": "strong",
+      "source": "src/lodestar/examples.test.ts 与 examples/porcelain/README.md"
+    },
+    {
+      "batch": "porcelain",
+      "recordId": "rec-example-2016-poly",
+      "gate": "weak",
+      "anchor": "weak",
+      "source": "src/lodestar/examples.test.ts 与 examples/porcelain/README.md"
+    },
+    {
+      "batch": "porcelain",
+      "recordId": "rec-example-2019-sothebys",
+      "gate": "rejected",
+      "anchor": null,
+      "source": "src/lodestar/examples.test.ts 与 examples/porcelain/README.md"
+    }
+  ],
+  "unmeasured": [
+    {
+      "key": "liveRecall",
+      "label": "在线召回率（真检索能不能捞到可裁页）",
+      "direction": "up",
+      "reason": "需要在线检索，离线不可复现；本轮不计入任何读数，也不拿桩数据凑分。",
+      "meaning": "变差意味着：同样的问题在线检索越来越捞不到能裁的页面，再准的判据也无米下锅。"
+    }
+  ]
+}

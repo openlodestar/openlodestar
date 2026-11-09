@@ -59,6 +59,8 @@
     "demo:serve": "node scripts/serve-demo.mjs",
     "demo:freeze": "tsx src/demo-page/freeze-batch.ts",
     "backfill:evidence": "tsx scripts/backfill-evidence-dimensions.ts",
+    "scorecard": "tsx scripts/scorecard.ts",
+    "replay:capture": "tsx scripts/capture-search-replay.ts",
     "verify-quotes": "tsx src/cli.ts verify-quotes",
     "audit": "tsx src/cli.ts audit"
   },

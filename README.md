@@ -252,6 +252,13 @@ scripts/backfill-evidence-dimensions.ts 既有证据行的判据维度回填（�
 docs/demo-design-guide.md   演示方法论：一条演示该证明什么、怎么挑素材、怎么摆证据
 docs/time-window-rules.md   时间窗口的两条口径：断言侧不扩、证据侧上下各放宽一个月
 docs/assertion-routing-e2e.md 断言路由五个分支的句子级落点表（离线端到端，含两个错误方向的样本）
+docs/triage-landing.md      预筛层句子级落点表：四类拒收各自花多少检索，以及两类会误杀可核断言的情况
+docs/search-replay.md       冻结检索结果回放：中文轨 0 召回、英文轨命中本场、图录查询暴露疑似编造链接
+docs/scorecard.md           评分卡：五个分项各自出分、样本锁与历史表，以及进步/退步/没变化的前后对照
+benchmark/                  评分卡的固定考卷：批次清单、人工金标准、基线读数与历史表
+scripts/scorecard.ts        离线评分卡（零外部调用、重跑同分；用例数不进分）
+scripts/capture-search-replay.ts 检索结果采集与冻结（默认干跑只列查询，--allow-spend 才联网）
+examples/replay-search/     冻结的检索回放样本（采集时的模型名、上限、逐条结果）
 docs/evidence-grading-proposal.md 证据分级的架构：抽取 → 逐维比较 → 汇总，加维度＝注册一份实现
 .env.example                在线链路的环境变量模板（复制为 .env；离线命令不需要）
 .github/                    CI 与 issue 模板

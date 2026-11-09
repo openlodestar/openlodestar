@@ -1,0 +1,370 @@
+{
+  "version": 1,
+  "kind": "search-replay",
+  "slug": "porcelain-2021-autumn",
+  "capturedAt": "2026-11-09T10:07:20.261Z",
+  "durationMs": 47032,
+  "provider": "llm-web",
+  "webModel": "qwen-max",
+  "caps": {
+    "maxQueries": 4,
+    "numResultsPerQuery": 10
+  },
+  "input": {
+    "fields": {
+      "auctionHouse": "北京保利",
+      "dateText": "2021年12月5日",
+      "sessionName": "禹贡Ⅰ—盛清御瓷新风尚"
+    },
+    "rawText": "北京保利2021年12月5日举办「禹贡Ⅰ—盛清御瓷新风尚」专场，地点在北京"
+  },
+  "recordId": "rec-replay-porcelain-2021-autumn",
+  "values": {
+    "auctionHouse": "北京保利",
+    "dateText": "2021年12月5日",
+    "sessionName": "禹贡Ⅰ—盛清御瓷新风尚"
+  },
+  "domains": [
+    "council.com.cn",
+    "duoyunxuan.com.cn",
+    "polypm.com.cn",
+    "polyauction.com.cn",
+    "bonhams.com",
+    "christies.com",
+    "ha.com",
+    "hanhai.net",
+    "heritageauctions.com",
+    "phillips.com",
+    "sothebys.com",
+    "sungari1995.com",
+    "xlysauc.com",
+    "cguardian.com",
+    "artron.net",
+    "thevalue.com",
+    "amazon.com",
+    "artnet.com",
+    "artprice.com",
+    "auctionzip.com",
+    "catawiki.com",
+    "ebay.com",
+    "icollector.com",
+    "invaluable.com",
+    "the-saleroom.com",
+    "1stdibs.com",
+    "artpro.com",
+    "artsy.net",
+    "barnebys.com",
+    "chairish.com",
+    "etsy.com",
+    "liveauctioneers.com",
+    "ma-shops.com",
+    "mutualart.com",
+    "mycollect.net",
+    "pamono.com",
+    "proantic.com",
+    "rubylane.com",
+    "trocadero.com",
+    "vcoins.com",
+    "worthpoint.com",
+    "yipai.com"
+  ],
+  "claims": [
+    {
+      "claimId": "cl-rec-replay-porcelain-2021-autumn-auctionHouse",
+      "queryId": "q-replay-porcelain-2021-autumn",
+      "recordId": "rec-replay-porcelain-2021-autumn",
+      "fieldRole": "key",
+      "rawText": "北京保利2021年12月5日举办「禹贡Ⅰ—盛清御瓷新风尚」专场，地点在北京",
+      "atomicText": "2021年12月5日「禹贡Ⅰ—盛清御瓷新风尚」专场由北京保利举办",
+      "subject": "北京保利",
+      "predicate": "主办机构",
+      "object": "北京保利",
+      "timeScope": {
+        "from": "2021-12-05",
+        "to": "2021-12-05"
+      },
+      "channel": "enumerative",
+      "provenance": {
+        "stabilityRuns": 3,
+        "stabilityHits": 3,
+        "promptedDetail": false,
+        "selectionReason": "replay-sample"
+      },
+      "triage": {
+        "passed": true,
+        "reason": "pending-triage"
+      },
+      "state": "pending",
+      "fieldKey": "auctionHouse",
+      "createdAt": "2026-11-09T10:07:20.222Z"
+    },
+    {
+      "claimId": "cl-rec-replay-porcelain-2021-autumn-dateText",
+      "queryId": "q-replay-porcelain-2021-autumn",
+      "recordId": "rec-replay-porcelain-2021-autumn",
+      "fieldRole": "key",
+      "rawText": "北京保利2021年12月5日举办「禹贡Ⅰ—盛清御瓷新风尚」专场，地点在北京",
+      "atomicText": "北京保利于2021年12月5日举办「禹贡Ⅰ—盛清御瓷新风尚」专场",
+      "subject": "北京保利",
+      "predicate": "举办时间",
+      "object": "2021年12月5日",
+      "timeScope": {
+        "from": "2021-12-05",
+        "to": "2021-12-05"
+      },
+      "channel": "enumerative",
+      "provenance": {
+        "stabilityRuns": 3,
+        "stabilityHits": 3,
+        "promptedDetail": false,
+        "selectionReason": "replay-sample"
+      },
+      "triage": {
+        "passed": true,
+        "reason": "pending-triage"
+      },
+      "state": "pending",
+      "fieldKey": "dateText",
+      "createdAt": "2026-11-09T10:07:20.224Z"
+    },
+    {
+      "claimId": "cl-rec-replay-porcelain-2021-autumn-sessionName",
+      "queryId": "q-replay-porcelain-2021-autumn",
+      "recordId": "rec-replay-porcelain-2021-autumn",
+      "fieldRole": "key",
+      "rawText": "北京保利2021年12月5日举办「禹贡Ⅰ—盛清御瓷新风尚」专场，地点在北京",
+      "atomicText": "北京保利2021年12月5日举办的专场名称为「禹贡Ⅰ—盛清御瓷新风尚」",
+      "subject": "北京保利",
+      "predicate": "专场主题",
+      "object": "禹贡Ⅰ—盛清御瓷新风尚",
+      "timeScope": {
+        "from": "2021-12-05",
+        "to": "2021-12-05"
+      },
+      "channel": "enumerative",
+      "provenance": {
+        "stabilityRuns": 3,
+        "stabilityHits": 3,
+        "promptedDetail": false,
+        "selectionReason": "replay-sample"
+      },
+      "triage": {
+        "passed": true,
+        "reason": "pending-triage"
+      },
+      "state": "pending",
+      "fieldKey": "sessionName",
+      "createdAt": "2026-11-09T10:07:20.224Z"
+    }
+  ],
+  "queries": [
+    "北京保利 2021冬季拍卖会 禹贡Ⅰ 盛清御瓷新风尚 拍卖 专场",
+    "北京保利 2021冬季拍卖会 禹贡Ⅰ 盛清御瓷新风尚",
+    "\"禹贡Ⅰ 盛清御瓷新风尚\" 北京保利 2021冬季拍卖会",
+    "北京保利 2021冬季拍卖会 拍卖 图录"
+  ],
+  "skippedQueries": [],
+  "searchCalls": 8,
+  "translation": {
+    "language": "en",
+    "queries": [
+      "Beijing Poly 2021 Winter Auction Yugong I High Qing Imperial Porcelain New Trends auction special sale",
+      "Beijing Poly 2021 Winter Auction Yugong I High Qing Imperial Porcelain New Trends",
+      "\"Yugong I High Qing Imperial Porcelain New Trends\" Beijing Poly 2021 Winter Auction",
+      "Beijing Poly 2021 Winter Auction auction catalog"
+    ]
+  },
+  "tracks": [
+    {
+      "language": "zh-cn",
+      "queries": [
+        "北京保利 2021冬季拍卖会 禹贡Ⅰ 盛清御瓷新风尚 拍卖 专场",
+        "北京保利 2021冬季拍卖会 禹贡Ⅰ 盛清御瓷新风尚",
+        "\"禹贡Ⅰ 盛清御瓷新风尚\" 北京保利 2021冬季拍卖会",
+        "北京保利 2021冬季拍卖会 拍卖 图录"
+      ],
+      "results": []
+    },
+    {
+      "language": "en",
+      "queries": [
+        "Beijing Poly 2021 Winter Auction Yugong I High Qing Imperial Porcelain New Trends auction special sale",
+        "Beijing Poly 2021 Winter Auction Yugong I High Qing Imperial Porcelain New Trends",
+        "\"Yugong I High Qing Imperial Porcelain New Trends\" Beijing Poly 2021 Winter Auction",
+        "Beijing Poly 2021 Winter Auction auction catalog"
+      ],
+      "results": [
+        {
+          "url": "https://www.chinadaily.com.cn/a/202112/06/WS61ac9d5ea310cdd39bc7a4b8.html",
+          "title": "Poly Auctions' winter sale in Beijing to showcase imperial porcelain - Chinadaily.com.cn",
+          "snippet": "The 2021 Poly Winter Auction will be held at the China National Convention Center in Beijing from Dec 2-7, featuring a special session on 'Yugong I: High Qing Imperial Porcelain and New Trends'.",
+          "position": 1,
+          "queryIndex": 0
+        },
+        {
+          "url": "https://www.polyauction.com/hk/en/auctions/2021-beijing-winter-auction",
+          "title": "2021 Beijing Winter Auction | Poly Auction Hong Kong",
+          "snippet": "The 2021 Beijing Winter Auction by Poly Auction includes a special session on 'Yugong I: High Qing Imperial Porcelain and New Trends', showcasing rare and exquisite pieces.",
+          "position": 2,
+          "queryIndex": 0
+        },
+        {
+          "url": "https://www.artnet.com/news/poly-auction-beijing-2021-high-qing-imperial-porcelain/",
+          "title": "Poly Auction Beijing 2021: High Qing Imperial Porcelain Highlights - artnet News",
+          "snippet": "The 2021 Poly Winter Auction in Beijing features a special session titled 'Yugong I: High Qing Imperial Porcelain and New Trends', with a focus on high-quality and historically significant pieces.",
+          "position": 3,
+          "queryIndex": 0
+        },
+        {
+          "url": "https://www.thevalue.com/auctionnews/117655",
+          "title": "Poly Auction 2021 Beijing Winter Sale: Yugong I - High Qing Imperial Porcelain and New Trends",
+          "snippet": "Poly Auction's 2021 Beijing Winter Sale includes a special session titled 'Yugong I: High Qing Imperial Porcelain and New Trends', which highlights rare and valuable porcelain pieces from the Qing dynasty.",
+          "position": 4,
+          "queryIndex": 0
+        },
+        {
+          "url": "https://www.antiquesandthearts.com/poly-auction-beijing-2021-high-qing-imperial-porcelain-new-trends/",
+          "title": "Poly Auction Beijing 2021: High Qing Imperial Porcelain and New Trends",
+          "snippet": "Poly Auction's 2021 Beijing Winter Auction features a special session on 'Yugong I: High Qing Imperial Porcelain and New Trends', presenting a selection of fine and rare porcelain pieces.",
+          "position": 5,
+          "queryIndex": 0
+        },
+        {
+          "url": "https://www.polyauction.com/en/auction/2021-autumn",
+          "title": "Poly Auction - 2021 Autumn Auction",
+          "snippet": "Poly Auction's 2021 Autumn Auction. Find the latest information and catalog for the auction.",
+          "position": 1,
+          "queryIndex": 3
+        },
+        {
+          "url": "https://www.polyauction.com/en/auction/2021-winter",
+          "title": "Poly Auction - 2021 Winter Auction",
+          "snippet": "Explore the 2021 Winter Auction by Poly Auction, featuring a wide range of art and collectibles. View the full catalog online.",
+          "position": 2,
+          "queryIndex": 3
+        },
+        {
+          "url": "https://www.artnet.com/auctions/poly-auction-2021-winter-catalog",
+          "title": "Poly Auction 2021 Winter Catalog | artnet",
+          "snippet": "View the complete catalog for the Poly Auction 2021 Winter sale on artnet. Discover the artworks and items up for auction.",
+          "position": 3,
+          "queryIndex": 3
+        },
+        {
+          "url": "https://www.christies.com/features/poly-auction-2021-winter-catalog-10638-1.aspx",
+          "title": "Poly Auction 2021 Winter Catalog | Christie's",
+          "snippet": "Christie's presents the Poly Auction 2021 Winter Catalog. Browse the collection and find details about the upcoming auction.",
+          "position": 4,
+          "queryIndex": 3
+        },
+        {
+          "url": "https://www.sothebys.com/en/auctions/poly-auction-2021-winter-catalog",
+          "title": "Poly Auction 2021 Winter Catalog | Sotheby's",
+          "snippet": "Discover the Poly Auction 2021 Winter Catalog at Sotheby's. Explore the lots and learn more about the auction event.",
+          "position": 5,
+          "queryIndex": 3
+        },
+        {
+          "url": "https://www.invaluable.com/catalog/poly-auction-2021-winter-catalog",
+          "title": "Poly Auction 2021 Winter Catalog | Invaluable",
+          "snippet": "Browse the Poly Auction 2021 Winter Catalog on Invaluable. See the detailed listings and participate in the auction.",
+          "position": 6,
+          "queryIndex": 3
+        },
+        {
+          "url": "https://www.liveauctioneers.com/catalog/poly-auction-2021-winter-catalog",
+          "title": "Poly Auction 2021 Winter Catalog | LiveAuctioneers",
+          "snippet": "View the Poly Auction 2021 Winter Catalog on LiveAuctioneers. Find the auction details and register to bid.",
+          "position": 7,
+          "queryIndex": 3
+        },
+        {
+          "url": "https://www.bonhams.com/auctions/27594/",
+          "title": "Poly Auction 2021 Winter Catalog | Bonhams",
+          "snippet": "Bonhams presents the Poly Auction 2021 Winter Catalog. Explore the items and get ready for the auction.",
+          "position": 8,
+          "queryIndex": 3
+        },
+        {
+          "url": "https://www.polyauction.com.cn/en/auction/2021-winter",
+          "title": "Poly Auction 2021 Winter Auction | Poly Auction China",
+          "snippet": "Visit the official site for the Poly Auction 2021 Winter Auction. Access the catalog and see the featured items.",
+          "position": 9,
+          "queryIndex": 3
+        },
+        {
+          "url": "https://www.artron.net/auction/2021-winter-poly-auction-catalog",
+          "title": "Poly Auction 2021 Winter Catalog | Artron",
+          "snippet": "Artron provides the Poly Auction 2021 Winter Catalog. Explore the collection and stay updated with the auction details.",
+          "position": 10,
+          "queryIndex": 3
+        }
+      ]
+    }
+  ],
+  "perQuery": [
+    {
+      "language": "zh-cn",
+      "query": "北京保利 2021冬季拍卖会 禹贡Ⅰ 盛清御瓷新风尚 拍卖 专场",
+      "returned": 0,
+      "candidates": 0,
+      "onTopic": 0
+    },
+    {
+      "language": "zh-cn",
+      "query": "北京保利 2021冬季拍卖会 禹贡Ⅰ 盛清御瓷新风尚",
+      "returned": 0,
+      "candidates": 0,
+      "onTopic": 0
+    },
+    {
+      "language": "zh-cn",
+      "query": "\"禹贡Ⅰ 盛清御瓷新风尚\" 北京保利 2021冬季拍卖会",
+      "returned": 0,
+      "candidates": 0,
+      "onTopic": 0
+    },
+    {
+      "language": "zh-cn",
+      "query": "北京保利 2021冬季拍卖会 拍卖 图录",
+      "returned": 0,
+      "candidates": 0,
+      "onTopic": 0
+    },
+    {
+      "language": "en",
+      "query": "Beijing Poly 2021 Winter Auction Yugong I High Qing Imperial Porcelain New Trends auction special sale",
+      "returned": 5,
+      "candidates": 5,
+      "onTopic": 5
+    },
+    {
+      "language": "en",
+      "query": "Beijing Poly 2021 Winter Auction Yugong I High Qing Imperial Porcelain New Trends",
+      "returned": 0,
+      "candidates": 0,
+      "onTopic": 0
+    },
+    {
+      "language": "en",
+      "query": "\"Yugong I High Qing Imperial Porcelain New Trends\" Beijing Poly 2021 Winter Auction",
+      "returned": 0,
+      "candidates": 0,
+      "onTopic": 0
+    },
+    {
+      "language": "en",
+      "query": "Beijing Poly 2021 Winter Auction auction catalog",
+      "returned": 10,
+      "candidates": 10,
+      "onTopic": 10
+    }
+  ],
+  "totals": {
+    "returned": 15,
+    "candidates": 15,
+    "perQueryCandidates": 15,
+    "onTopic": 15,
+    "uniqueCandidateUrls": 15
+  }
+}

@@ -251,6 +251,7 @@ scripts/serve-demo.mjs      docs/ 下静态页面的本地预览（只绑 127.0.
 scripts/backfill-evidence-dimensions.ts 既有证据行的判据维度回填（规则优先、模型兜底、逐字子串校验）
 docs/demo-design-guide.md   演示方法论：一条演示该证明什么、怎么挑素材、怎么摆证据
 docs/time-window-rules.md   时间窗口的两条口径：断言侧不扩、证据侧上下各放宽一个月
+docs/assertion-routing-e2e.md 断言路由五个分支的句子级落点表（离线端到端，含两个错误方向的样本）
 docs/evidence-grading-proposal.md 证据分级的架构：抽取 → 逐维比较 → 汇总，加维度＝注册一份实现
 .env.example                在线链路的环境变量模板（复制为 .env；离线命令不需要）
 .github/                    CI 与 issue 模板

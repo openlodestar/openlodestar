@@ -21,6 +21,7 @@ import {
   DETAIL_PATH_HINTS,
   familyOf,
   HUB_PATH_HINTS,
+  institutionConflictOf,
   knownHostsOf,
   normalizeSessionName,
   officialHostsOfHouse,
@@ -421,6 +422,10 @@ export const porcelainPack: DomainPack = {
 
   blockedReason(url) {
     return blockedReasonOf(url);
+  },
+
+  institutionConflictOf(input) {
+    return institutionConflictOf(input);
   },
 
   isDetailLink({ candidateUrl, pathname, search, hubUrl, anchorText }) {

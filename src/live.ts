@@ -120,7 +120,8 @@ export function estimateLiveRun(input: {
   const { caps } = input;
   const records = Math.max(1, input.recordCount);
   const claims = Math.max(1, input.claimCount);
-  // 每条记录一次共用检索：查询数 × 2 轨；再加一次整组查询的翻译调用
+  // 每条记录一次共用检索：源查询 + 0 召回补发（最坏各占一半，合计不超过 2×）；
+  // 再加一次整组查询的翻译调用。补发只落在真正空手的查询上，实际通常低于这个上界。
   const searchCalls = records * caps.maxSearchCalls * 2 + records;
   return {
     mode: input.mode,

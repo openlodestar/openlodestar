@@ -52,13 +52,5 @@
       "source": "src/lodestar/examples.test.ts 与 examples/porcelain/README.md"
     }
   ],
-  "unmeasured": [
-    {
-      "key": "liveRecall",
-      "label": "在线召回率（真检索能不能捞到可裁页）",
-      "direction": "up",
-      "reason": "需要在线检索，离线不可复现；本轮不计入任何读数，也不拿桩数据凑分。",
-      "meaning": "变差意味着：同样的问题在线检索越来越捞不到能裁的页面，再准的判据也无米下锅。"
-    }
-  ]
+  "unmeasured": []
 }

@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "kind": "search-language-probe",
+  "capturedAt": "2026-11-09T10:29:06.083Z",
+  "durationMs": 31962,
+  "provider": "llm-web",
+  "webModel": "qwen-max",
+  "purpose": "判定中文轨 0 召回是提供者语言行为还是查询构造问题（控制变量：同一事件由宽到窄）",
+  "probes": [
+    {
+      "language": "zh-cn",
+      "query": "北京保利 拍卖",
+      "note": "最宽：只有机构名",
+      "returned": 0,
+      "urls": []
+    },
+    {
+      "language": "zh-cn",
+      "query": "北京保利 2021冬季拍卖会",
+      "note": "加年份与拍季，无专场名",
+      "returned": 0,
+      "urls": []
+    },
+    {
+      "language": "zh-cn",
+      "query": "北京保利 2021冬季拍卖会 禹贡 盛清御瓷新风尚",
+      "note": "去罗马数字「Ⅰ」、去引号",
+      "returned": 2,
+      "urls": [
+        "https://new.qq.com/omn/20211128/20211128A07YUL00.html",
+        "https://new.qq.com/omn/20211212/20211212A077WZ00.html"
+      ]
+    },
+    {
+      "language": "en",
+      "query": "Beijing Poly 2021 Winter Auction",
+      "note": "英文对照（同样宽度）",
+      "returned": 3,
+      "urls": [
+        "https://www.polyauction.com.cn/hk/news/2021-12-03/458.html",
+        "https://www.chinadaily.com.cn/a/202112/04/WS61a9f7cda310cdd39bc7d44e.html",
+        "https://www.artnet.com/art-world/beijing-poly-auction-2021-fall-highlights-2017660"
+      ]
+    },
+    {
+      "language": "zh-cn",
+      "query": "北京保利 2021冬季拍卖会 禹贡Ⅰ 盛清御瓷新风尚",
+      "note": "与上一条只差罗马数字「Ⅰ」",
+      "returned": 0,
+      "urls": []
+    },
+    {
+      "language": "zh-cn",
+      "query": "北京保利 2021冬季拍卖会 禹贡Ⅰ 盛清御瓷新风尚 拍卖 专场",
+      "note": "冻结样本里的原始查询 #1（逐字）",
+      "returned": 0,
+      "urls": []
+    },
+    {
+      "language": "zh-cn",
+      "query": "北京保利 2021冬季拍卖会 禹贡 盛清御瓷新风尚",
+      "note": "重复上一条窄查询：量一次同题重跑的抖动",
+      "returned": 0,
+      "urls": []
+    }
+  ]
+}

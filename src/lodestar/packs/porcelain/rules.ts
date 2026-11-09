@@ -512,6 +512,83 @@ export function officialHostsOfHouse(text: string | null | undefined): string[] 
 }
 
 /**
+ * 这些拉丁别名本身是普通英文词，不能拿来判"标题点名了哪家机构"：
+ * "cultural heritage" 不是 Heritage Auctions，"The Guardian" 不是中国嘉德，
+ * "art council" 不是北京匡时。判机构冲突时它们被剔除，只留全称/汉字名/专有拼写。
+ */
+const AMBIGUOUS_LATIN_ALIASES = new Set(['heritage', 'guardian', 'council']);
+
+/** 已知拍行官网的注册域 → 机构（用于"标题点名机构 vs 域名所属机构"的冲突判据） */
+const HOUSE_BY_DOMAIN: ReadonlyMap<string, string> = (() => {
+  const map = new Map<string, string>();
+  for (const [house] of HOUSE_ALIASES) {
+    for (const host of officialHostsOfHouse(house)) map.set(host, house);
+  }
+  return map;
+})();
+
+/** 标题是否点名了某家机构（拉丁别名按词边界，汉字别名按子串） */
+function titleMentionsHouse(title: string, house: string): boolean {
+  const aliases = HOUSE_ALIASES.find(([name]) => name === house)?.[1] ?? [];
+  const needles = [house, ...aliases]
+    .filter((needle) => !needle.includes('.'))
+    .filter((needle) => !AMBIGUOUS_LATIN_ALIASES.has(needle.toLowerCase()))
+    .map((needle) => foldGlyphVariants(needle).toLowerCase())
+    .filter((needle) => needle.length >= 2);
+  const haystack = foldGlyphVariants(title).toLowerCase();
+  for (const needle of needles) {
+    if (/^[a-z0-9' ]+$/.test(needle)) {
+      // 拉丁串必须整词命中：poly 不能命中 polychrome，phillips 不能命中 phillipson
+      const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/'/g, "'?");
+      if (new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(haystack)) return true;
+    } else if (haystack.includes(needle)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 编造链接的机械判据：**标题点名的机构，与域名所属机构不是同一家**。
+ *
+ * 实测来源：一次检索里出现 3 条「佳士得／苏富比／邦瀚斯域名挂保利图录」的结果
+ * （标题写着 Poly Auction 2021 Winter Catalog，域名却是 christies.com 等）。
+ * 这类链接对证据链的害处不是"质量差"，而是**它会当作第三方佐证，把一条断言
+ * 推成"多源共现"**——等于用假来源把假结论坐实。
+ *
+ * 判据只看两件可机械核对的事：域名注册域是否属于已知拍行；标题里是否出现了
+ * 另一家拍行的名字。命中即拒，理由写进检索足迹（可审计、可申诉）。
+ *
+ * **会误杀什么（如实写进文档，不假装没有代价）**：
+ * - 拍行官网上转述别家的报道 / 对比文章（标题里必然出现别家名）；
+ * - 联合专场、合作公告、人事与行业新闻；
+ * - 标题里只是提到某人"旧藏于佳士得"这类非事件表述。
+ * 聚合站（雅昌、TheValue、artnet 等）不在已知拍行域名表里，不会触发，因此
+ * 转述页不受影响；反过来，识别不了的拍行域名（如不在白名单的 polyauction.com）
+ * 也不会触发——这是**漏杀**，比误杀安全，留待域名表扩充时再收紧。
+ */
+export function institutionConflictOf(input: { url: string; title: string }): string | null {
+  let host = '';
+  try {
+    host = new URL(input.url).hostname;
+  } catch {
+    return null;
+  }
+  const domain = registrableDomain(host);
+  const ownHouse = HOUSE_BY_DOMAIN.get(domain);
+  if (ownHouse === undefined) return null;
+  const title = (input.title ?? '').trim();
+  if (title === '') return null;
+  for (const [house] of HOUSE_ALIASES) {
+    if (house === ownHouse) continue;
+    if (titleMentionsHouse(title, house)) {
+      return `标题点名「${house}」，但域名 ${domain} 属于「${ownHouse}」（链接自相矛盾，疑似编造）`;
+    }
+  }
+  return null;
+}
+
+/**
  * 已知平台的入口通道（域知识）：归档页给 `archive`，站内检索给 `site-search`。
  *
  * 只列**已从证据页或白名单确认存在的主机与路径族**——这里拼出来的只是候选，

@@ -1,0 +1,420 @@
+{
+  "version": 2,
+  "kind": "search-replay",
+  "slug": "cg-2021-autumn",
+  "capturedAt": "2026-11-09T10:36:07.691Z",
+  "durationMs": 48080,
+  "provider": "llm-web",
+  "webModel": "qwen-max",
+  "caps": {
+    "maxQueries": 4,
+    "numResultsPerQuery": 10
+  },
+  "input": {
+    "fields": {
+      "auctionHouse": "中国嘉德国际拍卖有限公司",
+      "dateText": "2021年11月26日至12月13日",
+      "sessionName": "宸赏—明清御瓷珍玩"
+    },
+    "rawText": "2021年11月26日至12月13日「宸赏—明清御瓷珍玩」专场由中国嘉德国际拍卖有限公司举办"
+  },
+  "matchTerms": [
+    "宸赏",
+    "明清御瓷",
+    "御瓷",
+    "Imperial Porcelain",
+    "Ming and Qing"
+  ],
+  "recordId": "rec-replay-cg-2021-autumn",
+  "values": {
+    "auctionHouse": "中国嘉德国际拍卖有限公司",
+    "dateText": "2021年11月26日至12月13日",
+    "sessionName": "宸赏—明清御瓷珍玩"
+  },
+  "domains": [
+    "council.com.cn",
+    "duoyunxuan.com.cn",
+    "polypm.com.cn",
+    "polyauction.com.cn",
+    "bonhams.com",
+    "christies.com",
+    "ha.com",
+    "hanhai.net",
+    "heritageauctions.com",
+    "phillips.com",
+    "sothebys.com",
+    "sungari1995.com",
+    "xlysauc.com",
+    "cguardian.com",
+    "artron.net",
+    "thevalue.com",
+    "amazon.com",
+    "artnet.com",
+    "artprice.com",
+    "auctionzip.com",
+    "catawiki.com",
+    "ebay.com",
+    "icollector.com",
+    "invaluable.com",
+    "the-saleroom.com",
+    "1stdibs.com",
+    "artpro.com",
+    "artsy.net",
+    "barnebys.com",
+    "chairish.com",
+    "etsy.com",
+    "liveauctioneers.com",
+    "ma-shops.com",
+    "mutualart.com",
+    "mycollect.net",
+    "pamono.com",
+    "proantic.com",
+    "rubylane.com",
+    "trocadero.com",
+    "vcoins.com",
+    "worthpoint.com",
+    "yipai.com"
+  ],
+  "claims": [
+    {
+      "claimId": "cl-rec-replay-cg-2021-autumn-auctionHouse",
+      "queryId": "q-replay-cg-2021-autumn",
+      "recordId": "rec-replay-cg-2021-autumn",
+      "fieldRole": "key",
+      "rawText": "2021年11月26日至12月13日「宸赏—明清御瓷珍玩」专场由中国嘉德国际拍卖有限公司举办",
+      "atomicText": "2021年11月26日至12月13日「宸赏—明清御瓷珍玩」专场由中国嘉德国际拍卖有限公司举办",
+      "subject": "中国嘉德国际拍卖有限公司",
+      "predicate": "主办机构",
+      "object": "中国嘉德国际拍卖有限公司",
+      "timeScope": {
+        "from": "2021-11-26",
+        "to": "2021-12-13"
+      },
+      "channel": "enumerative",
+      "provenance": {
+        "stabilityRuns": 3,
+        "stabilityHits": 3,
+        "promptedDetail": false,
+        "selectionReason": "replay-sample"
+      },
+      "triage": {
+        "passed": true,
+        "reason": "pending-triage"
+      },
+      "state": "pending",
+      "fieldKey": "auctionHouse",
+      "createdAt": "2026-11-09T10:36:07.684Z"
+    },
+    {
+      "claimId": "cl-rec-replay-cg-2021-autumn-dateText",
+      "queryId": "q-replay-cg-2021-autumn",
+      "recordId": "rec-replay-cg-2021-autumn",
+      "fieldRole": "key",
+      "rawText": "2021年11月26日至12月13日「宸赏—明清御瓷珍玩」专场由中国嘉德国际拍卖有限公司举办",
+      "atomicText": "中国嘉德国际拍卖有限公司于2021年11月26日至12月13日举办「宸赏—明清御瓷珍玩」专场",
+      "subject": "中国嘉德国际拍卖有限公司",
+      "predicate": "举办时间",
+      "object": "2021年11月26日至12月13日",
+      "timeScope": {
+        "from": "2021-11-26",
+        "to": "2021-12-13"
+      },
+      "channel": "enumerative",
+      "provenance": {
+        "stabilityRuns": 3,
+        "stabilityHits": 3,
+        "promptedDetail": false,
+        "selectionReason": "replay-sample"
+      },
+      "triage": {
+        "passed": true,
+        "reason": "pending-triage"
+      },
+      "state": "pending",
+      "fieldKey": "dateText",
+      "createdAt": "2026-11-09T10:36:07.685Z"
+    },
+    {
+      "claimId": "cl-rec-replay-cg-2021-autumn-sessionName",
+      "queryId": "q-replay-cg-2021-autumn",
+      "recordId": "rec-replay-cg-2021-autumn",
+      "fieldRole": "key",
+      "rawText": "2021年11月26日至12月13日「宸赏—明清御瓷珍玩」专场由中国嘉德国际拍卖有限公司举办",
+      "atomicText": "中国嘉德国际拍卖有限公司2021年11月26日至12月13日举办的专场名称为「宸赏—明清御瓷珍玩」",
+      "subject": "中国嘉德国际拍卖有限公司",
+      "predicate": "专场主题",
+      "object": "宸赏—明清御瓷珍玩",
+      "timeScope": {
+        "from": "2021-11-26",
+        "to": "2021-12-13"
+      },
+      "channel": "enumerative",
+      "provenance": {
+        "stabilityRuns": 3,
+        "stabilityHits": 3,
+        "promptedDetail": false,
+        "selectionReason": "replay-sample"
+      },
+      "triage": {
+        "passed": true,
+        "reason": "pending-triage"
+      },
+      "state": "pending",
+      "fieldKey": "sessionName",
+      "createdAt": "2026-11-09T10:36:07.685Z"
+    }
+  ],
+  "queries": [
+    "中国嘉德 2021秋季拍卖会 宸赏 明清御瓷珍玩 拍卖 专场",
+    "中国嘉德 2021秋季拍卖会 宸赏 明清御瓷珍玩",
+    "\"宸赏 明清御瓷珍玩\" 中国嘉德 2021秋季拍卖会",
+    "中国嘉德 2021秋季拍卖会 拍卖 图录"
+  ],
+  "skippedQueries": [],
+  "searchCalls": 8,
+  "translation": {
+    "language": "en",
+    "queries": [
+      "China Guardian 2021 Autumn Auction Chen Shang Ming Qing Imperial Porcelain and Fine Wares Special Sale",
+      "China Guardian 2021 Autumn Auction Chen Shang Ming Qing Imperial Porcelain and Fine Wares",
+      "\"Chen Shang Ming Qing Imperial Porcelain and Fine Wares\" China Guardian 2021 Autumn Auction",
+      "China Guardian 2021 Autumn Auction Catalog"
+    ]
+  },
+  "repairs": [
+    {
+      "query": "中国嘉德 2021秋季拍卖会 宸赏 明清御瓷珍玩 拍卖 专场",
+      "translatedQuery": "China Guardian 2021 Autumn Auction Chen Shang Ming Qing Imperial Porcelain and Fine Wares Special Sale",
+      "returned": 5
+    },
+    {
+      "query": "中国嘉德 2021秋季拍卖会 宸赏 明清御瓷珍玩",
+      "translatedQuery": "China Guardian 2021 Autumn Auction Chen Shang Ming Qing Imperial Porcelain and Fine Wares",
+      "returned": 5
+    },
+    {
+      "query": "\"宸赏 明清御瓷珍玩\" 中国嘉德 2021秋季拍卖会",
+      "translatedQuery": "\"Chen Shang Ming Qing Imperial Porcelain and Fine Wares\" China Guardian 2021 Autumn Auction",
+      "returned": 5
+    },
+    {
+      "query": "中国嘉德 2021秋季拍卖会 拍卖 图录",
+      "translatedQuery": "China Guardian 2021 Autumn Auction Catalog",
+      "returned": 3
+    }
+  ],
+  "tracks": [
+    {
+      "language": "zh-cn",
+      "queries": [
+        "中国嘉德 2021秋季拍卖会 宸赏 明清御瓷珍玩 拍卖 专场",
+        "中国嘉德 2021秋季拍卖会 宸赏 明清御瓷珍玩",
+        "\"宸赏 明清御瓷珍玩\" 中国嘉德 2021秋季拍卖会",
+        "中国嘉德 2021秋季拍卖会 拍卖 图录"
+      ],
+      "results": []
+    },
+    {
+      "language": "en",
+      "queries": [
+        "China Guardian 2021 Autumn Auction Chen Shang Ming Qing Imperial Porcelain and Fine Wares Special Sale",
+        "China Guardian 2021 Autumn Auction Chen Shang Ming Qing Imperial Porcelain and Fine Wares",
+        "\"Chen Shang Ming Qing Imperial Porcelain and Fine Wares\" China Guardian 2021 Autumn Auction",
+        "China Guardian 2021 Autumn Auction Catalog"
+      ],
+      "results": [
+        {
+          "url": "https://www.china-guardian.com/en/news/2021-11-30/1594.html",
+          "title": "China Guardian 2021 Autumn Auctions | Fine Chinese Ceramics and Works of Art",
+          "snippet": "China Guardian 2021 Autumn Auctions featured a special sale of fine Chinese ceramics and works of art, including Ming and Qing Imperial porcelain.",
+          "position": 1,
+          "queryIndex": 0
+        },
+        {
+          "url": "https://www.china-guardian.com/en/auction/2021-autumn/",
+          "title": "2021 Autumn Auctions - China Guardian",
+          "snippet": "The 2021 Autumn Auctions by China Guardian included a wide range of items, with a focus on Ming and Qing Imperial porcelain and other fine wares.",
+          "position": 2,
+          "queryIndex": 0
+        },
+        {
+          "url": "https://www.china-guardian.com/en/news/2021-12-06/1602.html",
+          "title": "Highlights from the 2021 Autumn Auctions at China Guardian",
+          "snippet": "Discover the highlights from the 2021 Autumn Auctions, which included a special sale of Ming and Qing Imperial porcelain and fine wares.",
+          "position": 3,
+          "queryIndex": 0
+        },
+        {
+          "url": "https://www.china-guardian.com/en/auction/2021-autumn/ceramics-and-works-of-art/",
+          "title": "Ceramics and Works of Art - 2021 Autumn Auctions",
+          "snippet": "Explore the Ceramics and Works of Art section of the 2021 Autumn Auctions, featuring a special sale of Ming and Qing Imperial porcelain.",
+          "position": 4,
+          "queryIndex": 0
+        },
+        {
+          "url": "https://www.artnet.com/auctions/china-guardian-2021-autumn-auction",
+          "title": "China Guardian 2021 Autumn Auction - artnet",
+          "snippet": "View the results and highlights from the China Guardian 2021 Autumn Auction, which included a special sale of Ming and Qing Imperial porcelain and fine wares.",
+          "position": 5,
+          "queryIndex": 0
+        },
+        {
+          "url": "https://www.chinaguardian.com/en/news/2021-12-03/5978.html",
+          "title": "China Guardian 2021 Autumn Auctions | Chinese Ceramics and Works of Art",
+          "snippet": "The 2021 China Guardian Autumn Auctions featured a collection of Ming and Qing Imperial Porcelain and Fine Wares, including pieces by renowned artists.",
+          "position": 1,
+          "queryIndex": 1
+        },
+        {
+          "url": "https://www.chinadaily.com.cn/a/202112/04/WS61a9d7cda310cdd39bc7b5a5.html",
+          "title": "Highlights from China Guardian's 2021 autumn auction - Chinadaily.com.cn",
+          "snippet": "China Guardian's 2021 autumn auction included a range of high-quality items, with a focus on Ming and Qing dynasty imperial porcelain and fine wares.",
+          "position": 2,
+          "queryIndex": 1
+        },
+        {
+          "url": "https://www.artnet.com/news/china-guardian-auctions-fall-2021-highlights-1974440",
+          "title": "China Guardian’s Fall 2021 Auction Highlights | artnet News",
+          "snippet": "China Guardian's fall 2021 auction featured an impressive selection of Ming and Qing imperial porcelain and fine wares, attracting collectors and enthusiasts alike.",
+          "position": 3,
+          "queryIndex": 1
+        },
+        {
+          "url": "https://www.barrons.com/articles/china-guardian-autumn-auction-highlights-51638567676",
+          "title": "China Guardian's Autumn Auction Highlights | Barron's",
+          "snippet": "China Guardian's 2021 autumn auction showcased a variety of Ming and Qing imperial porcelain and fine wares, with many notable pieces achieving high prices.",
+          "position": 4,
+          "queryIndex": 1
+        },
+        {
+          "url": "https://www.scmp.com/lifestyle/arts-culture/article/3162547/china-guardian-autumn-auction-highlights-ming-and-qing-porcelain",
+          "title": "China Guardian Autumn Auction Highlights: Ming and Qing Porcelain | South China Morning Post",
+          "snippet": "The 2021 China Guardian Autumn Auction highlighted an array of Ming and Qing imperial porcelain and fine wares, drawing significant attention from collectors.",
+          "position": 5,
+          "queryIndex": 1
+        },
+        {
+          "url": "https://www.china-guardian.com/en/News/Details/129",
+          "title": "China Guardian 2021 Autumn Auctions - China Guardian Auctions Co., Ltd.",
+          "snippet": "The 2021 Autumn Auctions of China Guardian will be held in Beijing, presenting a wide range of fine arts and antiques, including Ming and Qing imperial porcelains.",
+          "position": 1,
+          "queryIndex": 2
+        },
+        {
+          "url": "https://www.china-guardian.com/en/News/Details/130",
+          "title": "Highlights from the 2021 Autumn Auction - China Guardian Auctions Co., Ltd.",
+          "snippet": "Discover the highlights from the 2021 Autumn Auction, featuring an exquisite collection of Ming and Qing dynasty imperial porcelains and other fine wares.",
+          "position": 2,
+          "queryIndex": 2
+        },
+        {
+          "url": "https://www.china-guardian.com/en/Auction/Lot/123456",
+          "title": "Chen Shang Ming Qing Imperial Porcelain - Lot 123456 - China Guardian",
+          "snippet": "Lot 123456: A rare and important Chen Shang Ming Qing imperial porcelain vase, featured in the 2021 Autumn Auction at China Guardian.",
+          "position": 3,
+          "queryIndex": 2
+        },
+        {
+          "url": "https://www.china-guardian.com/en/News/Details/131",
+          "title": "Ming and Qing Dynasty Porcelain Highlights - China Guardian Auctions Co., Ltd.",
+          "snippet": "Explore the finest examples of Ming and Qing dynasty porcelain, including pieces by Chen Shang, showcased in the 2021 Autumn Auction.",
+          "position": 4,
+          "queryIndex": 2
+        },
+        {
+          "url": "https://www.china-guardian.com/en/News/Details/132",
+          "title": "Imperial Wares at the 2021 Autumn Auction - China Guardian Auctions Co., Ltd.",
+          "snippet": "The 2021 Autumn Auction features a selection of imperial wares, including Ming and Qing porcelain, with a focus on the works of Chen Shang.",
+          "position": 5,
+          "queryIndex": 2
+        },
+        {
+          "url": "https://www.chinaguardian.com/en/news/2021-10-28/157.html",
+          "title": "China Guardian 2021 Autumn Auctions Catalogues | China Guardian Auctions Co., Ltd.",
+          "snippet": "China Guardian 2021 Autumn Auctions Catalogues. Chinese Paintings and Calligraphy. Ancient Chinese Paintings and Calligraphy (Day Sale) ...",
+          "position": 1,
+          "queryIndex": 3
+        },
+        {
+          "url": "https://www.chinaguardian.com/en/auctions/2021-autumn-auction.html",
+          "title": "2021 Autumn Auction - China Guardian Auctions Co., Ltd.",
+          "snippet": "2021 Autumn Auction. Date: Dec. 3, 2021 - Dec. 5, 2021. Location: Beijing International Hotel Conference Center.",
+          "position": 2,
+          "queryIndex": 3
+        },
+        {
+          "url": "https://www.chinaguardian.com/en/catalogue/2021-autumn-chinese-paintings-and-calligraphy.html",
+          "title": "2021 Autumn Chinese Paintings and Calligraphy - China Guardian Auctions Co., Ltd.",
+          "snippet": "2021 Autumn Chinese Paintings and Calligraphy. Lot No. Title Estimate Price Sold Price Status. 1. Qi Baishi (1864-1957) ...",
+          "position": 3,
+          "queryIndex": 3
+        }
+      ]
+    }
+  ],
+  "perQuery": [
+    {
+      "language": "zh-cn",
+      "query": "中国嘉德 2021秋季拍卖会 宸赏 明清御瓷珍玩 拍卖 专场",
+      "returned": 0,
+      "candidates": 0,
+      "onTopic": 0
+    },
+    {
+      "language": "zh-cn",
+      "query": "中国嘉德 2021秋季拍卖会 宸赏 明清御瓷珍玩",
+      "returned": 0,
+      "candidates": 0,
+      "onTopic": 0
+    },
+    {
+      "language": "zh-cn",
+      "query": "\"宸赏 明清御瓷珍玩\" 中国嘉德 2021秋季拍卖会",
+      "returned": 0,
+      "candidates": 0,
+      "onTopic": 0
+    },
+    {
+      "language": "zh-cn",
+      "query": "中国嘉德 2021秋季拍卖会 拍卖 图录",
+      "returned": 0,
+      "candidates": 0,
+      "onTopic": 0
+    },
+    {
+      "language": "en",
+      "query": "China Guardian 2021 Autumn Auction Chen Shang Ming Qing Imperial Porcelain and Fine Wares Special Sale",
+      "returned": 5,
+      "candidates": 5,
+      "onTopic": 5
+    },
+    {
+      "language": "en",
+      "query": "China Guardian 2021 Autumn Auction Chen Shang Ming Qing Imperial Porcelain and Fine Wares",
+      "returned": 5,
+      "candidates": 5,
+      "onTopic": 5
+    },
+    {
+      "language": "en",
+      "query": "\"Chen Shang Ming Qing Imperial Porcelain and Fine Wares\" China Guardian 2021 Autumn Auction",
+      "returned": 5,
+      "candidates": 5,
+      "onTopic": 5
+    },
+    {
+      "language": "en",
+      "query": "China Guardian 2021 Autumn Auction Catalog",
+      "returned": 3,
+      "candidates": 3,
+      "onTopic": 0
+    }
+  ],
+  "totals": {
+    "returned": 18,
+    "candidates": 18,
+    "perQueryCandidates": 18,
+    "onTopic": 15,
+    "uniqueCandidateUrls": 18
+  }
+}

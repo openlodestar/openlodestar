@@ -77,7 +77,7 @@ export async function translateQueries(
     });
     return { queries: translated, cacheHit: result.isCacheHit, model: result.model, failed: false };
   } catch (error) {
-    log.dev.warn('查询翻译失败，反向轨置空并退回单轨', error);
+    log.dev.warn('查询翻译失败：译文置空，0 召回查询不会被补发（原因随检索结果留痕）', error);
     return { queries: [], cacheHit: false, model: '', failed: true };
   }
 }

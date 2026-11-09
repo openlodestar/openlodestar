@@ -32,6 +32,7 @@ import { retallyAndRegate } from '../src/lodestar/engine';
 import { quoteMatches } from '../src/lodestar/adjudicate/compare';
 import { buildRecordQueries } from '../src/lodestar/adjudicate/retrieval';
 import { DEFAULT_CAPS } from '../src/lodestar/adjudicate';
+import { measureLiveRecall, type LiveRecallFixture, type LiveRecallResult } from '../src/lodestar/live-recall';
 import porcelainPack from '../src/lodestar/packs/porcelain';
 import type { ClaimRecord, EvidenceRecord } from '../src/lodestar/types';
 
@@ -40,6 +41,14 @@ const SCRIPT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 interface SampleSet {
   version: string;
   batches: string[];
+  /**
+   * 在线召回率专用的冻结检索样本（examples/replay-search/<slug>/）。
+   * 与判定样本分开记版本与锁：换检索样本不影响门禁类读数，反之亦然。
+   */
+  liveRecall?: {
+    version: string;
+    samples: string[];
+  };
 }
 
 interface GoldRecord {
@@ -83,6 +92,9 @@ interface HistoryRow {
   recordedAt: string;
   sampleVersion: string;
   sampleHash: string;
+  /** 在线召回率样本的版本与锁（与判定样本分开；旧行没有这两个字段） */
+  liveRecallSampleVersion?: string;
+  liveRecallSampleHash?: string;
   metrics: Record<string, number | null>;
 }
 
@@ -139,6 +151,57 @@ function hashSample(root: string, samples: SampleSet): string {
     hash.update(fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n'));
   }
   return hash.digest('hex');
+}
+
+/** 检索样本锁：只用真正参与读数的文件（输入 + 冻结结果），按 slug/文件名排序后逐个哈希 */
+function hashLiveRecall(root: string, config: { version: string; samples: string[] }): string {
+  const hash = crypto.createHash('sha256');
+  const files: string[] = [];
+  for (const slug of [...config.samples].sort()) {
+    for (const name of ['input.json', 'search-results.json']) {
+      const relative = `examples/replay-search/${slug}/${name}`;
+      if (fs.existsSync(path.join(root, relative))) files.push(relative);
+    }
+  }
+  for (const relative of files.sort()) {
+    hash.update(relative);
+    // 与判定样本同一口径：统一换行再哈希，跨检出设置得到同一个锁
+    hash.update(fs.readFileSync(path.join(root, relative), 'utf8').replace(/\r\n/g, '\n'));
+  }
+  return hash.digest('hex');
+}
+
+/**
+ * 在线召回率：从冻结的检索回放样本离线重算（零外部调用）。
+ * 没有配置样本或样本缺失 → 返回 null（显示「未测」，不是 0）。
+ */
+function computeLiveRecall(
+  root: string,
+  config: { version: string; samples: string[] } | undefined,
+): { result: LiveRecallResult; results: LiveRecallResult[] } | null {
+  if (config === undefined || config.samples.length === 0) return null;
+  const results: LiveRecallResult[] = [];
+  for (const slug of config.samples) {
+    const file = path.join(root, 'examples', 'replay-search', slug, 'search-results.json');
+    if (!fs.existsSync(file)) return null;
+    const fixture = readJson<LiveRecallFixture>(file);
+    results.push(measureLiveRecall(fixture, porcelainPack));
+  }
+  const issued = results.reduce((sum, row) => sum + row.issued, 0);
+  const hit = results.reduce((sum, row) => sum + row.hit, 0);
+  const calls = results.reduce((sum, row) => sum + row.calls, 0);
+  return {
+    result: {
+      slug: config.samples.join('+'),
+      issued,
+      hit,
+      value: issued === 0 ? null : Math.round((hit / issued) * 1000) / 10,
+      calls,
+      rows: results.flatMap((row) => row.rows),
+      basis: 'static-self-consistency-no-fetch',
+    },
+    results,
+  };
 }
 
 /** 把批次复制到临时目录：重算会写 verdicts / summaries / anchors，不许污染仓库里的冻结底稿 */
@@ -289,6 +352,8 @@ async function main(): Promise<void> {
   const samples = readJson<SampleSet>(path.join(root, 'benchmark/samples.json'));
   const gold = readJson<Gold>(path.join(root, 'benchmark/gold.json'));
   const sampleHash = hashSample(root, samples);
+  const liveRecallHash = samples.liveRecall ? hashLiveRecall(root, samples.liveRecall) : null;
+  const liveRecall = computeLiveRecall(root, samples.liveRecall);
 
   const outcomes = new Map<string, BatchOutcome>();
   for (const batch of samples.batches) {
@@ -386,6 +451,23 @@ async function main(): Promise<void> {
       meaning: '变差意味着：结论里的引文在页面上找不到原文，用户没法核对，整条证据链失去意义。',
     },
     {
+      key: 'liveRecall',
+      label: '在线召回率（可裁真页）',
+      value: liveRecall?.result.value ?? null,
+      display: liveRecall === null ? '未测' : `${liveRecall.result.hit}/${liveRecall.result.issued}`,
+      unit: '%',
+      direction: 'up',
+      threshold: 0,
+      detail:
+        liveRecall === null
+          ? '未配置冻结检索样本（benchmark/samples.json 缺 liveRecall），本项未测'
+          : `${liveRecall.results
+              .map((row) => `${row.slug} ${row.hit}/${row.issued}`)
+              .join('；')}；实际发出 ${liveRecall.result.calls} 条查询` +
+            '；判据=静态自洽（通过候选过滤且摘要含本场关键值），不抓页、不核逐字引用',
+      meaning: '变差意味着：同样的问题在线越来越捞不到能裁的页面——判据再准，没有页面可裁也只能判 not_found。',
+    },
+    {
       key: 'retrievalQueriesPerClaim',
       label: '每条断言的构造检索条数',
       value: totalClaims === 0 ? null : Math.round((totalQueries / totalClaims) * 100) / 100,
@@ -422,6 +504,11 @@ async function main(): Promise<void> {
   const meta = args.commit !== null ? { commit: args.commit, date: new Date().toISOString().slice(0, 10) } : currentCommit(root);
 
   const sampleChanged = baseline !== null && baseline.sampleHash !== sampleHash;
+  const liveRecallSampleChanged =
+    baseline !== null &&
+    liveRecallHash !== null &&
+    baseline.liveRecallSampleHash !== undefined &&
+    baseline.liveRecallSampleHash !== liveRecallHash;
   const warnings = metrics
     .filter((metric) => isRegression(metric, baseline?.metrics[metric.key]))
     .map((metric) => `⚠ 退步：${metric.label}`);
@@ -431,6 +518,14 @@ async function main(): Promise<void> {
   console.log(
     `样本锁 sha256:${sampleHash.slice(0, 16)}…${sampleChanged ? `（与基线不同：基线 ${baseline!.sampleHash.slice(0, 16)}…，换考卷后读数不可直接比较）` : '（与基线一致）'}`,
   );
+  if (samples.liveRecall && liveRecallHash !== null) {
+    console.log(
+      `检索样本 ${samples.liveRecall.version} · ${samples.liveRecall.samples.join(' / ')} · sha256:${liveRecallHash.slice(0, 16)}…` +
+        (liveRecallSampleChanged ? `（与基线不同：基线 ${baseline!.liveRecallSampleHash!.slice(0, 16)}…）` : ''),
+    );
+  } else {
+    console.log('检索样本：未配置（在线召回率显示「未测」）');
+  }
   console.log(`提交 ${meta.commit} · ${meta.date}`);
   console.log('');
   console.log('分项                          当前                    基线      方向  说明');
@@ -473,6 +568,12 @@ async function main(): Promise<void> {
     recordedAt: new Date().toISOString(),
     sampleVersion: samples.version,
     sampleHash,
+    ...(samples.liveRecall && liveRecallHash !== null
+      ? {
+          liveRecallSampleVersion: samples.liveRecall.version,
+          liveRecallSampleHash: liveRecallHash,
+        }
+      : {}),
     metrics: Object.fromEntries(metrics.map((metric) => [metric.key, metric.value])),
   };
   if (args.updateBaseline) {
@@ -484,6 +585,7 @@ async function main(): Promise<void> {
       previous !== null &&
       previous.commit === row.commit &&
       previous.sampleHash === row.sampleHash &&
+      previous.liveRecallSampleHash === row.liveRecallSampleHash &&
       JSON.stringify(previous.metrics) === JSON.stringify(row.metrics);
     if (sameAsLast) {
       console.log('历史表已有同一组读数，未重复追加。');

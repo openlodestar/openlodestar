@@ -254,6 +254,13 @@ export interface DomainPack {
    */
   blockedReason?(url: string): string | null;
 
+  /**
+   * 链接自相矛盾的机械判据：标题点名的机构与域名所属机构不一致时返回非空理由，
+   * 该链接**不进候选池**（在地基上拦掉编造来源，而不是等比对阶段再挽救）。
+   * 缺省 = 不做这项检查。
+   */
+  institutionConflictOf?(input: { url: string; title: string }): string | null;
+
   // ============ 消费侧（坐标臂） ============
 
   /** 哪些链接算"这一场的详情页"（引擎只做同域 + 文档序 + 去重 + 截断） */

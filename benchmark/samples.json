@@ -8,5 +8,9 @@
     "demo-batch-8",
     "demo-batch-11",
     "demo-batch-14"
-  ]
+  ],
+  "liveRecall": {
+    "version": "live-2026-11-09",
+    "samples": ["porcelain-2021-autumn", "cg-2021-autumn"]
+  }
 }

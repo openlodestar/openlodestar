@@ -47,12 +47,61 @@ export interface SharedRetrieval {
   skippedQueries?: string[];
 }
 
+/** 0 召回修复：对源轨返回 0 条的查询补发一次它的译文 */
+export interface RetrievalRepair {
+  /** 源查询（那条 0 召回的查询） */
+  query: string;
+  /** 补发用的译文 */
+  translatedQuery: string;
+  /** 补发返回的条数（0 = 译文也没召回） */
+  returned: number;
+}
+
+/** 翻译状态：失败或译文不可用时，修复不发生，原因必须留痕（不静默降级） */
+export interface RetrievalTranslation {
+  target: TranslationTarget;
+  failed: boolean;
+  /** 完整译文（与源查询逐位对应；失败时为空数组）——回放与在线召回率都读这一份 */
+  queries: string[];
+  /** 译文与原文相同、无法用来修复的条数（逐位回填原文时会发生） */
+  untranslated: number;
+  /** 人读原因：翻译失败 / 无可修复查询 / 译文与原文相同 */
+  reason: string | null;
+}
+
+/**
+ * 哪些源查询需要 0 召回补发（纯函数：在线检索与离线回放/评分卡共用同一判据）。
+ *
+ * @param answeredIndexes 源轨里至少返回 1 条的查询下标
+ * @returns indexes = 要补发的源查询下标；unusable = 译文不可用（没翻出来）的下标
+ */
+export function planZeroRecallRepairs(input: {
+  queries: string[];
+  translatedQueries: string[];
+  answeredIndexes: ReadonlySet<number>;
+}): { indexes: number[]; unusable: number[] } {
+  // 翻译整体失败（译文为空）：没得比，不把每条查询都记成"译文不可用"
+  if (input.translatedQueries.length === 0) return { indexes: [], unusable: [] };
+  const unusable: number[] = [];
+  const repairIndexes: number[] = [];
+  for (const [index, source] of input.queries.entries()) {
+    const translated = input.translatedQueries[index];
+    // 逐位回填原文 = 这个位置没翻出来：补发它等于把同一条查询再发一遍，白花钱
+    if (translated === undefined || translated.trim() === '' || translated.trim() === source.trim()) {
+      unusable.push(index);
+      continue;
+    }
+    if (!input.answeredIndexes.has(index)) repairIndexes.push(index);
+  }
+  return { indexes: repairIndexes, unusable };
+}
+
 /** 检索执行结果 */
 export interface RetrievalResult {
   /** 实际发出的查询（已剔除提供者做不到的；能力位跳过的不在这里，见 skippedQueries） */
   queries: string[];
   candidates: EvidenceCandidate[];
-  /** 实际发出的搜索请求数（= 查询条数，serper 一类提供者逐条请求） */
+  /** 实际发出的搜索请求数（源查询条数 + 零召回修复条数；serper 一类提供者逐条请求） */
   searchCalls: number;
   /** 被过滤掉的候选与理由（进检索足迹） */
   rejected: Array<{ url: string; reason: string }>;
@@ -60,6 +109,10 @@ export interface RetrievalResult {
   provider: string;
   /** 因提供者能力不足而没发出去的查询（如不支持 site: 时的域定向查询；不降级成普通词） */
   skippedQueries: string[];
+  /** 零召回修复记录（只对源查询返回 0 条的那些） */
+  repairs: RetrievalRepair[];
+  /** 翻译状态；查询集为空时为 null（没走到翻译） */
+  translation: RetrievalTranslation | null;
 }
 
 /** 非 HTML 资源（图片 / 视频 / 文档）不抓——与宿主系统同判据，但理由不同：这里抓回来也没有正文可比对 */
@@ -238,6 +291,13 @@ export function filterAndRankCandidates(
       rejected.push({ url: item.url, reason: blocked });
       continue;
     }
+    // 链接自相矛盾（标题点名机构 ≠ 域名所属机构）在进候选池前拦掉：
+    // 编造来源最贵的害处是冒充"独立第三方"，把一条断言推成多源共现。
+    const conflict = pack.institutionConflictOf?.({ url: item.url, title: item.title }) ?? null;
+    if (conflict) {
+      rejected.push({ url: item.url, reason: conflict });
+      continue;
+    }
     const domain = extractHostname(item.url) ?? '';
     if (domain === '') {
       rejected.push({ url: item.url, reason: '无法解析域名' });
@@ -323,7 +383,16 @@ export async function retrieveCandidates(input: {
   });
 
   if (constructed.length === 0) {
-    return { queries: [], candidates: [], searchCalls: 0, rejected: [], skippedQueries: [], provider: '' };
+    return {
+      queries: [],
+      candidates: [],
+      searchCalls: 0,
+      rejected: [],
+      skippedQueries: [],
+      provider: '',
+      repairs: [],
+      translation: null,
+    };
   }
 
   const provider = createSearchProvider(getSearchProviderFromEnv());
@@ -346,48 +415,85 @@ export async function retrieveCandidates(input: {
       rejected: [],
       skippedQueries,
       provider: provider.name,
+      repairs: [],
+      translation: null,
     };
   }
 
-  // 双语双轨：源轨按自身语言类选搜索地区参数，反向轨的查询词由源轨
-  // **整条翻译**而来——只改地区参数不改查询词覆盖不到另一种语言的语料面（实测
-  // 生效率 0/22）。site:<域名> 这类语言无关片段照常计入源轨、照常参与翻译。
+  // 零召回修复（不是"双语双轨"）：源轨按自身语言类选搜索地区参数先发出去；
+  // **只有返回 0 条的查询**才补发一次它的译文。为什么不再无条件发两条轨：
+  // 语言探针（examples/replay-search/probe-language/result.json）显示中文查询不是
+  // "永远 0"——同一条窄查询两次分别是 2 条与 0 条，而英文同宽也有 0 条的两条。
+  // 0 是提供者的抖动，不是"这门语言查不到"。无条件双轨会让每条查询都付两次钱，
+  // 却只买到一次额外的抽样；按 0 补发则把这份预算只花在真正空手的那几条上。
   //
-  // 预算不变量（别当成 bug 修掉）：searchCalls = 轨数 × 各轨查询条数（每轨都跑完整
-  // 一套，不砍半）；候选池是记录级共用的，合流只改变候选的出场顺序与去重。
+  // 预算不变量：searchCalls = 源查询条数 + 补发条数（补发 ≤ 源查询条数，与旧双轨的
+  // 最坏情况相同）；补发不递归，每条查询最多补一次。
   const sourceClass: LanguageClass | null = dominantLanguageClass(queries);
   const target: TranslationTarget = sourceClass === 'en' ? 'zh' : 'en';
-  const translation = await translateQueries(queries, target, { logger: log });
-  // 翻译整体失败 → 反向轨为空，退回单轨（与接线前行为一致），断言不因此失败
-  const translatedQueries = translation.failed ? [] : translation.queries;
 
-  const tracks: Array<{ language: 'en' | 'zh-cn'; queries: string[] }> = [
-    { language: toSearchHl(sourceClass), queries },
-  ];
-  if (translatedQueries.length > 0) {
-    tracks.push({ language: toSearchHl(target), queries: translatedQueries });
+  const [sourceResults, translation] = await Promise.all([
+    provider.search(queries, { numResults: input.numResultsPerQuery, language: toSearchHl(sourceClass) }),
+    // 翻译与源轨并行：不拖慢首屏；翻不出来只是没有修复可用，不是整次检索失败
+    translateQueries(queries, target, { logger: log }),
+  ]);
+
+  const translatedQueries = translation.failed ? [] : translation.queries;
+  const answered = new Set(sourceResults.results.map((item) => item.queryIndex));
+  const zeroRecall = queries.map((_, index) => index).filter((index) => !answered.has(index));
+  const plan = planZeroRecallRepairs({ queries, translatedQueries, answeredIndexes: answered });
+  const unusable = new Set(plan.unusable);
+  const repairIndexes = plan.indexes;
+
+  const repairs: RetrievalRepair[] = [];
+  let repairQueries: string[] = [];
+  let repairResults: SearchResultItem[] = [];
+  if (repairIndexes.length > 0) {
+    repairQueries = repairIndexes.map((index) => translatedQueries[index]!);
+    const response = await provider.search(repairQueries, {
+      numResults: input.numResultsPerQuery,
+      language: toSearchHl(target),
+    });
+    repairResults = response.results;
+    for (const [slot, index] of repairIndexes.entries()) {
+      repairs.push({
+        query: queries[index]!,
+        translatedQuery: translatedQueries[index]!,
+        returned: response.results.filter((item) => item.queryIndex === slot).length,
+      });
+    }
   }
 
-  const searchResults = await Promise.all(
-    tracks.map((track) =>
-      provider.search(track.queries, { numResults: input.numResultsPerQuery, language: track.language }),
-    ),
-  );
-  const searchCalls = tracks.reduce((sum, track) => sum + track.queries.length, 0);
+  const searchCalls = queries.length + repairQueries.length;
+
+  const translationState: RetrievalTranslation = {
+    target,
+    failed: translation.failed,
+    queries: translatedQueries,
+    untranslated: unusable.size,
+    reason: translation.failed
+      ? zeroRecall.length === 0
+        ? '翻译失败，但源轨每条查询都有召回，无需修复'
+        : `翻译失败：${zeroRecall.length} 条 0 召回查询没有可用译文，未做修复（这不是"世界没有证据"）`
+      : unusable.size > 0
+        ? `${unusable.size} 条查询的译文与原文相同（没翻出来），对应查询未做修复`
+        : null,
+  };
 
   // 合流在 filterAndRankCandidates 之前完成：跨轨按归一化 URL 去重（同一页在两轨里
   // 可能带不同 fragment / 追踪参数），并按轨轮转排列。下游的黑名单剔除、权威档排序
   // 与来源家族轮转一律不动。
   const mergedResults = interleaveTracks(
-    searchResults.map((result) => result.results),
+    [sourceResults.results, repairResults],
     (item) => normalizedUrlKey(item.url),
   );
 
   const { candidates, rejected } = filterAndRankCandidates(mergedResults, input.pack);
 
   log.dev.debug(
-    `[${input.claim.claimId}] 查询 ${queries.length} 条 × ${tracks.length} 轨（共 ${searchCalls} 次检索）→ ` +
-      `结果 ${mergedResults.length} 条 → 候选 ${candidates.length} 条（剔除 ${rejected.length} 条）`,
+    `[${input.claim.claimId}] 源查询 ${queries.length} 条${repairs.length > 0 ? ` + 0 召回补发 ${repairs.length} 条` : ''}` +
+      `（共 ${searchCalls} 次检索）→ 结果 ${mergedResults.length} 条 → 候选 ${candidates.length} 条（剔除 ${rejected.length} 条）` +
+      (translationState.reason === null ? '' : `；${translationState.reason}`),
   );
 
   return {
@@ -397,5 +503,7 @@ export async function retrieveCandidates(input: {
     rejected,
     provider: provider.name,
     skippedQueries,
+    repairs,
+    translation: translationState,
   };
 }

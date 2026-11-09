@@ -12,6 +12,10 @@
  * 断言的是"同一批样本重跑必得同一批读数"：查询构造逐条一致、检索次数一致、
  * 每条查询的返回条数一致、候选过滤后的条数一致。任何一处漂移都说明查询构造、
  * 候选过滤或预算记账被改过——那样历史读数就不能再跨提交比较了。
+ *
+ * 样本 version 2（2026-11-09）起，路由从"无条件双轨"改成"源轨先发 + 0 召回补发"，
+ * 编造链接过滤（标题机构 ≠ 域名机构）也接进了候选过滤；本样本的 source 轨全 0，
+ * 所以补发 4 条，检索次数仍是 8，但候选池从 15 条降到 12 条（剔掉 3 条自相矛盾链接）。
  */
 
 import fs from 'node:fs';
@@ -139,6 +143,9 @@ describe.skipIf(fixture === null)('检索结果回放（冻结样本）', () => 
     expect(retrieval.queries).toEqual(sample.queries);
     expect(retrieval.searchCalls).toBe(sample.searchCalls);
     expect(retrieval.candidates.length).toBe(sample.totals.candidates);
+    // 源轨 4 条全部 0 召回 → 4 条都补发；两条轨的检索次数仍是 8
+    expect(retrieval.repairs).toHaveLength(4);
+    expect(retrieval.repairs.every((repair) => repair.query !== repair.translatedQuery)).toBe(true);
 
     // 每条查询的返回条数：按语言 + 查询文本对回冻结读数
     for (const row of sample.perQuery) {

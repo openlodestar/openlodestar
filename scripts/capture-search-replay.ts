@@ -43,6 +43,7 @@ import {
   retrieveCandidates,
 } from '../src/lodestar/adjudicate/retrieval';
 import { DEFAULT_CAPS } from '../src/lodestar/adjudicate';
+import { measureLiveRecall } from '../src/lodestar/live-recall';
 import { atomizeFieldToClaim } from '../src/lodestar/intake/atomize';
 import type { AlignedRecord } from '../src/lodestar/intake/record-container';
 import { recordFieldsSnapshot } from '../src/lodestar/intake/record-container';
@@ -199,21 +200,45 @@ async function main(): Promise<void> {
     const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
       tracks: CapturedTrack[];
       values: Record<string, string | null>;
+      queries: string[];
+      translation: { language: string; queries: string[] } | null;
+      matchTerms?: string[];
       totals: Record<string, number>;
       [key: string]: unknown;
     };
     const terms = matchTerms ?? Object.values(fixture.values).filter((value): value is string => !!value);
     const perQuery = perQueryStats(fixture.tracks, terms);
+    const allItems = fixture.tracks.flatMap((track) => track.results);
+    const { candidates } = filterAndRankCandidates(allItems, porcelainPack);
+    const liveRecall = measureLiveRecall(
+      {
+        slug,
+        queries: fixture.queries,
+        translation: fixture.translation,
+        tracks: fixture.tracks,
+        matchTerms: terms,
+        values: fixture.values,
+      },
+      porcelainPack,
+    );
+    fixture.version = 2;
+    fixture.matchTerms = terms;
     fixture.perQuery = perQuery;
     fixture.totals = {
       ...fixture.totals,
       returned: perQuery.reduce((sum, row) => sum + row.returned, 0),
+      candidates: candidates.length,
       perQueryCandidates: perQuery.reduce((sum, row) => sum + row.candidates, 0),
       onTopic: perQuery.reduce((sum, row) => sum + row.onTopic, 0),
+      uniqueCandidateUrls: new Set(candidates.map((candidate) => candidate.url)).size,
     };
     fs.writeFileSync(fixturePath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
     console.log(`离线重算完成（未发任何检索）：${path.relative(PACKAGE_ROOT, fixturePath)}`);
     console.table(perQuery.map((row) => ({ 查询: row.query, 返回: row.returned, 候选: row.candidates, 摘要命中: row.onTopic })));
+    console.log(
+      `在线召回率：${liveRecall.hit}/${liveRecall.issued} 条源查询召回到可裁真页` +
+        `（实际检索 ${liveRecall.calls} 次；判据：${liveRecall.basis}）`,
+    );
     return;
   }
 
@@ -271,10 +296,9 @@ async function main(): Promise<void> {
 
   const keyValues = matchTerms ?? Object.values(values).filter((value): value is string => !!value);
   const perQuery = perQueryStats(provider.tracks, keyValues);
-  const translationTrack = provider.tracks.find((track) => track.language !== null && track.language !== 'zh-cn');
 
   const fixture = {
-    version: 1 as const,
+    version: 2 as const,
     kind: 'search-replay' as const,
     slug,
     capturedAt: startedAt.toISOString(),
@@ -295,7 +319,13 @@ async function main(): Promise<void> {
     queries: retrieval.queries,
     skippedQueries: retrieval.skippedQueries,
     searchCalls: retrieval.searchCalls,
-    translation: translationTrack ? { language: translationTrack.language, queries: translationTrack.queries } : null,
+    /** 完整译文（逐位对应源查询）：轨迹里只含真正补发的那几条，回放要的是全量 */
+    translation:
+      retrieval.translation === null || retrieval.translation.failed
+        ? null
+        : { language: retrieval.translation.target, queries: retrieval.translation.queries },
+    /** 0 召回补发记录：哪条源查询补了哪条译文、补发回来几条 */
+    repairs: retrieval.repairs,
     tracks: provider.tracks,
     perQuery,
     totals: {

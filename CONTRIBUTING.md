@@ -34,8 +34,19 @@ pnpm run demo:real
 - **底稿只追加不改写**。不要为了"干净"去重写历史行；读时取同一主键的最后一条。
 - TypeScript 保持 `strict`，不用 `any` 绕过类型。
 - 一个 PR 只做一件事。commit message 写清"为什么"，不是只写"改了什么"。
+- **不直推 `main`**。规则集 `Protect main` 已强制：任何改动都要走分支 + PR，且必须过 `typecheck · test · offline demos` 这项检查才能合并。不是约定，是平台拦着。
 
 ## 提 PR
+
+`main` 是受保护分支，直推会被拒绝。流程固定三步：
+
+```bash
+git switch -c <type>/<简短主题>        # fix/ feat/ docs/ chore/
+git commit -am "..." && git push -u origin <分支名>
+gh pr create --base main --fill && gh pr merge --squash --auto
+```
+
+`--auto` 表示 CI 一绿就自动 squash 合并，不需要人回来点第二次。单人仓库的 PR 不需要审批（Required approvals = 0），它的作用是**让检查先于合并发生**，而不是等人评审。
 
 从 `main` 开分支，改完在本地过一遍：
 

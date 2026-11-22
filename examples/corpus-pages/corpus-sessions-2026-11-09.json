@@ -1,0 +1,1214 @@
+{
+  "version": 1,
+  "kind": "corpus-session-replay",
+  "capturedAt": "2026-11-09",
+  "source": "shadow_db.price_events join shadow_db.sales（46 条事件 / 10 个场次，只读导出）",
+  "sampling": "全量：所有能通过 provenance.saleUrl 挂到场次的未作废价格事件",
+  "cleaner": "processHtml（与抓页样本同一份）",
+  "contentRule": "content_source IS DISTINCT FROM 'adapter_render' AND content_truncated = false",
+  "counts": {
+    "events": 46,
+    "pages": 46,
+    "sessions": 10,
+    "rawPages": 1,
+    "rawAdjudicable": 1,
+    "templatePages": 45,
+    "rawNameVerbatim": 1,
+    "rawNameNormalized": 1,
+    "templateNameVerbatim": 45,
+    "houseHits": 46,
+    "dateHits": 46,
+    "bothHits": 46,
+    "rawBothHits": 1
+  },
+  "pages": [
+    {
+      "url": "https://www.bonhams.com/auction/32203/lot/119/a-huali-and-hongmu-cabinet-and-a-hat-chest-mid-qing-dynasty-2",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 848,
+      "readable": true,
+      "textHash": "6893e6bd41b80c07",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Fine Chinese Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "44c67c30-b08c-48a3-88bb-fc6bf2d5f027",
+          "sessionId": "09a25df8-e785-4887-a1cd-0a70c178e050",
+          "eventTime": "2026-11-05"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32202/lot/41/a-purple-splashed-and-olive-glazed-triple-gourd-vase-qianlongjiaqing-2",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 849,
+      "readable": true,
+      "textHash": "db10bfca48b04aa8",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Asian Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "0328e886-2c8d-4888-b423-42eef6df09f0",
+          "sessionId": "0c3f7430-549b-43d7-afbe-4d62a4306d31",
+          "eventTime": "2026-11-02"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32202/lot/35/a-group-of-three-various-boxes-qing-dynastyrepublic-period-6",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 819,
+      "readable": true,
+      "textHash": "043f9c3b1dadcb96",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Asian Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "040dbe7a-66cf-457b-88e7-fb24cbebb6a5",
+          "sessionId": "0c3f7430-549b-43d7-afbe-4d62a4306d31",
+          "eventTime": "2026-11-02"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32202/lot/27/a-massive-embroidered-chinese-opera-wall-hanging-late-qing-dynasty",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 827,
+      "readable": true,
+      "textHash": "02b55d2cc5f85ce7",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Asian Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "8263515e-0f6b-4cf3-81cb-c9053b6f453e",
+          "sessionId": "0c3f7430-549b-43d7-afbe-4d62a4306d31",
+          "eventTime": "2026-11-02"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32202/lot/28/a-group-of-hangings-and-a-table-frontal-late-qing-dynastyrepublic-period-3",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 887,
+      "readable": true,
+      "textHash": "a6e826464c4098f9",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Asian Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "924131bc-25de-4ca5-ae86-c55407b65f45",
+          "sessionId": "0c3f7430-549b-43d7-afbe-4d62a4306d31",
+          "eventTime": "2026-11-02"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32202/lot/26/a-purple-ground-gold-thread-embroidered-ladys-informal-overcoat-waitao-late-qing-dynastyrepublic-period",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 943,
+      "readable": true,
+      "textHash": "0e2c099e8c0b6fc1",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Asian Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "b39ee550-192f-4eb7-9348-eed2bd24aabb",
+          "sessionId": "0c3f7430-549b-43d7-afbe-4d62a4306d31",
+          "eventTime": "2026-11-02"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32202/lot/43/a-ge-type-glazed-globular-jar-qing-dynasty",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 749,
+      "readable": true,
+      "textHash": "1fd656681a36878b",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Asian Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "c2e2487f-14d8-4807-bbfd-497afb7d9023",
+          "sessionId": "0c3f7430-549b-43d7-afbe-4d62a4306d31",
+          "eventTime": "2026-11-02"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32202/lot/29/a-burgundy-ground-gold-thread-embroidered-nine-dragons-robe-late-qing-dynasty",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 865,
+      "readable": true,
+      "textHash": "243b14c068e2112c",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Asian Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "e1dd46dd-ece7-4bd0-83ab-ef4ec66a7e19",
+          "sessionId": "0c3f7430-549b-43d7-afbe-4d62a4306d31",
+          "eventTime": "2026-11-02"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32202/lot/45/a-famille-rose-bird-and-flower-vase-wang-jiemei-1843-1923-dated-xinsi-year-1881-and-of-the-period",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 932,
+      "readable": true,
+      "textHash": "fa21a8e02cde6761",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Asian Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "ee17e717-9939-4e47-a4b9-a4da904205c8",
+          "sessionId": "0c3f7430-549b-43d7-afbe-4d62a4306d31",
+          "eventTime": "2026-11-02"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32697/lot/110/a-wucai-decorated-dehua-figure-of-guanyin-kangxi-2",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 885,
+      "readable": true,
+      "textHash": "6ee0244b93c94ae7",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "C.C. Teng Collection of Buddhist Sculptures: including Masterpieces by He Chaozong",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "c246cf18-de48-4909-881a-0d9ac898c963",
+          "sessionId": "20a4ccaf-931e-4b3b-948a-7ff65f26ea44",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32090/lot/337/a-very-rare-blue-straw-and-amber-glazed-lion-tang-dynasty-2",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 853,
+      "readable": true,
+      "textHash": "7232344a25bef800",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Fine Chinese Ceramics and Works of Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "023c3963-2105-4460-9579-10b7b9902871",
+          "sessionId": "340c1f2b-cad3-476b-b4ac-65a3933e6533",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32090/lot/306/a-small-ding-incised-white-glazed-lotus-conical-bowl-northern-song-dynasty-2",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 903,
+      "readable": true,
+      "textHash": "c105c5f5b16df65e",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Fine Chinese Ceramics and Works of Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "116aab36-2d71-46e3-8312-961e40a98365",
+          "sessionId": "340c1f2b-cad3-476b-b4ac-65a3933e6533",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32090/lot/304/a-rare-yaozhou-carved-and-reticulated-celadon-glazed-incense-burner-northern-song-dynasty-2",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 951,
+      "readable": true,
+      "textHash": "8b02132a616dac26",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Fine Chinese Ceramics and Works of Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "2863e729-0584-4bd6-a06d-540332e64d05",
+          "sessionId": "340c1f2b-cad3-476b-b4ac-65a3933e6533",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32090/lot/332/a-cizhou-painted-figural-jar-yuan-dynasty",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 789,
+      "readable": true,
+      "textHash": "d5f6bbec4f7b9826",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Fine Chinese Ceramics and Works of Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "2eacde16-b46b-46b1-b50b-e8bd490b2372",
+          "sessionId": "340c1f2b-cad3-476b-b4ac-65a3933e6533",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32090/lot/308/a-ding-white-glazed-foliate-rim-dish-five-dynastiessong-dynasty-2",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 864,
+      "readable": true,
+      "textHash": "c456250c5ce85a1f",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Fine Chinese Ceramics and Works of Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "4be3808a-665f-422c-ab40-149d632b6d8d",
+          "sessionId": "340c1f2b-cad3-476b-b4ac-65a3933e6533",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32090/lot/346/a-ge-type-arrow-vase-hu-jiaqing-seal-mark-and-of-the-period-2",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 861,
+      "readable": true,
+      "textHash": "68634148e195f9e4",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Fine Chinese Ceramics and Works of Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "668757ea-b744-42ba-8384-ebc70cd6a8c5",
+          "sessionId": "340c1f2b-cad3-476b-b4ac-65a3933e6533",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32090/lot/314/a-carved-yaozhou-celadon-glazed-tripod-incense-burner-jin-dynasty-4",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 869,
+      "readable": true,
+      "textHash": "ea73b469c7d6cea8",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Fine Chinese Ceramics and Works of Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "77cc8b34-898c-4b88-8164-8f648ed4c299",
+          "sessionId": "340c1f2b-cad3-476b-b4ac-65a3933e6533",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32090/lot/305/a-ding-incised-white-glazed-lotus-dish-northern-song-dynasty-2",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 861,
+      "readable": true,
+      "textHash": "ee20581239ac5565",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Fine Chinese Ceramics and Works of Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "976560a9-2e9c-4412-ab4d-25e339dccc80",
+          "sessionId": "340c1f2b-cad3-476b-b4ac-65a3933e6533",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32090/lot/317/a-peachbloom-glazed-beehive-waterpot-taibaizun-kangxi-six-character-mark-and-of-the-period-2",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 957,
+      "readable": true,
+      "textHash": "a53894ec68c5c3b1",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Fine Chinese Ceramics and Works of Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "9ed6ab90-9e36-467f-aad8-66e2a8fa9474",
+          "sessionId": "340c1f2b-cad3-476b-b4ac-65a3933e6533",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32090/lot/321/a-magnificent-and-finely-enamelled-imperial-yellow-ground-sgraffiato-yangcai-floral-vase-yuhuchunping-qianlong-four-character-mark-and-of-the-period",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 1136,
+      "readable": true,
+      "textHash": "4a4b80e5c7e3a3fa",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Fine Chinese Ceramics and Works of Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "d6ba46c2-1d3e-4e7f-b330-71fbcb19327c",
+          "sessionId": "340c1f2b-cad3-476b-b4ac-65a3933e6533",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32090/lot/307/a-ding-type-white-glazed-ewer-song-dynasty-2",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 798,
+      "readable": true,
+      "textHash": "20d4fd4b7080a9a1",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Fine Chinese Ceramics and Works of Art",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "eea6c823-d2ee-4b35-bd78-1e001b336128",
+          "sessionId": "340c1f2b-cad3-476b-b4ac-65a3933e6533",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/31803/lot/25/paire-de-jarres-dapothicaire-a-deux-anses-en-maiolique-de-montelupo-fin-xvie-sieclea-pair-of-montelupo-maiolica-two-handled-drug-jars-late-16th-century",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 1076,
+      "readable": true,
+      "textHash": "556a14f1e94cd4b0",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "The CLASSICS Paris",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "29439afd-9918-40ff-bf68-f4387db8d317",
+          "sessionId": "3448e5e6-45fc-46fd-a0ec-c44e95c89cb7",
+          "eventTime": "2026-11-05"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6598316",
+      "domain": "www.christies.com.cn",
+      "source": "template",
+      "truncated": false,
+      "chars": 886,
+      "readable": true,
+      "textHash": "1fad11e3c91d1717",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Important Chinese Art Including Ceramics from the Art Institute of Chicago",
+      "houseStatus": "alias",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "18bcb175-5a2c-4af5-a749-3fd3b8f1dd67",
+          "sessionId": "9fc47d19-2bba-4a68-a639-b13a7d0fc9d3",
+          "eventTime": "2026-09-17"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6598326",
+      "domain": "www.christies.com.cn",
+      "source": "template",
+      "truncated": false,
+      "chars": 908,
+      "readable": true,
+      "textHash": "4c788e343346d1aa",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Important Chinese Art Including Ceramics from the Art Institute of Chicago",
+      "houseStatus": "alias",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "307d9844-0804-4216-bfeb-adb7f6b902c3",
+          "sessionId": "9fc47d19-2bba-4a68-a639-b13a7d0fc9d3",
+          "eventTime": "2026-09-17"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6598379",
+      "domain": "www.christies.com.cn",
+      "source": "template",
+      "truncated": false,
+      "chars": 888,
+      "readable": true,
+      "textHash": "20e40d22c0031449",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Important Chinese Art Including Ceramics from the Art Institute of Chicago",
+      "houseStatus": "alias",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "4f4c1246-ceee-451e-bdb9-b873098d10cd",
+          "sessionId": "9fc47d19-2bba-4a68-a639-b13a7d0fc9d3",
+          "eventTime": "2026-09-17"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6608455",
+      "domain": "www.christies.com.cn",
+      "source": "template",
+      "truncated": false,
+      "chars": 902,
+      "readable": true,
+      "textHash": "2a29880d5942faff",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Important Chinese Ceramics and Works of Art",
+      "houseStatus": "alias",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "04ac5ca5-1934-47bb-ad83-874a73c235e3",
+          "sessionId": "be9036bd-68c3-4948-a235-f5dfe6fbd0a9",
+          "eventTime": "2026-10-29"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6608461",
+      "domain": "www.christies.com.cn",
+      "source": "raw",
+      "truncated": false,
+      "chars": 16269,
+      "readable": true,
+      "textHash": "1d16e1b429d6c1f1",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Important Chinese Ceramics and Works of Art",
+      "houseStatus": "alias",
+      "dateStatus": "normalized",
+      "events": [
+        {
+          "eventId": "1ace1cd5-2a3c-49c3-bd8d-0937a1511079",
+          "sessionId": "be9036bd-68c3-4948-a235-f5dfe6fbd0a9",
+          "eventTime": "2026-10-29"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6608458",
+      "domain": "www.christies.com.cn",
+      "source": "template",
+      "truncated": false,
+      "chars": 1078,
+      "readable": true,
+      "textHash": "38dc2ebac9a94da5",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Important Chinese Ceramics and Works of Art",
+      "houseStatus": "alias",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "1f9d1078-4c4f-44d8-8347-6f7b3005e310",
+          "sessionId": "be9036bd-68c3-4948-a235-f5dfe6fbd0a9",
+          "eventTime": "2026-10-29"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6608432",
+      "domain": "www.christies.com.cn",
+      "source": "template",
+      "truncated": false,
+      "chars": 841,
+      "readable": true,
+      "textHash": "74f4b21afb6cd57f",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Important Chinese Ceramics and Works of Art",
+      "houseStatus": "alias",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "288b05d8-4d44-48f7-b6a9-11bd2745339b",
+          "sessionId": "be9036bd-68c3-4948-a235-f5dfe6fbd0a9",
+          "eventTime": "2026-10-29"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6608490",
+      "domain": "www.christies.com.cn",
+      "source": "template",
+      "truncated": false,
+      "chars": 1082,
+      "readable": true,
+      "textHash": "7b49eb4e46db6aa9",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Important Chinese Ceramics and Works of Art",
+      "houseStatus": "alias",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "5cebc07c-8183-4466-a3a6-f99f4b744a62",
+          "sessionId": "be9036bd-68c3-4948-a235-f5dfe6fbd0a9",
+          "eventTime": "2026-10-29"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6608457",
+      "domain": "www.christies.com.cn",
+      "source": "template",
+      "truncated": false,
+      "chars": 1068,
+      "readable": true,
+      "textHash": "2b2dd2c388f7840a",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Important Chinese Ceramics and Works of Art",
+      "houseStatus": "alias",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "ad442e6d-e893-47ed-b256-6053821aaf24",
+          "sessionId": "be9036bd-68c3-4948-a235-f5dfe6fbd0a9",
+          "eventTime": "2026-10-29"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6608416",
+      "domain": "www.christies.com.cn",
+      "source": "template",
+      "truncated": false,
+      "chars": 820,
+      "readable": true,
+      "textHash": "72376b522d1b2b59",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Important Chinese Ceramics and Works of Art",
+      "houseStatus": "alias",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "b1288b6a-762a-49b1-b215-d684c75252be",
+          "sessionId": "be9036bd-68c3-4948-a235-f5dfe6fbd0a9",
+          "eventTime": "2026-10-29"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6608453",
+      "domain": "www.christies.com.cn",
+      "source": "template",
+      "truncated": false,
+      "chars": 921,
+      "readable": true,
+      "textHash": "92daa1345101208f",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Important Chinese Ceramics and Works of Art",
+      "houseStatus": "alias",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "c2cd9877-8517-4a87-a348-96ca4b768d37",
+          "sessionId": "be9036bd-68c3-4948-a235-f5dfe6fbd0a9",
+          "eventTime": "2026-10-29"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6608447",
+      "domain": "www.christies.com.cn",
+      "source": "template",
+      "truncated": false,
+      "chars": 1104,
+      "readable": true,
+      "textHash": "563b9ae01a30a8ac",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Important Chinese Ceramics and Works of Art",
+      "houseStatus": "alias",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "c9571d1b-ea9e-4283-810d-8f3e258ac5f4",
+          "sessionId": "be9036bd-68c3-4948-a235-f5dfe6fbd0a9",
+          "eventTime": "2026-10-29"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32511/lot/39/a-polychrome-enemelled-dragon-brushpot-bitong-late-qing-dynasty",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 885,
+      "readable": true,
+      "textHash": "f40e336bd9c4079b",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "The Marsh Collection: Art for the Literati (Part V)",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "482fbb44-24ad-46ea-bc85-290900eebc2b",
+          "sessionId": "c4aea8e3-24dc-427b-9b2d-14f3930083a3",
+          "eventTime": "2026-11-05"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6598086",
+      "domain": "www.christies.com.cn",
+      "source": "template",
+      "truncated": false,
+      "chars": 957,
+      "readable": true,
+      "textHash": "2443beb7355b6450",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Ritual, Cosmos, and Imperial Splendor: Important Chinese Art from a Private North American Collection",
+      "houseStatus": "alias",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "68187e0c-f554-49c1-aa4c-a7de610fe7bf",
+          "sessionId": "f682a9aa-0c55-4f8f-a0d8-dde8057f644e",
+          "eventTime": "2026-09-17"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6598092",
+      "domain": "www.christies.com.cn",
+      "source": "template",
+      "truncated": false,
+      "chars": 1010,
+      "readable": true,
+      "textHash": "c9c7dfe674c66c11",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Ritual, Cosmos, and Imperial Splendor: Important Chinese Art from a Private North American Collection",
+      "houseStatus": "alias",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "9cad6661-4de9-4d76-8484-5e354cd969bd",
+          "sessionId": "f682a9aa-0c55-4f8f-a0d8-dde8057f644e",
+          "eventTime": "2026-09-17"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6598093",
+      "domain": "www.christies.com.cn",
+      "source": "template",
+      "truncated": false,
+      "chars": 1073,
+      "readable": true,
+      "textHash": "eaa1585761854371",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Ritual, Cosmos, and Imperial Splendor: Important Chinese Art from a Private North American Collection",
+      "houseStatus": "alias",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "b4de359a-c254-49e6-9db9-af3bb1a0c053",
+          "sessionId": "f682a9aa-0c55-4f8f-a0d8-dde8057f644e",
+          "eventTime": "2026-09-17"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6598098",
+      "domain": "www.christies.com.cn",
+      "source": "template",
+      "truncated": false,
+      "chars": 1101,
+      "readable": true,
+      "textHash": "be14de32fe5d40c4",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Ritual, Cosmos, and Imperial Splendor: Important Chinese Art from a Private North American Collection",
+      "houseStatus": "alias",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "bf6a6ca6-6f2d-4cd2-a3f7-803dfa315522",
+          "sessionId": "f682a9aa-0c55-4f8f-a0d8-dde8057f644e",
+          "eventTime": "2026-09-17"
+        }
+      ]
+    },
+    {
+      "url": "https://www.christies.com.cn/en/lot/lot-6598057",
+      "domain": "www.christies.com.cn",
+      "source": "template",
+      "truncated": false,
+      "chars": 902,
+      "readable": true,
+      "textHash": "b0680d7a1fe25b3c",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "Ritual, Cosmos, and Imperial Splendor: Important Chinese Art from a Private North American Collection",
+      "houseStatus": "alias",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "fec9618d-03bd-4965-b139-068f995efa9c",
+          "sessionId": "f682a9aa-0c55-4f8f-a0d8-dde8057f644e",
+          "eventTime": "2026-09-17"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32388/lot/211/a-pair-of-superb-rare-champleve-enamel-and-gilt-bronze-luduan-incense-burners-covers-and-stands-qianlong-4",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 971,
+      "readable": true,
+      "textHash": "e09c0e931f61ed09",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "ICONIC SPEELMAN",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "29d72e59-d954-4d2b-9f35-83be1462f4b3",
+          "sessionId": "fc45ab82-2d26-4c3a-a0bb-ad3a3542b827",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32388/lot/208/a-cloisonne-enamel-and-gilt-bronze-luduan-incense-burner-and-cover-qianlongjiaqing",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 889,
+      "readable": true,
+      "textHash": "cd5837bc41563c81",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "ICONIC SPEELMAN",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "2d740344-919a-4235-ab07-672c7950f9fb",
+          "sessionId": "fc45ab82-2d26-4c3a-a0bb-ad3a3542b827",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32388/lot/204/a-rare-imperial-parcel-gilt-bronze-double-vase-qianlong-four-character-mark-and-of-the-period",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 925,
+      "readable": true,
+      "textHash": "e19db560149eba08",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "ICONIC SPEELMAN",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "3de9d58a-c722-4c14-a962-e854e85e4b65",
+          "sessionId": "fc45ab82-2d26-4c3a-a0bb-ad3a3542b827",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32388/lot/207/an-exceptionally-rare-gold-gem-set-figure-of-the-loyal-general-qianlong-2",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 900,
+      "readable": true,
+      "textHash": "9fff82f6e14321d6",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "ICONIC SPEELMAN",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "b54f40a6-16c4-46b0-b083-86bbd36376de",
+          "sessionId": "fc45ab82-2d26-4c3a-a0bb-ad3a3542b827",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32388/lot/236/a-pair-of-very-rare-beijing-enamel-yellow-ground-vases-qianlong-four-character-marks-and-of-the-period-2",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 968,
+      "readable": true,
+      "textHash": "82095ed037aab731",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "ICONIC SPEELMAN",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "c3aa590f-6242-4ca5-8b94-c5da436c4264",
+          "sessionId": "fc45ab82-2d26-4c3a-a0bb-ad3a3542b827",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    },
+    {
+      "url": "https://www.bonhams.com/auction/32388/lot/239/an-exceptionally-rare-imperial-cloisonne-and-champleve-enamel-and-gilt-bronze-stag-shaped-incense-burner-and-cover-jiaqing-four-character-mark-and-of-the-period-2",
+      "domain": "www.bonhams.com",
+      "source": "template",
+      "truncated": false,
+      "chars": 1144,
+      "readable": true,
+      "textHash": "f19583c935f41c10",
+      "saleNameVerbatim": true,
+      "saleNameNormalized": true,
+      "saleNameQuote": "ICONIC SPEELMAN",
+      "houseStatus": "hit",
+      "dateStatus": "hit",
+      "events": [
+        {
+          "eventId": "dab1a236-b88b-42e1-abd5-024007051df1",
+          "sessionId": "fc45ab82-2d26-4c3a-a0bb-ad3a3542b827",
+          "eventTime": "2026-10-28"
+        }
+      ]
+    }
+  ],
+  "sessions": [
+    {
+      "sessionId": "340c1f2b-cad3-476b-b4ac-65a3933e6533",
+      "domain": "bonhams.com",
+      "externalId": "32090",
+      "name": "Fine Chinese Ceramics and Works of Art",
+      "date": "2026-10-28",
+      "house": "bonhams",
+      "events": 11,
+      "pages": 11,
+      "pageDomains": [
+        "bonhams.com"
+      ],
+      "crossSite": false,
+      "rawPages": 0,
+      "houseHits": 11,
+      "dateHits": 11,
+      "bothHits": 11,
+      "rawHouseHits": 0,
+      "rawDateHits": 0,
+      "rawBothHits": 0,
+      "templateBothHits": 11
+    },
+    {
+      "sessionId": "be9036bd-68c3-4948-a235-f5dfe6fbd0a9",
+      "domain": "christies.com",
+      "externalId": "29896",
+      "name": "Important Chinese Ceramics and Works of Art",
+      "date": "2026-10-29",
+      "house": "christies",
+      "events": 9,
+      "pages": 9,
+      "pageDomains": [
+        "christies.com.cn"
+      ],
+      "crossSite": true,
+      "rawPages": 1,
+      "houseHits": 9,
+      "dateHits": 9,
+      "bothHits": 9,
+      "rawHouseHits": 1,
+      "rawDateHits": 1,
+      "rawBothHits": 1,
+      "templateBothHits": 8
+    },
+    {
+      "sessionId": "0c3f7430-549b-43d7-afbe-4d62a4306d31",
+      "domain": "bonhams.com",
+      "externalId": "32202",
+      "name": "Asian Art",
+      "date": "2026-11-02",
+      "house": "bonhams",
+      "events": 8,
+      "pages": 8,
+      "pageDomains": [
+        "bonhams.com"
+      ],
+      "crossSite": false,
+      "rawPages": 0,
+      "houseHits": 8,
+      "dateHits": 8,
+      "bothHits": 8,
+      "rawHouseHits": 0,
+      "rawDateHits": 0,
+      "rawBothHits": 0,
+      "templateBothHits": 8
+    },
+    {
+      "sessionId": "fc45ab82-2d26-4c3a-a0bb-ad3a3542b827",
+      "domain": "bonhams.com",
+      "externalId": "32388",
+      "name": "ICONIC SPEELMAN",
+      "date": "2026-10-28",
+      "house": "bonhams",
+      "events": 6,
+      "pages": 6,
+      "pageDomains": [
+        "bonhams.com"
+      ],
+      "crossSite": false,
+      "rawPages": 0,
+      "houseHits": 6,
+      "dateHits": 6,
+      "bothHits": 6,
+      "rawHouseHits": 0,
+      "rawDateHits": 0,
+      "rawBothHits": 0,
+      "templateBothHits": 6
+    },
+    {
+      "sessionId": "f682a9aa-0c55-4f8f-a0d8-dde8057f644e",
+      "domain": "christies.com",
+      "externalId": "30213",
+      "name": "Ritual, Cosmos, and Imperial Splendor: Important Chinese Art from a Private North American Collection",
+      "date": "2026-09-17",
+      "house": "christies",
+      "events": 5,
+      "pages": 5,
+      "pageDomains": [
+        "christies.com.cn"
+      ],
+      "crossSite": true,
+      "rawPages": 0,
+      "houseHits": 5,
+      "dateHits": 5,
+      "bothHits": 5,
+      "rawHouseHits": 0,
+      "rawDateHits": 0,
+      "rawBothHits": 0,
+      "templateBothHits": 5
+    },
+    {
+      "sessionId": "9fc47d19-2bba-4a68-a639-b13a7d0fc9d3",
+      "domain": "christies.com",
+      "externalId": "31076",
+      "name": "Important Chinese Art Including Ceramics from the Art Institute of Chicago",
+      "date": "2026-09-17",
+      "house": "christies",
+      "events": 3,
+      "pages": 3,
+      "pageDomains": [
+        "christies.com.cn"
+      ],
+      "crossSite": true,
+      "rawPages": 0,
+      "houseHits": 3,
+      "dateHits": 3,
+      "bothHits": 3,
+      "rawHouseHits": 0,
+      "rawDateHits": 0,
+      "rawBothHits": 0,
+      "templateBothHits": 3
+    },
+    {
+      "sessionId": "09a25df8-e785-4887-a1cd-0a70c178e050",
+      "domain": "bonhams.com",
+      "externalId": "32203",
+      "name": "Fine Chinese Art",
+      "date": "2026-11-05",
+      "house": "bonhams",
+      "events": 1,
+      "pages": 1,
+      "pageDomains": [
+        "bonhams.com"
+      ],
+      "crossSite": false,
+      "rawPages": 0,
+      "houseHits": 1,
+      "dateHits": 1,
+      "bothHits": 1,
+      "rawHouseHits": 0,
+      "rawDateHits": 0,
+      "rawBothHits": 0,
+      "templateBothHits": 1
+    },
+    {
+      "sessionId": "20a4ccaf-931e-4b3b-948a-7ff65f26ea44",
+      "domain": "bonhams.com",
+      "externalId": "32697",
+      "name": "C.C. Teng Collection of Buddhist Sculptures: including Masterpieces by He Chaozong",
+      "date": "2026-10-28",
+      "house": "bonhams",
+      "events": 1,
+      "pages": 1,
+      "pageDomains": [
+        "bonhams.com"
+      ],
+      "crossSite": false,
+      "rawPages": 0,
+      "houseHits": 1,
+      "dateHits": 1,
+      "bothHits": 1,
+      "rawHouseHits": 0,
+      "rawDateHits": 0,
+      "rawBothHits": 0,
+      "templateBothHits": 1
+    },
+    {
+      "sessionId": "3448e5e6-45fc-46fd-a0ec-c44e95c89cb7",
+      "domain": "bonhams.com",
+      "externalId": "31803",
+      "name": "The CLASSICS Paris",
+      "date": "2026-11-05",
+      "house": "bonhams",
+      "events": 1,
+      "pages": 1,
+      "pageDomains": [
+        "bonhams.com"
+      ],
+      "crossSite": false,
+      "rawPages": 0,
+      "houseHits": 1,
+      "dateHits": 1,
+      "bothHits": 1,
+      "rawHouseHits": 0,
+      "rawDateHits": 0,
+      "rawBothHits": 0,
+      "templateBothHits": 1
+    },
+    {
+      "sessionId": "c4aea8e3-24dc-427b-9b2d-14f3930083a3",
+      "domain": "bonhams.com",
+      "externalId": "32511",
+      "name": "The Marsh Collection: Art for the Literati (Part V)",
+      "date": "2026-11-05",
+      "house": "bonhams",
+      "events": 1,
+      "pages": 1,
+      "pageDomains": [
+        "bonhams.com"
+      ],
+      "crossSite": false,
+      "rawPages": 0,
+      "houseHits": 1,
+      "dateHits": 1,
+      "bothHits": 1,
+      "rawHouseHits": 0,
+      "rawDateHits": 0,
+      "rawBothHits": 0,
+      "templateBothHits": 1
+    }
+  ]
+}

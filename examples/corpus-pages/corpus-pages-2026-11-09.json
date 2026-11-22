@@ -1,0 +1,848 @@
+{
+  "version": 2,
+  "kind": "corpus-page-replay",
+  "capturedAt": "2026-11-09T11:30:49.031Z",
+  "rejudgedAt": "2026-11-09T11:46:45.599Z",
+  "source": "shadow_db.pages.content_snapshot（主项目库，只读查询导出；本文件不含库连接）",
+  "sampling": {
+    "stratification": "按「正文类型（原始页/适配器模板）× 来源域名」分层，层内按 md5(id) 排序取前 N",
+    "strata": [
+      "bonhams 原始页 2 页",
+      "christies.com 原始页 1 页",
+      "sothebys 原始页 1 页",
+      "christies.com.cn 适配器模板 1 页",
+      "bonhams 适配器模板 1 页",
+      "中文页全量 3 页（amma.artron.net / rmxzw.com.cn / jjckb.xinhuanet.com）",
+      "finarte.it（意大利语）原始页 1 页"
+    ],
+    "note": "未按结果挑页；层内顺序由 md5(id) 决定，与正文内容无关"
+  },
+  "judge": {
+    "cleaner": "processHtml（与抓页样本同一份）",
+    "question": "已入库页面上，判据侧能把三字段核到什么程度（分三档，模板页不算证据）",
+    "minUsableChars": "200",
+    "houseSource": "域名 → 拍行名手工映射（不经正文），比对走 HOUSE_ALIASES 拉丁/汉字别名",
+    "dateSource": "price_events.event_time（结构化字段，不经正文），比对时归一写法、引文仍逐字",
+    "sessionSource": "场次层记录（sessionKey/sessionName/sessionDate/houseCanonical/language）；本轮库里没有，一律未测"
+  },
+  "counts": {
+    "pages": 10,
+    "readable": 10,
+    "raw": 4,
+    "template": 3,
+    "article": 3,
+    "truncatedAt50k": 2,
+    "adjudicable": 4,
+    "houseHit": 6,
+    "houseAlias": 1,
+    "dateHit": 2,
+    "dateNormalized": 5,
+    "twoFieldHits": 4,
+    "verbatimTwoFieldHits": 2,
+    "sessionMeasured": 0,
+    "threeFieldHits": 0
+  },
+  "tiers": {
+    "pages": 10,
+    "readable": 10,
+    "readableRate": 100,
+    "adjudicable": 4,
+    "twoFieldHits": 4,
+    "twoFieldRate": 100,
+    "verbatimTwoFieldHits": 2,
+    "sessionMeasured": 0,
+    "threeFieldHits": 0,
+    "threeFieldRate": null,
+    "material": {
+      "template": 3,
+      "article": 3,
+      "unreadable": 0,
+      "truncated": 2
+    },
+    "judgment": {
+      "houseMiss": 0,
+      "dateMiss": 0,
+      "dateYearUnresolved": 0,
+      "sessionNotMeasured": 4
+    }
+  },
+  "pages": [
+    {
+      "domain": "www.bonhams.com",
+      "url": "https://www.bonhams.com/auction/10396/lot/42/an-18-carat-gold-open-faced-lever-watch-together-with-a-fancy-guard-chain-numbered-4361-45mm",
+      "kind": "raw",
+      "snapshotChars": 333522,
+      "truncatedAt50k": false,
+      "plainChars": 21247,
+      "readable": true,
+      "eventTime": "2003-12-02",
+      "priceRaw": "£329 inc",
+      "sourceArm": "lens",
+      "saleUrl": null,
+      "textHash": "7c52a477cd15993a",
+      "fields": [
+        {
+          "key": "auctionHouse",
+          "value": "Bonhams",
+          "verbatim": true,
+          "category": "hit"
+        },
+        {
+          "key": "sessionName",
+          "value": "",
+          "verbatim": false,
+          "category": "not-constructible"
+        },
+        {
+          "key": "dateText",
+          "value": "2 December 2003",
+          "verbatim": true,
+          "category": "hit"
+        }
+      ],
+      "verified": true,
+      "verdict": "可核",
+      "excerpt": "<div><header><a>Skip to main content</a><div><div><button><span>Open navigation</span></button><nav><a>Create Account</a><a>Log in</a><div><button>Language</button></div><button>Currency</button></nav></div></div><nav><div><div><a>Auctions</a><a>Sell</a><a>Results</a><a>Departments</a><a>Locations</",
+      "asserted": {
+        "house": "Bonhams",
+        "date": "2 December 2003",
+        "sessionName": ""
+      },
+      "judged": {
+        "url": "https://www.bonhams.com/auction/10396/lot/42/an-18-carat-gold-open-faced-lever-watch-together-with-a-fancy-guard-chain-numbered-4361-45mm",
+        "domain": "www.bonhams.com",
+        "kind": "raw",
+        "chars": 21247,
+        "readable": true,
+        "adjudicable": true,
+        "house": {
+          "status": "hit",
+          "quote": "Bonhams",
+          "canonical": "邦瀚斯",
+          "matchedAs": "Bonhams",
+          "verbatim": true,
+          "detail": "断言原样出现在正文里"
+        },
+        "date": {
+          "status": "hit",
+          "quote": "2 December 2003",
+          "normalized": "2003-12-02",
+          "yearSource": "page",
+          "verbatim": true,
+          "detail": "断言原样出现在正文里"
+        },
+        "session": {
+          "status": "not-measured",
+          "quote": null,
+          "missing": [
+            "sessionKey",
+            "sessionName",
+            "sessionDate",
+            "houseCanonical",
+            "language"
+          ],
+          "detail": "场次层缺 sessionKey、sessionName、sessionDate、houseCanonical、language：这一层没有材料，记未测（不是 0）"
+        },
+        "verbatimBaseline": {
+          "house": true,
+          "date": true,
+          "twoFields": true
+        },
+        "twoFieldsVerified": true,
+        "threeFieldsVerified": null
+      }
+    },
+    {
+      "domain": "www.bonhams.com",
+      "url": "https://www.bonhams.com/auction/31738/lot/21/a-blue-and-white-dragon-snuff-bottle-late-qing-dynasty",
+      "kind": "template",
+      "snapshotChars": 2706,
+      "truncatedAt50k": false,
+      "plainChars": 620,
+      "readable": true,
+      "eventTime": "2026-09-23",
+      "priceRaw": "Hammer price: AU$850",
+      "sourceArm": "targeted",
+      "saleUrl": null,
+      "textHash": "93f68dc2f7c9419a",
+      "fields": [
+        {
+          "key": "auctionHouse",
+          "value": "Bonhams",
+          "verbatim": true,
+          "category": "hit"
+        },
+        {
+          "key": "sessionName",
+          "value": "",
+          "verbatim": false,
+          "category": "not-constructible"
+        },
+        {
+          "key": "dateText",
+          "value": "23 September 2026",
+          "verbatim": false,
+          "category": "format-diff",
+          "matchedVariant": "2026-09-23",
+          "snippet": "inese snuff bottles（专场 31738）</li><li><strong>拍卖时间：</strong>2026-09-23T04:20:00+00:00</li><li><strong>落槌价（Hammer price，成交）：</stron"
+        }
+      ],
+      "verified": false,
+      "verdict": "不可核",
+      "excerpt": "<article><h1>A BLUE AND WHITE 'DRAGON' SNUFF BOTTLE Late Qing Dynasty</h1><p>来源：Bonhams（bonhams.com）拍品详情，页面地址 https://www.bonhams.com/auction/31738/lot/21/a-blue-and-white-dragon-snuff-bottle-late-qing-dynasty/</p><ul><li><strong>拍品编号：</strong>Lot 21</li><li><strong>类目（站点部门）：</strong>Chinese Ceramic",
+      "asserted": {
+        "house": "Bonhams",
+        "date": "23 September 2026",
+        "sessionName": ""
+      },
+      "judged": {
+        "url": "https://www.bonhams.com/auction/31738/lot/21/a-blue-and-white-dragon-snuff-bottle-late-qing-dynasty",
+        "domain": "www.bonhams.com",
+        "kind": "template",
+        "chars": 620,
+        "readable": true,
+        "adjudicable": false,
+        "house": {
+          "status": "hit",
+          "quote": "Bonhams",
+          "canonical": "邦瀚斯",
+          "matchedAs": "Bonhams",
+          "verbatim": true,
+          "detail": "断言原样出现在正文里"
+        },
+        "date": {
+          "status": "normalized",
+          "quote": "2026-09-23T04:20:00+00:00",
+          "normalized": "2026-09-23",
+          "yearSource": "page",
+          "verbatim": false,
+          "detail": "写法不同，归一后是同一天（页面写法「2026-09-23T04:20:00+00:00」）"
+        },
+        "session": {
+          "status": "not-measured",
+          "quote": null,
+          "missing": [
+            "sessionKey",
+            "sessionName",
+            "sessionDate",
+            "houseCanonical",
+            "language"
+          ],
+          "detail": "场次层缺 sessionKey、sessionName、sessionDate、houseCanonical、language：这一层没有材料，记未测（不是 0）"
+        },
+        "verbatimBaseline": {
+          "house": true,
+          "date": false,
+          "twoFields": false
+        },
+        "twoFieldsVerified": true,
+        "threeFieldsVerified": null
+      }
+    },
+    {
+      "domain": "www.christies.com",
+      "url": "https://www.christies.com/en/lot/lot-6463050",
+      "kind": "raw",
+      "snapshotChars": 50000,
+      "truncatedAt50k": true,
+      "plainChars": 16582,
+      "readable": true,
+      "eventTime": "2023-12-12",
+      "priceRaw": null,
+      "sourceArm": "lens",
+      "saleUrl": null,
+      "textHash": "726e3b181f13fd1f",
+      "fields": [
+        {
+          "key": "auctionHouse",
+          "value": "Christie's",
+          "verbatim": true,
+          "category": "hit"
+        },
+        {
+          "key": "sessionName",
+          "value": "",
+          "verbatim": false,
+          "category": "not-constructible"
+        },
+        {
+          "key": "dateText",
+          "value": "12 December 2023",
+          "verbatim": false,
+          "category": "format-diff",
+          "matchedVariant": "12 Dec 2023",
+          "snippet": "lot-timer><div><chr-auction-timer><span>Closed: <span><span>12 Dec 2023</span></span></span></chr-auction-timer></div></chr-lot-tim"
+        }
+      ],
+      "verified": false,
+      "verdict": "不可核",
+      "excerpt": "<div><chr-live-chat></chr-live-chat></div><main><div><div><div><div><div><nav><ol><li><a><chr-icon></chr-icon><div><span> Live Auction 22168 </span><span>Art d'Asie</span></div></a></li></ol></nav><div><div><a><chr-icon></chr-icon></a><span>Lot 52 </span><a><chr-icon></chr-icon></a></div></div></div",
+      "asserted": {
+        "house": "Christie's",
+        "date": "12 December 2023",
+        "sessionName": ""
+      },
+      "judged": {
+        "url": "https://www.christies.com/en/lot/lot-6463050",
+        "domain": "www.christies.com",
+        "kind": "raw",
+        "chars": 16582,
+        "readable": true,
+        "adjudicable": true,
+        "house": {
+          "status": "hit",
+          "quote": "Christie's",
+          "canonical": "佳士得",
+          "matchedAs": "Christie's",
+          "verbatim": true,
+          "detail": "断言原样出现在正文里"
+        },
+        "date": {
+          "status": "normalized",
+          "quote": "12 Dec 2023",
+          "normalized": "2023-12-12",
+          "yearSource": "page",
+          "verbatim": false,
+          "detail": "写法不同，归一后是同一天（页面写法「12 Dec 2023」）"
+        },
+        "session": {
+          "status": "not-measured",
+          "quote": null,
+          "missing": [
+            "sessionKey",
+            "sessionName",
+            "sessionDate",
+            "houseCanonical",
+            "language"
+          ],
+          "detail": "场次层缺 sessionKey、sessionName、sessionDate、houseCanonical、language：这一层没有材料，记未测（不是 0）"
+        },
+        "verbatimBaseline": {
+          "house": true,
+          "date": false,
+          "twoFields": false
+        },
+        "twoFieldsVerified": true,
+        "threeFieldsVerified": null
+      }
+    },
+    {
+      "domain": "www.sothebys.com",
+      "url": "https://www.sothebys.com/en/buy/auction/2024/chinese-art-3/an-exceptionally-rare-underglaze-blue-and-puce?locale=zh-Hant",
+      "kind": "raw",
+      "snapshotChars": 50000,
+      "truncatedAt50k": true,
+      "plainChars": 11281,
+      "readable": true,
+      "eventTime": "2024-11-06",
+      "priceRaw": null,
+      "sourceArm": "targeted",
+      "saleUrl": null,
+      "textHash": "bf3f6776812f7dde",
+      "fields": [
+        {
+          "key": "auctionHouse",
+          "value": "Sotheby's",
+          "verbatim": true,
+          "category": "hit"
+        },
+        {
+          "key": "sessionName",
+          "value": "",
+          "verbatim": false,
+          "category": "not-constructible"
+        },
+        {
+          "key": "dateText",
+          "value": "6 November 2024",
+          "verbatim": false,
+          "category": "format-diff",
+          "matchedVariant": "November 6,",
+          "snippet": "清乾隆年製》款</h1></div></div></div><div><div><div><p>拍賣已結束</p><p>November 6, 03:25 PM GMT </p><div><p>估價</p><p>60,000 - 80,000 GBP</p></"
+        }
+      ],
+      "verified": false,
+      "verdict": "不可核",
+      "excerpt": "<div><div><div><div><a><span><img></span></a></div><div><div><div><div><div><div><div><span>Auctions</span></div></div><div><div><div><div><a>瀏覽全部</a></div></div><div><div><div><div><a>Upcoming Auctions</a></div><div><a>Auction Results</a></div><div><a>Departments</a></div><div><a>Artists</a></div><",
+      "asserted": {
+        "house": "Sotheby's",
+        "date": "6 November 2024",
+        "sessionName": ""
+      },
+      "judged": {
+        "url": "https://www.sothebys.com/en/buy/auction/2024/chinese-art-3/an-exceptionally-rare-underglaze-blue-and-puce?locale=zh-Hant",
+        "domain": "www.sothebys.com",
+        "kind": "raw",
+        "chars": 11281,
+        "readable": true,
+        "adjudicable": true,
+        "house": {
+          "status": "hit",
+          "quote": "Sotheby's",
+          "canonical": "苏富比",
+          "matchedAs": "Sotheby's",
+          "verbatim": true,
+          "detail": "断言原样出现在正文里"
+        },
+        "date": {
+          "status": "normalized",
+          "quote": "November 6",
+          "normalized": "2024-11-06",
+          "yearSource": "url",
+          "verbatim": false,
+          "detail": "写法不同，归一后是同一天（页面写「November 6」，年份取自 URL 的 2024）"
+        },
+        "session": {
+          "status": "not-measured",
+          "quote": null,
+          "missing": [
+            "sessionKey",
+            "sessionName",
+            "sessionDate",
+            "houseCanonical",
+            "language"
+          ],
+          "detail": "场次层缺 sessionKey、sessionName、sessionDate、houseCanonical、language：这一层没有材料，记未测（不是 0）"
+        },
+        "verbatimBaseline": {
+          "house": true,
+          "date": false,
+          "twoFields": false
+        },
+        "twoFieldsVerified": true,
+        "threeFieldsVerified": null
+      }
+    },
+    {
+      "domain": "www.christies.com.cn",
+      "url": "https://www.christies.com.cn/en/lot/lot-6608447",
+      "kind": "template",
+      "snapshotChars": 2654,
+      "truncatedAt50k": false,
+      "plainChars": 1104,
+      "readable": true,
+      "eventTime": "2026-10-29",
+      "priceRaw": "Price realised（成交总额，含买家佣金）: HKD 7,424,000",
+      "sourceArm": "targeted",
+      "saleUrl": "https://www.christies.com/en/auction/auction-29896",
+      "textHash": "88e8bf9641cc67f9",
+      "fields": [
+        {
+          "key": "auctionHouse",
+          "value": "Christie's",
+          "verbatim": false,
+          "category": "format-diff",
+          "matchedVariant": "佳士得",
+          "snippet": "IN UNDERGLAZE BLUE AND OF THE PERIOD (1736-1795)</h1><p>来源：佳士得（christies.com）拍品详情，页面地址 https://www.christies.com.cn/en/lot"
+        },
+        {
+          "key": "sessionName",
+          "value": "",
+          "verbatim": false,
+          "category": "not-constructible"
+        },
+        {
+          "key": "dateText",
+          "value": "29 October 2026",
+          "verbatim": false,
+          "category": "format-diff",
+          "matchedVariant": "2026-10-29",
+          "snippet": "cs and Works of Art（专场 29896）</li><li><strong>拍卖时间：</strong>2026-10-29T06:45Z</li><li><strong>成交价（Price realised，成交）：</strong>HKD"
+        }
+      ],
+      "verified": false,
+      "verdict": "不可核",
+      "excerpt": "[ { \"title\": \"A FINE AND VERY RARE LARGE BLUE AND WHITE ‘LONGEVITY AND EIGHT BUDDHIST EMBLEMS’ VASE, HU QIANLONG SIX-CHARACTER SEAL MARK IN UNDERGLAZE BLUE AND OF THE PERIOD (1736-1795)\", \"price\": \"7424000\", \"currency\": \"HKD\", \"status\": \"sold\", \"imageUrl\": \"https://www.christies.com.cn/img/LotImages",
+      "asserted": {
+        "house": "Christie's",
+        "date": "29 October 2026",
+        "sessionName": ""
+      },
+      "judged": {
+        "url": "https://www.christies.com.cn/en/lot/lot-6608447",
+        "domain": "www.christies.com.cn",
+        "kind": "template",
+        "chars": 1104,
+        "readable": true,
+        "adjudicable": false,
+        "house": {
+          "status": "alias",
+          "quote": "佳士得",
+          "canonical": "佳士得",
+          "matchedAs": "佳士得",
+          "verbatim": false,
+          "detail": "正文写「佳士得」，与断言「Christie's」是同一机构（佳士得）的另一种写法"
+        },
+        "date": {
+          "status": "normalized",
+          "quote": "2026-10-29T06:45Z",
+          "normalized": "2026-10-29",
+          "yearSource": "page",
+          "verbatim": false,
+          "detail": "写法不同，归一后是同一天（页面写法「2026-10-29T06:45Z」）"
+        },
+        "session": {
+          "status": "not-measured",
+          "quote": null,
+          "missing": [
+            "sessionName",
+            "sessionDate",
+            "houseCanonical",
+            "language"
+          ],
+          "detail": "场次层缺 sessionName、sessionDate、houseCanonical、language：这一层没有材料，记未测（不是 0）"
+        },
+        "verbatimBaseline": {
+          "house": false,
+          "date": false,
+          "twoFields": false
+        },
+        "twoFieldsVerified": true,
+        "threeFieldsVerified": null
+      }
+    },
+    {
+      "domain": "www.bonhams.com",
+      "url": "https://www.bonhams.com/auction/32202/lot/27/a-massive-embroidered-chinese-opera-wall-hanging-late-qing-dynasty",
+      "kind": "template",
+      "snapshotChars": 1133,
+      "truncatedAt50k": false,
+      "plainChars": 827,
+      "readable": true,
+      "eventTime": "2026-11-02",
+      "priceRaw": "Hammer price: £2,000",
+      "sourceArm": "targeted",
+      "saleUrl": "https://www.bonhams.com/auction/32202/",
+      "textHash": "1107090a6988e4da",
+      "fields": [
+        {
+          "key": "auctionHouse",
+          "value": "Bonhams",
+          "verbatim": true,
+          "category": "hit"
+        },
+        {
+          "key": "sessionName",
+          "value": "",
+          "verbatim": false,
+          "category": "not-constructible"
+        },
+        {
+          "key": "dateText",
+          "value": "2 November 2026",
+          "verbatim": false,
+          "category": "format-diff",
+          "matchedVariant": "2026-11-02",
+          "snippet": "：</strong>Asian Art（专场 32202）</li><li><strong>拍卖时间：</strong>2026-11-02T10:00:00+00:00</li><li><strong>落槌价（Hammer price，成交）：</stron"
+        }
+      ],
+      "verified": false,
+      "verdict": "不可核",
+      "excerpt": "[ { \"title\": \"A MASSIVE EMBROIDERED 'CHINESE OPERA' WALL HANGING Late Qing Dynasty\", \"price\": \"2000\", \"currency\": \"GBP\", \"status\": \"sold\", \"imageUrl\": \"https://images1.bonhams.com/image?src=Images/live/2026-09/28/25852337-39-3.jpg\", \"description\": null, \"transactionDate\": null } ] <article><h1>A MAS",
+      "asserted": {
+        "house": "Bonhams",
+        "date": "2 November 2026",
+        "sessionName": ""
+      },
+      "judged": {
+        "url": "https://www.bonhams.com/auction/32202/lot/27/a-massive-embroidered-chinese-opera-wall-hanging-late-qing-dynasty",
+        "domain": "www.bonhams.com",
+        "kind": "template",
+        "chars": 827,
+        "readable": true,
+        "adjudicable": false,
+        "house": {
+          "status": "hit",
+          "quote": "bonhams",
+          "canonical": "邦瀚斯",
+          "matchedAs": "Bonhams",
+          "verbatim": true,
+          "detail": "断言原样出现在正文里"
+        },
+        "date": {
+          "status": "normalized",
+          "quote": "2026-11-02T10:00:00+00:00",
+          "normalized": "2026-11-02",
+          "yearSource": "page",
+          "verbatim": false,
+          "detail": "写法不同，归一后是同一天（页面写法「2026-11-02T10:00:00+00:00」）"
+        },
+        "session": {
+          "status": "not-measured",
+          "quote": null,
+          "missing": [
+            "sessionName",
+            "sessionDate",
+            "houseCanonical",
+            "language"
+          ],
+          "detail": "场次层缺 sessionName、sessionDate、houseCanonical、language：这一层没有材料，记未测（不是 0）"
+        },
+        "verbatimBaseline": {
+          "house": true,
+          "date": false,
+          "twoFields": false
+        },
+        "twoFieldsVerified": true,
+        "threeFieldsVerified": null
+      }
+    },
+    {
+      "domain": "amma.artron.net",
+      "url": "https://amma.artron.net/observation_shownews.php?newid=1127163",
+      "kind": "article",
+      "snapshotChars": 19666,
+      "truncatedAt50k": false,
+      "plainChars": 9038,
+      "readable": true,
+      "eventTime": null,
+      "priceRaw": "1300",
+      "sourceArm": "text",
+      "saleUrl": null,
+      "textHash": "b12a27a751eb9897",
+      "fields": [
+        {
+          "key": "publisher",
+          "value": "雅昌艺术网",
+          "verbatim": true,
+          "category": "hit"
+        }
+      ],
+      "verified": null,
+      "verdict": "article：媒体赏析稿，不构造拍行/专场/成交日期断言（只统计正文可读性）",
+      "excerpt": "<div><div><div><div><a>雅昌首页</a><div><div><span><b></b></span><a>退出</a></div><div><span>您好！</span><a>请登录</a><a>免费注册</a></div></div><div><div><div><a>我的雅昌</a><b></b></div><ul><li><a>求购作品</a></li><li><a>发布作品</a></li><li><a>我的关注</a></li><li><a>我的收藏</a></li><li><a>服务中心</a></li></ul></div></div><a>求购单<spa",
+      "asserted": {
+        "house": null,
+        "date": null,
+        "sessionName": null,
+        "publisher": "雅昌艺术网"
+      },
+      "judged": {
+        "url": "https://amma.artron.net/observation_shownews.php?newid=1127163",
+        "domain": "amma.artron.net",
+        "kind": "article",
+        "chars": 9038,
+        "readable": true,
+        "adjudicable": false,
+        "house": null,
+        "date": null,
+        "session": {
+          "status": "not-measured",
+          "quote": null,
+          "missing": [
+            "sessionKey",
+            "sessionName",
+            "sessionDate",
+            "houseCanonical",
+            "language"
+          ],
+          "detail": "场次层缺 sessionKey、sessionName、sessionDate、houseCanonical、language：这一层没有材料，记未测（不是 0）"
+        },
+        "verbatimBaseline": null,
+        "twoFieldsVerified": false,
+        "threeFieldsVerified": null
+      }
+    },
+    {
+      "domain": "jjckb.xinhuanet.com",
+      "url": "http://jjckb.xinhuanet.com/whsh/2009-08/21/content_176296.htm",
+      "kind": "article",
+      "snapshotChars": 3084,
+      "truncatedAt50k": false,
+      "plainChars": 2280,
+      "readable": true,
+      "eventTime": null,
+      "priceRaw": null,
+      "sourceArm": null,
+      "saleUrl": null,
+      "textHash": "f11e14752bc6a9da",
+      "fields": [
+        {
+          "key": "publisher",
+          "value": "经济参考报",
+          "verbatim": true,
+          "category": "hit"
+        }
+      ],
+      "verified": null,
+      "verdict": "article：媒体赏析稿，不构造拍行/专场/成交日期断言（只统计正文可读性）",
+      "excerpt": "<table><tbody><tr></tr></tbody></table><table><tbody><tr></tr><tr><td><table><tbody><tr><td><table><tbody><tr></tr><tr><td><table><tbody><tr><td><font>[藏品赏析]</font>清乾隆青花缠枝鼓式缸</td></tr></tbody></table></td></tr><tr><td><table><tbody><tr></tr></tbody></table></td></tr><tr></tr><tr><td><table><tbody><t",
+      "asserted": {
+        "house": null,
+        "date": null,
+        "sessionName": null,
+        "publisher": "经济参考报"
+      },
+      "judged": {
+        "url": "http://jjckb.xinhuanet.com/whsh/2009-08/21/content_176296.htm",
+        "domain": "jjckb.xinhuanet.com",
+        "kind": "article",
+        "chars": 2280,
+        "readable": true,
+        "adjudicable": false,
+        "house": null,
+        "date": null,
+        "session": {
+          "status": "not-measured",
+          "quote": null,
+          "missing": [
+            "sessionKey",
+            "sessionName",
+            "sessionDate",
+            "houseCanonical",
+            "language"
+          ],
+          "detail": "场次层缺 sessionKey、sessionName、sessionDate、houseCanonical、language：这一层没有材料，记未测（不是 0）"
+        },
+        "verbatimBaseline": null,
+        "twoFieldsVerified": false,
+        "threeFieldsVerified": null
+      }
+    },
+    {
+      "domain": "www.rmzxw.com.cn",
+      "url": "http://www.rmzxw.com.cn/c/2018-03-21/2002339.shtml?n2m=1",
+      "kind": "article",
+      "snapshotChars": 15794,
+      "truncatedAt50k": false,
+      "plainChars": 7594,
+      "readable": true,
+      "eventTime": null,
+      "priceRaw": null,
+      "sourceArm": null,
+      "saleUrl": null,
+      "textHash": "06e7ebcb4ca996b2",
+      "fields": [
+        {
+          "key": "publisher",
+          "value": "人民政协网",
+          "verbatim": false,
+          "category": "format-diff",
+          "matchedVariant": "人民政协报",
+          "snippet": "ved</p><p>本网站所刊登的新闻、信息和各种专题专栏资料， 未经协议授权，不得使用或转载</p><p>主办单位： 人民政协报社 京ICP备09078172号 国新网许可证：101200605<img></p><br><p><img><img><"
+        }
+      ],
+      "verified": null,
+      "verdict": "article：媒体赏析稿，不构造拍行/专场/成交日期断言（只统计正文可读性）",
+      "excerpt": "<div><div><img></div><div><a>首 页</a><a>资讯</a><a>一品一鉴</a><a>经典收藏</a><a>藏界人物</a><a>藏闻逸事</a><a>知识讲堂</a><a>拍卖时刻</a></div></div><div><div><div><h1><span><a>首页</a>><a>收藏·鉴宝</a>><a>资讯</a></span><span><a>资讯</a></span></h1><div><h1><span>高古瓷为何败给了明清瓷器</span></h1><div><span>2018年03月21日 16:17 | 来源：<a>人民网-书画频道</",
+      "asserted": {
+        "house": null,
+        "date": null,
+        "sessionName": null,
+        "publisher": "人民政协网"
+      },
+      "judged": {
+        "url": "http://www.rmzxw.com.cn/c/2018-03-21/2002339.shtml?n2m=1",
+        "domain": "www.rmzxw.com.cn",
+        "kind": "article",
+        "chars": 7594,
+        "readable": true,
+        "adjudicable": false,
+        "house": null,
+        "date": null,
+        "session": {
+          "status": "not-measured",
+          "quote": null,
+          "missing": [
+            "sessionKey",
+            "sessionName",
+            "sessionDate",
+            "houseCanonical",
+            "language"
+          ],
+          "detail": "场次层缺 sessionKey、sessionName、sessionDate、houseCanonical、language：这一层没有材料，记未测（不是 0）"
+        },
+        "verbatimBaseline": null,
+        "twoFieldsVerified": false,
+        "threeFieldsVerified": null
+      }
+    },
+    {
+      "domain": "www.finarte.it",
+      "url": "https://www.finarte.it/auction/fine-asian-art-milan-2023-12-14/a-blue-and-white-porcelain-vase-107440",
+      "kind": "raw",
+      "snapshotChars": 18455,
+      "truncatedAt50k": false,
+      "plainChars": 5302,
+      "readable": true,
+      "eventTime": "2023-12-14",
+      "priceRaw": null,
+      "sourceArm": "stock",
+      "saleUrl": null,
+      "textHash": "36881a42e91d10fc",
+      "fields": [
+        {
+          "key": "auctionHouse",
+          "value": "Finarte",
+          "verbatim": true,
+          "category": "hit"
+        },
+        {
+          "key": "sessionName",
+          "value": "Fine Asian Art Milan",
+          "verbatim": false,
+          "category": "truncated",
+          "matchedVariant": "Fine Asian Art",
+          "snippet": "ng>Prev</strong> / <strong>Next</strong></div></div><a><h1> Fine Asian Art / 东方艺术 </h1><p> Thursday 14 December 2023, 10:00 AM • <span"
+        },
+        {
+          "key": "dateText",
+          "value": "14 December 2023",
+          "verbatim": true,
+          "category": "hit"
+        }
+      ],
+      "verified": false,
+      "verdict": "不可核",
+      "excerpt": "<div><header><div><div><ul><li><a>Milano: 02 3363801</a></li><li><a>Roma: 06 6791107</a></li></ul></div><div><a><img></a><div><ul><li><a>Auctions</a></li><li><a>Easy Collecting</a></li><li><a>Boutique</a></li><li><a>Gallery</a></li><li><a>Departments</a></li><li><a>Sell With Us</a></li><li><a>Contac",
+      "asserted": {
+        "house": "Finarte",
+        "date": "14 December 2023",
+        "sessionName": "Fine Asian Art Milan"
+      },
+      "judged": {
+        "url": "https://www.finarte.it/auction/fine-asian-art-milan-2023-12-14/a-blue-and-white-porcelain-vase-107440",
+        "domain": "www.finarte.it",
+        "kind": "raw",
+        "chars": 5302,
+        "readable": true,
+        "adjudicable": true,
+        "house": {
+          "status": "hit",
+          "quote": "finarte",
+          "canonical": null,
+          "matchedAs": "Finarte",
+          "verbatim": true,
+          "detail": "断言原样出现在正文里"
+        },
+        "date": {
+          "status": "hit",
+          "quote": "14 December 2023",
+          "normalized": "2023-12-14",
+          "yearSource": "page",
+          "verbatim": true,
+          "detail": "断言原样出现在正文里"
+        },
+        "session": {
+          "status": "not-measured",
+          "quote": null,
+          "missing": [
+            "sessionKey",
+            "sessionName",
+            "sessionDate",
+            "houseCanonical",
+            "language"
+          ],
+          "detail": "场次层缺 sessionKey、sessionName、sessionDate、houseCanonical、language：这一层没有材料，记未测（不是 0）"
+        },
+        "verbatimBaseline": {
+          "house": true,
+          "date": true,
+          "twoFields": true
+        },
+        "twoFieldsVerified": true,
+        "threeFieldsVerified": null
+      }
+    }
+  ]
+}

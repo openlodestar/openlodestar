@@ -516,7 +516,7 @@ export function officialHostsOfHouse(text: string | null | undefined): string[] 
  * "cultural heritage" 不是 Heritage Auctions，"The Guardian" 不是中国嘉德，
  * "art council" 不是北京匡时。判机构冲突时它们被剔除，只留全称/汉字名/专有拼写。
  */
-const AMBIGUOUS_LATIN_ALIASES = new Set(['heritage', 'guardian', 'council']);
+export const AMBIGUOUS_LATIN_ALIASES = new Set(['heritage', 'guardian', 'council']);
 
 /** 已知拍行官网的注册域 → 机构（用于"标题点名机构 vs 域名所属机构"的冲突判据） */
 const HOUSE_BY_DOMAIN: ReadonlyMap<string, string> = (() => {

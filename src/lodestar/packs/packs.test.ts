@@ -127,6 +127,12 @@ describe('路由：分类学只路由不打分，拒收要说清是哪一类', (
     expect(routing.route).toBe('verify');
   });
 
+  it('「次年」只在句中没有任何过去年份时才按无从定位拒收', () => {
+    const base = { subject: '中国嘉德', predicate: '举办专场', object: '瓷器专场', fieldKey: 'sessionName' as const, fieldRole: 'key' as const };
+    expect(porcelainPack.route({ ...base, atomicText: '次年将举办春季瓷器专场' }).reason).toBe('future-event');
+    expect(porcelainPack.route({ ...base, atomicText: '2021年秋拍之后，次年春拍于香港举办' }).route).toBe('verify');
+  });
+
   it('真伪判断按命题字段拒收（鉴定意见不是网页能裁的事）', () => {
     expect(
       porcelainPack.route({
@@ -330,6 +336,37 @@ describe('记录对齐键与字段等价键（稳定性复问靠它们数复现�
     expect(porcelainPack.valueMatchKey('sessionName', '民间瓷器')).not.toBe(porcelainPack.valueMatchKey('sessionName', '官窑瓷器'));
     // 多写一个"专场"尾词不算新变体（否则稳定率会被记低，稳定率会被误读）
     expect(porcelainPack.valueMatchKey('sessionName', '珍瓷雅玩')).toBe(porcelainPack.valueMatchKey('sessionName', '珍瓷雅玩专场'));
+  });
+
+  it('日期稳定性按归一化月份比：同月三种写法归一条，换月必须拆开', () => {
+    const november = porcelainPack.valueMatchKey('dateText', '2021年11月');
+    // 归一化要覆盖三种写法，否则"同一个月换个写法"会被算成不稳定
+    expect(porcelainPack.valueMatchKey('dateText', '2021-11')).toBe(november);
+    expect(porcelainPack.valueMatchKey('dateText', '十一月')).toBe(november);
+    // 换月必须拆开：11 / 12 / 10 月是三个不同的断言
+    expect(porcelainPack.valueMatchKey('dateText', '2021年12月')).not.toBe(november);
+    expect(porcelainPack.valueMatchKey('dateText', '2021年10月')).not.toBe(november);
+    // 季节的同义写法归一条，不同季节不归一条
+    expect(porcelainPack.valueMatchKey('dateText', '秋拍')).toBe(porcelainPack.valueMatchKey('dateText', '秋季'));
+    expect(porcelainPack.valueMatchKey('dateText', '秋季')).not.toBe(porcelainPack.valueMatchKey('dateText', '冬季'));
+  });
+
+  it('精度差不算不稳定：只写年份能并进同年同月的变体，换月或跨年不能', () => {
+    // 反例一：真稳定样本不能被归一化拆散（"2014年5月 / 2014-05 / 2014" 是同一场）
+    expect(porcelainPack.valueRepeatsSame?.('dateText', '2014年5月', '2014')).toBe(true);
+    expect(porcelainPack.valueRepeatsSame?.('dateText', '2014年5月', '2014-05')).toBe(true);
+    // 反例二：真的换了月份/年份必须判不是同一次复现
+    expect(porcelainPack.valueRepeatsSame?.('dateText', '2014年5月', '2014年6月')).toBe(false);
+    expect(porcelainPack.valueRepeatsSame?.('dateText', '2014年5月', '2016年5月')).toBe(false);
+  });
+
+  it('只写季节的日期被标为定位信息不全，写了年份或月份的不算', () => {
+    expect(porcelainPack.locatorIncompleteOf?.('dateText', '秋季')).toBe(true);
+    expect(porcelainPack.locatorIncompleteOf?.('dateText', '秋拍')).toBe(true);
+    expect(porcelainPack.locatorIncompleteOf?.('dateText', '2021年秋季')).toBe(false);
+    expect(porcelainPack.locatorIncompleteOf?.('dateText', '2021年11月')).toBe(false);
+    // 标记只管日期维度，别的字段写着"秋季"不算定位不全
+    expect(porcelainPack.locatorIncompleteOf?.('sessionName', '秋季')).toBe(false);
   });
 
   it('夹具域的记录对齐键与瓷器域不同形（策略包可换性）', () => {

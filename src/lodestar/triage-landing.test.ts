@@ -12,8 +12,10 @@
  * 翻译桩固定失败 → 只跑单轨，`searchCalls` 就等于实际查询条数。
  * 没有联网、没有抓页、没有 Serper。
  *
- * 重点看**误杀**：两类「该核却被拒」的样本单独成节，并测出「若放行要花多少检索」，
- * 用来区分「预算取舍」与「真误杀」。逐条分析见 `docs/triage-landing.md`。
+ * 重点看**误杀**：按「被拦的句子若漏过去，路由会怎么处理」判定——路由会送核
+ * 却被打回才算误杀；路由同样拒的只是提前拒。两类「该核却被拒」的样本单独成节，
+ * 并测出「若放行要花多少检索」，用来区分「预算取舍」与「真误杀」。
+ * 逐条分析见 `docs/triage-landing.md`。
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -127,6 +129,25 @@ interface Observation {
   /** 被预筛拒收的断言若绕过预筛要花多少次检索（null = 没有拒收断言） */
   counterfactualCost: number | null;
   claimsByField: Map<string, ClaimRecord>;
+  /** 放行后落到底稿里的路由结论（atomicText → 「route:reason」） */
+  routingOf: Map<string, string>;
+  /** 被拒断言若绕过预筛，路由会把它们放到哪 */
+  counterfactualRoutingOf: Map<string, string>;
+  /** 具体化追问实际补回的字段数（0 = 追问过但没补到东西） */
+  concretizedFields: number;
+  /** 本轮模型调用次数：3 轮复问 + 追问次数 */
+  modelCalls: number;
+}
+
+/** 底稿里的 claims 翻成「路由结论」表 */
+async function routingMap(store: LodestarStore): Promise<Map<string, string>> {
+  const rows = await store.query<ClaimRecord>('claims');
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    const label = row.routing ? `${row.routing.route}:${row.routing.reason}` : '未路由';
+    map.set(row.atomicText, label);
+  }
+  return map;
 }
 
 /** 同一行跑三轮（固定作答等价于模型稳定复现），预筛后量实际检索成本 */
@@ -144,37 +165,54 @@ async function observe(sample: FixedSample): Promise<Observation> {
     retrievalFallback: false,
     maxFieldsPerRecord: sample.maxFieldsPerRecord ?? 6,
   });
+  const modelCalls = invokeMock.mock.calls.length;
 
   let cost = 0;
   let adjudicated = 0;
+  let routingOf = new Map<string, string>();
   if (elicitation.claims.length > 0) {
+    const store = memoryStore();
     const verified = await runQuery('', {
       pack: offlinePack,
-      store: memoryStore(),
+      store,
       externalClaims: elicitation.claims,
       queryLabel: sample.name,
     });
     cost = verified.stats.searchCalls;
     adjudicated = verified.verdicts.length;
+    routingOf = await routingMap(store);
   }
 
   let counterfactualCost: number | null = null;
+  let counterfactualRoutingOf = new Map<string, string>();
   if (elicitation.rejectedClaims.length > 0) {
-    // 绕过预筛直接送给裁决链：只量"若放行要花多少"，不代表这条样本判得对
+    // 绕过预筛直接送给裁决链：只量"若放行要花多少"、落在哪，不代表这条样本判得对
+    const store = memoryStore();
     const verified = await runQuery('', {
       pack: offlinePack,
-      store: memoryStore(),
+      store,
       externalClaims: elicitation.rejectedClaims,
       queryLabel: `${sample.name}（若放行）`,
     });
     counterfactualCost = verified.stats.searchCalls;
+    counterfactualRoutingOf = await routingMap(store);
   }
 
   const claimsByField = new Map<string, ClaimRecord>();
   for (const claim of [...elicitation.claims, ...elicitation.rejectedClaims]) {
     if (claim.fieldKey) claimsByField.set(claim.fieldKey, claim);
   }
-  return { elicitation, cost, adjudicated, counterfactualCost, claimsByField };
+  return {
+    elicitation,
+    cost,
+    adjudicated,
+    counterfactualCost,
+    claimsByField,
+    routingOf,
+    counterfactualRoutingOf,
+    concretizedFields: elicitation.stats.concretizedFields,
+    modelCalls,
+  };
 }
 
 function claimOf(observed: Observation, fieldKey: string): ClaimRecord {
@@ -185,6 +223,13 @@ function claimOf(observed: Observation, fieldKey: string): ClaimRecord {
 
 function reasonOf(observed: Observation, fieldKey: string): string {
   return claimOf(observed, fieldKey).triage.reason;
+}
+
+/** 放行（或若放行）之后，这条断言在路由层的落点 */
+function routeOf(observed: Observation, fieldKey: string, counterfactual = false): string {
+  const claim = claimOf(observed, fieldKey);
+  const map = counterfactual ? observed.counterfactualRoutingOf : observed.routingOf;
+  return map.get(claim.atomicText) ?? '未路由';
 }
 
 /** 三轮同文（稳定复现的基线行） */
@@ -251,6 +296,8 @@ describe('预筛落点：四类拒收', () => {
     expect(observed.adjudicated).toBe(0);
     // 若放行：三条关键字段共用一个记录组，仍是 4 条查询
     expect(observed.counterfactualCost).toBe(4);
+    // 路由拦不住「这家拍卖行」（主语非空）——预筛是它唯一的闸
+    expect(routeOf(observed, 'auctionHouse', true)).toMatch(/^verify:/);
   });
 
   it('过于笼统：「早些年 / 瓷杂」两条拒收，只有机构那条送核', async () => {
@@ -264,13 +311,15 @@ describe('预筛落点：四类拒收', () => {
     expect(reasonOf(observed, 'sessionName')).toBe('not-decidable-vague');
     expect(observed.cost).toBe(4);
     expect(observed.adjudicated).toBe(1);
+    // 拒收不省检索：组级检索已为机构那条付过钱
+    expect(observed.counterfactualCost).toBe(4);
   });
 });
 
-describe('预筛落点：两类误杀（该核却被拒）', () => {
-  it('缺机构但日期与专场名具体：全部判「指代未消解」，实际 0 次、若放行 4 次', async () => {
+describe('预筛落点：字段级拒收与误杀复核（2026-11-09）', () => {
+  it('缺机构但日期与专场名具体：预筛拒、路由也拒——是提前拒，不算误杀（实际 0 次、若放行 4 次）', async () => {
     const observed = await observe({
-      name: '误杀-缺机构',
+      name: '缺机构-提前拒',
       runs: stable({ dateText: '2014年5月', sessionName: '瓷器工艺品专场' }),
     });
 
@@ -281,43 +330,171 @@ describe('预筛落点：两类误杀（该核却被拒）', () => {
     expect(reasonOf(observed, 'sessionName')).toBe('unresolvable-reference');
     expect(observed.cost).toBe(0);
     expect(observed.counterfactualCost).toBe(4);
+    // 漏过去也救不回来：路由对"主语为空"同样拒收。预筛在这里是提前拒，不是误杀
+    expect(routeOf(observed, 'dateText', true)).toBe('reject:unresolvable-reference');
   });
 
-  it('日期只写「秋季」而专场名具体：仅日期那条被判「过于笼统」', async () => {
+  it('日期只写「秋季」：放行并标「定位信息不全」，不再整条拒收（2026-11-09 修）', async () => {
     const observed = await observe({
-      name: '误杀-季节',
+      name: '季节-定位不全',
       runs: stable({ auctionHouse: '中国嘉德', dateText: '秋季', sessionName: '彩瓷雅集' }),
     });
 
-    // 「秋季」没有四位年份、长度不足 4 → 判笼统；但同一条记录里专场名已足以定位
-    expect(reasonOf(observed, 'dateText')).toBe('not-decidable-vague');
-    expect(reasonOf(observed, 'auctionHouse')).toBe('specific-and-decidable');
-    expect(reasonOf(observed, 'sessionName')).toBe('specific-and-decidable');
-    // 检索次数与放行时相同（都是 4），代价在记录级：少了一个关键字段的裁决
+    // 日期这条不再判笼统：放行、打标记，三个关键字段一起送核
+    const dateClaim = claimOf(observed, 'dateText');
+    expect(dateClaim.triage.reason).toBe('specific-and-decidable');
+    expect(dateClaim.triage.locatorIncomplete).toBe(true);
+    // 标记只打在弱定位的那一维，机构与专场名不受牵连
+    expect(claimOf(observed, 'auctionHouse').triage.locatorIncomplete).toBeUndefined();
+    expect(claimOf(observed, 'sessionName').triage.locatorIncomplete).toBeUndefined();
+    expect(observed.elicitation.rejectedClaims).toHaveLength(0);
     expect(observed.cost).toBe(4);
-    expect(observed.counterfactualCost).toBe(4);
-    expect(observed.adjudicated).toBe(2);
+    expect(observed.adjudicated).toBe(3);
+    // 没有拒收断言，也就没有"若放行"这回事
+    expect(observed.counterfactualCost).toBeNull();
+    expect(routeOf(observed, 'dateText')).toMatch(/^verify:/);
   });
 });
 
-describe('预筛落点：对照与预算闸', () => {
-  it('对照：三条关键字段齐全且稳定 → 全部送核，出 3 条裁决', async () => {
+describe('预筛落点：五类真实入口输入（2026-11-09）', () => {
+  it('可核的完整断言：三条全放行，落在 verify，花 4 次检索', async () => {
     const observed = await observe({
-      name: '对照',
+      name: '完整可核',
+      runs: stable({ auctionHouse: '中国嘉德', dateText: '2021年11月', sessionName: '秋季瓷器专场' }),
+    });
+
+    expect(reasonOf(observed, 'auctionHouse')).toBe('specific-and-decidable');
+    expect(reasonOf(observed, 'dateText')).toBe('specific-and-decidable');
+    expect(reasonOf(observed, 'sessionName')).toBe('specific-and-decidable');
+    expect(observed.modelCalls).toBe(3);
+    expect(observed.concretizedFields).toBe(0);
+    expect(observed.cost).toBe(4);
+    expect(observed.adjudicated).toBe(3);
+    expect(routeOf(observed, 'auctionHouse')).toMatch(/^verify:/);
+  });
+
+  it('「那件呢」：追问一次没补到东西 → 拒收，省下 4 次检索', async () => {
+    const observed = await observe({
+      name: '那件呢',
+      runs: [
+        [{ sessionName: '那件' }],
+        [{ sessionName: '那件' }],
+        [{ sessionName: '那件' }],
+      ],
+    });
+
+    // 三轮复问 + 一次具体化追问；追问的应答补不出机构与日期
+    expect(observed.modelCalls).toBe(4);
+    expect(observed.concretizedFields).toBe(0);
+    expect(reasonOf(observed, 'sessionName')).toBe('unresolvable-reference');
+    expect(observed.elicitation.claims).toHaveLength(0);
+    expect(observed.cost).toBe(0);
+    // 若放行，路由同样会拒（主语为空），但组级检索已经先花了 4 次才轮到它拒
+    expect(observed.counterfactualCost).toBe(4);
+    expect(routeOf(observed, 'sessionName', true)).toBe('reject:unresolvable-reference');
+  });
+
+  it('「这个值多少」：三条全判指代未消解 → 0 次；若放行会落 verify、白花 4 次', async () => {
+    const observed = await observe({
+      name: '这个值多少',
+      runs: stable({ auctionHouse: '这个', dateText: '2021年11月', sessionName: '秋季瓷器专场' }),
+    });
+
+    expect(reasonOf(observed, 'auctionHouse')).toBe('unresolvable-reference');
+    expect(reasonOf(observed, 'dateText')).toBe('unresolvable-reference');
+    expect(reasonOf(observed, 'sessionName')).toBe('unresolvable-reference');
+    expect(observed.cost).toBe(0);
+    expect(observed.counterfactualCost).toBe(4);
+    // 放行后不是"再拒一次"，而是三条都进 verify——这才是白花检索的样子
+    expect(routeOf(observed, 'dateText', true)).toMatch(/^verify:/);
+  });
+
+  it('「瓷器值钱吗」：两条笼统拒收、机构那条放行，检索仍是 4 次', async () => {
+    const observed = await observe({
+      name: '瓷器值钱吗',
+      runs: stable({ auctionHouse: '中国嘉德', dateText: '早些年', sessionName: '瓷器' }),
+    });
+
+    expect(reasonOf(observed, 'auctionHouse')).toBe('specific-and-decidable');
+    expect(reasonOf(observed, 'dateText')).toBe('not-decidable-vague');
+    expect(reasonOf(observed, 'sessionName')).toBe('not-decidable-vague');
+    // 拒掉的两条不省检索：同一条记录的组级检索已经为放行的那条付过钱
+    expect(observed.cost).toBe(4);
+    expect(observed.adjudicated).toBe(1);
+    expect(observed.counterfactualCost).toBe(4);
+    // 漏过去不会被路由拦：这两条会被当成可核断言送 verify，换来的是"查无实据"的噪音
+    expect(routeOf(observed, 'dateText', true)).toMatch(/^verify:/);
+    expect(routeOf(observed, 'sessionName', true)).toMatch(/^verify:/);
+  });
+
+  it('稳定性不足（只有月份变）：日期那条按不稳定拒收，机构与专场名照常放行', async () => {
+    const observed = await observe({
+      name: '答案不稳定-月份',
+      runs: [
+        [{ auctionHouse: '中国嘉德', dateText: '2021年11月', sessionName: '秋季瓷器专场' }],
+        [{ auctionHouse: '中国嘉德', dateText: '2021年12月', sessionName: '秋季瓷器专场' }],
+        [{ auctionHouse: '中国嘉德', dateText: '2021年10月', sessionName: '秋季瓷器专场' }],
+      ],
+    });
+
+    // 投票键下沉到月后：三个月份是三条变体、各 1 次，日期不再是稳定复现
+    expect(claimOf(observed, 'dateText').triage.reason).toBe('unstable-replay');
+    expect(claimOf(observed, 'dateText').provenance.stabilityHits).toBe(1);
+    // 同记录里另外两维三轮一致，不替日期陪葬
+    expect(reasonOf(observed, 'auctionHouse')).toBe('specific-and-decidable');
+    expect(reasonOf(observed, 'sessionName')).toBe('specific-and-decidable');
+    expect(observed.elicitation.claims).toHaveLength(2);
+    expect(observed.cost).toBe(4);
+    expect(observed.adjudicated).toBe(2);
+    // 日期那条若放行：同一记录组，仍是 4 条查询，而不是多出 4 条
+    expect(observed.counterfactualCost).toBe(4);
+    expect(routeOf(observed, 'dateText', true)).toMatch(/^verify:/);
+  });
+
+  it('稳定性不足（专场名变了）：九条全拒，省 12 次检索', async () => {
+    const observed = await observe({
+      name: '答案不稳定-专场名',
+      runs: [
+        [{ auctionHouse: '中国嘉德', dateText: '2021年11月', sessionName: '秋季瓷器专场' }],
+        [{ auctionHouse: '中国嘉德', dateText: '2021年11月', sessionName: '秋季瓷杂专场' }],
+        [{ auctionHouse: '中国嘉德', dateText: '2021年11月', sessionName: '秋季古董专场' }],
+      ],
+    });
+
+    expect(reasonOf(observed, 'auctionHouse')).toBe('unstable-replay');
+    expect(reasonOf(observed, 'dateText')).toBe('unstable-replay');
+    expect(reasonOf(observed, 'sessionName')).toBe('unstable-replay');
+    expect(observed.elicitation.claims).toHaveLength(0);
+    expect(observed.cost).toBe(0);
+    // 三个记录 × 三条断言若放行 = 12 次
+    expect(observed.counterfactualCost).toBe(12);
+    // 路由拦不住它：三个互斥的专场名都会被当成可核断言送 verify
+    expect(routeOf(observed, 'sessionName', true)).toMatch(/^verify:/);
+  });
+
+  it('混合句：可核三条放行，闲聊那条被路由按物品级断言拒，检索不多花', async () => {
+    const observed = await observe({
+      name: '混合句',
       runs: stable({
         auctionHouse: '中国嘉德',
         dateText: '2021年11月',
         sessionName: '秋季瓷器专场',
+        location: '这件器型真漂亮',
       }),
     });
 
     expect(reasonOf(observed, 'auctionHouse')).toBe('specific-and-decidable');
     expect(reasonOf(observed, 'dateText')).toBe('specific-and-decidable');
     expect(reasonOf(observed, 'sessionName')).toBe('specific-and-decidable');
+    // 闲聊被塞进了地点字段、预筛放行，但路由按"物品级个体断言"拒掉，不额外花钱
+    expect(reasonOf(observed, 'location')).toBe('specific-and-decidable');
+    expect(routeOf(observed, 'location')).toBe('reject:object-level-individual-assertion');
     expect(observed.cost).toBe(4);
     expect(observed.adjudicated).toBe(3);
   });
+});
 
+describe('预筛落点：对照与预算闸', () => {
   it('超出字段预算的字段落 rejected，不会被后续预筛覆盖成放行', async () => {
     const observed = await observe({
       name: '超预算',

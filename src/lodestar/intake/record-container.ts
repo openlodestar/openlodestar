@@ -99,7 +99,9 @@ export function alignRuns(runs: MappedRow[][], pack: DomainPack): AlignedRecord[
         const variantKey = pack.valueMatchKey(fieldKey, trimmed);
         if (variantKey === '') continue;
         const existing = aligned.variants.find(
-          (v) => v.fieldKey === fieldKey && v.matchKey === variantKey,
+          (v) =>
+            v.fieldKey === fieldKey &&
+            (v.matchKey === variantKey || pack.valueRepeatsSame?.(fieldKey, v.value, trimmed) === true),
         );
         if (existing) {
           existing.hits += 1;
@@ -158,7 +160,11 @@ export function applyConcretization(
       if (trimmed === '') continue;
       if (pack.fields().every((f) => f.key !== fieldKey)) continue;
       const variantKey = pack.valueMatchKey(fieldKey, trimmed);
-      const existing = record.variants.find((v) => v.fieldKey === fieldKey && v.matchKey === variantKey);
+      const existing = record.variants.find(
+        (v) =>
+          v.fieldKey === fieldKey &&
+          (v.matchKey === variantKey || pack.valueRepeatsSame?.(fieldKey, v.value, trimmed) === true),
+      );
       if (existing) {
         existing.hits += 1;
         continue;

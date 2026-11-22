@@ -409,6 +409,7 @@ export async function adjudicateClaim(input: AdjudicateClaimInput): Promise<Adju
       recordId: claim.recordId,
       ...(dimension ? { dimension: dimension.id } : {}),
       state: dimensionState,
+      ...(claim.triage.locatorIncomplete ? { locatorIncomplete: true } : {}),
       ...(matchedValue !== '' ? { matchedValue } : {}),
       ...(outcome.pageTopic ? { note: `页面主题：${outcome.pageTopic}` } : {}),
     };

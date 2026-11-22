@@ -42,6 +42,11 @@ import {
   type PageCheckFixture,
   type PageVerificationResult,
 } from '../src/lodestar/page-verification';
+import {
+  measureCorpusPages,
+  type CorpusPageVerdict,
+  type CorpusTierResult,
+} from '../src/lodestar/corpus-adjudication';
 import porcelainPack from '../src/lodestar/packs/porcelain';
 import type { ClaimRecord, EvidenceRecord } from '../src/lodestar/types';
 
@@ -65,6 +70,14 @@ interface SampleSet {
   pageChecks?: {
     version: string;
     samples: string[];
+  };
+  /**
+   * 已入库页面裁决专用的冻结样本（examples/corpus-pages/*.json）。
+   * 与抓页样本分开记版本与锁：库里正文换了不影响抓页读数，反之亦然。
+   */
+  corpusPages?: {
+    version: string;
+    file: string;
   };
 }
 
@@ -115,6 +128,9 @@ interface HistoryRow {
   /** 抓页可核率样本的版本与锁（旧行没有这两个字段） */
   pageCheckSampleVersion?: string;
   pageCheckSampleHash?: string;
+  /** 已入库页面裁决样本的版本与锁（旧行没有这两个字段） */
+  corpusSampleVersion?: string;
+  corpusSampleHash?: string;
   metrics: Record<string, number | null>;
 }
 
@@ -293,6 +309,42 @@ function computePageChecks(
     results,
     measured,
     unmeasured,
+  };
+}
+
+/** 已入库页面裁决样本的读数（三档 + 样本锁） */
+interface CorpusAggregate {
+  result: CorpusTierResult;
+  hash: string;
+}
+
+/**
+ * 已入库页面裁决：读冻结样本里的逐页判定读数，离线算三档（零外部调用）。
+ *
+ * 样本只存判定读数与短摘录、不存正文；正文由只读导出经 `scripts/score-corpus-pages.ts`
+ * 重判后写回。三档的分母各不相同（见 `measureCorpusPages`），不能合成一个数。
+ */
+function computeCorpusPages(
+  root: string,
+  config: { version: string; file: string } | undefined,
+): CorpusAggregate | null {
+  if (config === undefined) return null;
+  const file = path.join(root, config.file);
+  if (!fs.existsSync(file)) return null;
+  const raw = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+  const sample = JSON.parse(raw) as {
+    pages: Array<{ url: string; truncatedAt50k?: boolean; judged?: CorpusPageVerdict }>;
+  };
+  const pages = sample.pages.map((page) => page.judged);
+  if (pages.some((page) => page === undefined)) {
+    throw new Error(`${config.file} 里有页面缺 judged：先跑 npx tsx scripts/score-corpus-pages.ts --dump <导出> --write`);
+  }
+  const truncatedUrls = new Set(
+    sample.pages.filter((page) => page.truncatedAt50k === true).map((page) => page.url),
+  );
+  return {
+    result: measureCorpusPages(pages as CorpusPageVerdict[], { truncatedUrls }),
+    hash: crypto.createHash('sha256').update(raw).digest('hex'),
   };
 }
 
@@ -502,6 +554,7 @@ async function main(): Promise<void> {
   const liveRecall = computeLiveRecall(root, samples.liveRecall);
   const pageCheckHash = samples.pageChecks ? hashPageChecks(root, samples.pageChecks) : null;
   const pageChecks = computePageChecks(root, samples.pageChecks, liveRecall?.results ?? []);
+  const corpus = computeCorpusPages(root, samples.corpusPages);
 
   const outcomes = new Map<string, BatchOutcome>();
   for (const batch of samples.batches) {
@@ -669,6 +722,58 @@ async function main(): Promise<void> {
       meaning: '变差意味着：抓回来的页面讲的是别的事（同名不同场/文章只提价目）——召回层把"同名同题"当成了"同一场"。',
     },
     {
+      key: 'corpusReadable',
+      label: '正文可读率（已入库页面）',
+      value: corpus?.result.readableRate ?? null,
+      display: corpus === null ? '未测' : `${corpus.result.readable}/${corpus.result.pages}`,
+      unit: '%',
+      direction: 'up',
+      threshold: 0,
+      detail:
+        corpus === null
+          ? '未配置冻结页面样本（benchmark/samples.json 缺 corpusPages），本项未测；不以 0 记'
+          : `分母=抽到的全部页；≥200 字符算可读；卡在 5 万字符 ${corpus.result.material.truncated} 页；` +
+            '这一项只回答"材料在不在"，答不了"判据准不准"',
+      meaning: '变差意味着：库里的正文被抽成空壳或被截断，后面所有裁决都没有材料可裁。',
+    },
+    {
+      key: 'corpusTwoField',
+      label: '两字段可核率（机构+日期）',
+      value: corpus?.result.twoFieldRate ?? null,
+      display:
+        corpus === null ? '未测' : `${corpus.result.twoFieldHits}/${corpus.result.adjudicable}`,
+      unit: '%',
+      direction: 'up',
+      threshold: 0,
+      detail:
+        corpus === null
+          ? '未配置冻结页面样本，本项未测'
+          : `分母=可裁决页（原始正文拍行页）；旧口径整页命中 ${corpus.result.verbatimTwoFieldHits}/${corpus.result.adjudicable}；` +
+            `材料不够不计入分母：抽取器模板 ${corpus.result.material.template} 页（模板会自证）、媒体稿 ${corpus.result.material.article} 页（不构造拍行断言）；` +
+            `判据判不中：结构位置没写机构 ${corpus.result.judgment.houseUnjudgeable} · 日期不符/没有 ${corpus.result.judgment.dateMiss} · 日期缺年 ${corpus.result.judgment.dateYearUnresolved}`,
+      meaning: '变差意味着：已入库页面上机构或日期核不上——要么页面不是本场，要么判据把不同写法判成了不同事实。',
+    },
+    {
+      key: 'corpusThreeField',
+      label: '三字段可核率（+专场）',
+      value: corpus?.result.threeFieldRate ?? null,
+      display:
+        corpus === null || corpus.result.sessionMeasured === 0
+          ? '未测'
+          : `${corpus.result.threeFieldHits}/${corpus.result.sessionMeasured}`,
+      unit: '%',
+      direction: 'up',
+      threshold: 0,
+      detail:
+        corpus === null
+          ? '未配置冻结页面样本，本项未测'
+          : corpus.result.sessionMeasured === 0
+            ? `场次层契约未满足（${corpus.result.judgment.sessionNotMeasured} 页缺 sessionName / sessionDate / houseCanonical / language）：` +
+              '专场的材料不在单件页，这一维记「未测」，不记 0'
+            : `分母=场次层契约已满足的页 ${corpus.result.sessionMeasured} 页（共 ${corpus.result.adjudicable} 页可裁决）`,
+      meaning: '在契约满足前它一直是未测：把它记成 0 会把"材料不在这一层"误读成"判据判不中"，读数就没法用。',
+    },
+    {
       key: 'retrievalQueriesPerClaim',
       label: '每条断言的构造检索条数',
       value: totalClaims === 0 ? null : Math.round((totalQueries / totalClaims) * 100) / 100,
@@ -740,6 +845,13 @@ async function main(): Promise<void> {
   } else {
     console.log('抓页样本：未配置（可核率、抓页成功率、逐字核验通过率显示「未测」）');
   }
+  if (samples.corpusPages && corpus !== null) {
+    console.log(
+      `页面样本 ${samples.corpusPages.version} · ${samples.corpusPages.file} · sha256:${corpus.hash.slice(0, 16)}…`,
+    );
+  } else {
+    console.log('页面样本：未配置（正文可读率、两字段可核率、三字段可核率显示「未测」）');
+  }
   console.log(`提交 ${meta.commit} · ${meta.date}`);
   console.log('');
   console.log('分项                          当前                    基线      方向  说明');
@@ -794,6 +906,12 @@ async function main(): Promise<void> {
           pageCheckSampleHash: pageCheckHash,
         }
       : {}),
+    ...(samples.corpusPages && corpus !== null
+      ? {
+          corpusSampleVersion: samples.corpusPages.version,
+          corpusSampleHash: corpus.hash,
+        }
+      : {}),
     metrics: Object.fromEntries(metrics.map((metric) => [metric.key, metric.value])),
   };
   if (args.updateBaseline) {
@@ -807,6 +925,7 @@ async function main(): Promise<void> {
       previous.sampleHash === row.sampleHash &&
       previous.liveRecallSampleHash === row.liveRecallSampleHash &&
       previous.pageCheckSampleHash === row.pageCheckSampleHash &&
+      previous.corpusSampleHash === row.corpusSampleHash &&
       JSON.stringify(previous.metrics) === JSON.stringify(row.metrics);
     if (sameAsLast) {
       console.log('历史表已有同一组读数，未重复追加。');

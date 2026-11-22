@@ -44,6 +44,9 @@ npx tsx scripts/scorecard.ts
 | 抓页样本版本 | `page-2026-11-09-gate` |
 | 抓页样本 | `porcelain-2021-autumn`、`cg-2021-autumn`（各 12 页） |
 | 抓页样本锁 | `sha256:4fc586ce91406463…`（完整值见每次输出） |
+| 页面样本版本 | `corpus-2026-11-09-normalized` |
+| 页面样本 | `examples/corpus-pages/corpus-pages-2026-11-09.json`（10 页分层抽样） |
+| 页面样本锁 | `sha256:1d5e4c6b74e514ee…`（完整值见每次输出） |
 | 金标准来源 | `examples/poly-2021-autumn/case.json` 的 `expectations`；`src/lodestar/examples.test.ts` 与 `examples/porcelain/README.md` 里写死的人工结论 |
 
 样本锁的算法：7 个批次目录下的 `*.jsonl` / `*.json` / `*.txt` 按相对路径排序，逐个读入并统一换行（CRLF → LF）后依次喂进 SHA-256。换行归一化是必须的——同一份样本在 Windows 与 Linux 检出下必须锁出同一个值。
@@ -54,9 +57,9 @@ npx tsx scripts/scorecard.ts
 
 **换样本的规矩。** 改批次清单或改批次内容＝换考卷：必须同时升 `benchmark/samples.json` 的对应版本号，然后 `--update-baseline` 重记基线。不许在旧版本号下悄悄改样本刷分——锁会变，输出会红字警告。
 
-## 八个分项
+## 十一个分项
 
-当前读数（2026-11-09 抓页这一轮；判定样本 `frozen-2026-11-09`、检索样本 `live-2026-11-09`、抓页样本 `page-2026-11-09`）：
+当前读数（2026-11-09 抓页与页面裁决这两轮；判定样本 `frozen-2026-11-09`、检索样本 `live-2026-11-09`、抓页样本 `page-2026-11-09`、页面样本 `corpus-2026-11-09-normalized`）：
 
 | 分项 | 当前 | 方向 | 这一项变差，意味着发生了什么坏事 |
 | --- | --- | --- | --- |
@@ -68,6 +71,9 @@ npx tsx scripts/scorecard.ts
 | 可核率（抓页 + 逐字核上） | 0.0%（0/8） | ↑ 越高越好 | 召回到的页面要么抓不到、要么正文里没有这条事实——只看摘要的召回率会高估这条链路，用户按线索去核会扑空。 |
 | 抓页成功率 | 7.7%（1/13） | ↑ 越高越好 | 候选页被拦、是死链或脚本壳：不是"没有这条事实"，而是拿不到能核的材料，处理方式完全不同。 |
 | 逐字核验通过率（抓到的页里） | 0.0%（0/1） | ↑ 越高越好 | 抓回来的页面讲的是别的事（同名不同场、文章只提价目）——召回层把"同名同题"当成了"同一场"。 |
+| 正文可读率（已入库页面） | 100.0%（10/10） | ↑ 越高越好 | 库里的正文被抽成空壳或被截断（≥200 字符算可读）：后面所有裁决都没有材料可裁。 |
+| 两字段可核率（机构+日期） | 100.0%（4/4） | ↑ 越高越好 | 已入库页面上机构或日期核不上：页面不是本场，或判据把不同写法判成了不同事实。 |
+| 三字段可核率（+专场） | 未测（场次层契约未满足） | ↑ 越高越好 | 场次记录缺 `sessionName` / `sessionDate` / `language`：这一维没有材料，**记未测，不记 0**。 |
 | 每条断言的构造检索条数 | 1.33（52 条 / 39 条） | ↓ 越低越好 | 同一条断言要花更多检索，成本上升（但也要防"省检索"省成覆盖变窄，见下）。 |
 
 ### 口径细节
@@ -117,6 +123,26 @@ npx tsx scripts/scorecard.ts
 
 当前读数（两份样本，抓页样本 24 页、过闸后 13 页）：可核率 **0/8**、抓页成功率 **1/13 = 7.7%**、逐字核验通过率 **0/1**。抓不到的原因：超时 1 · 被拦 6 · 页面结构不符 2 · 跳转死链 3；另有 11 页因域名解析不到被闸在抓页之前（`orphaned`）。逐字段看，抓到的那页里机构、专场名、日期一个都没命中（页面是脚本壳，正文只有 720 字符的页脚）。逐条查询、域名与成本见 [search-replay.md](search-replay.md) 的「抓页可核」一节。
 
+### 正文可读率、两字段、三字段怎么算
+
+这三项回答的是另一个问题：**不是"自己上网能不能抓到证据"，而是"已经落库的页面能不能被裁"**。同样是一次性抽样 + 冻结回放：
+
+1. 从主项目 `shadow_db.pages` 按「正文类型 × 来源域名」分层抽样（层内按 `md5(id)` 排序取前 N，中文页全量），页面正文**只读导出**；
+2. 用与引擎同一套清洗器（`processHtml`）拿到正文，再按三档分别判：正文是否 ≥200 字符、机构 + 日期是否核上、再加上专场；
+3. 判定读数（含逐字引文片段与字段状态）冻进 `examples/corpus-pages/*.json`，不存全文；记进 `benchmark/samples.json` 的 `corpusPages` 版本与独立锁；
+4. 评分卡只读这份判定，零外部调用，重跑同分。
+
+口径（三档分母各不相同，这是重点）：
+
+- **正文可读率**：分母是抽到的全部页。它只回答"材料在不在"，答不了"判据准不准"。
+- **两字段可核率**：分母是**可裁决页**（原始正文且可读）。**抽取器模板不进分母**——模板本来就是抽取结果，用它去核抽取结果等于自证；中文媒体稿也不进——它没有"本场"这个概念，记「不适用」。分母之外的数量在输出的说明里逐类点名。
+- **三字段可核率**：分母是**场次层契约已满足**的页（`sessionKey` / `sessionName` / `sessionDate` / `houseCanonical` / `language` 五项齐全）。一页都没有时显示「未测」，**不是 0**：0 是"判了但没中"，未测是"这一维没有材料"。
+- 判据侧会做两件归一：日期按写法归一后比对（月份缩写、ISO、中文、URL 补年份），机构走 `HOUSE_ALIASES` 的拉丁/汉字别名；**引文始终是页面原文里的逐字片段**。可归一与不可归一的边界、以及会误判的三种情形，写在 [corpus-page-adjudication.md](corpus-page-adjudication.md)。
+
+当前读数（10 页分层样本）：正文可读率 **10/10 = 100.0%**；两字段可核率 **4/4 = 100.0%**（旧口径逐字 2/4；模板 3 页、媒体稿 3 页不进分母）；三字段可核率 **未测**（4 页可裁决页都没有场次记录，缺 `sessionName` / `sessionDate` / `houseCanonical` / `language`）。
+
+**样本只有 10 页，可裁决页只有 4 页。** 100% 是 4 页上的 100%，不是库级的 100%——库级材料结构（218 页里 103 页是抽取器模板，占 47%）写在 [corpus-page-adjudication.md](corpus-page-adjudication.md)。
+
 ## 哪些改动不该改变分数
 
 判断改动是否"应该动分"，先问它有没有改变**判定结果**：
@@ -135,7 +161,7 @@ npx tsx scripts/scorecard.ts
 每次跑追加一行，格式：
 
 ```json
-{"commit":"<提交短号>","date":"2026-11-09","recordedAt":"…","sampleVersion":"frozen-2026-11-09","sampleHash":"d1e88f56…","liveRecallSampleVersion":"live-2026-11-09-gate","liveRecallSampleHash":"f8a01f90…","pageCheckSampleVersion":"page-2026-11-09-gate","pageCheckSampleHash":"4fc586ce…","metrics":{"gateAgreement":100,"negativeRejection":100,"positiveNotFalselyRejected":100,"traceability":100,"liveRecall":50,"liveRecallVerifiable":0,"pageFetchSuccess":7.7,"pageVerbatimPass":0,"retrievalQueriesPerClaim":1.33}}
+{"commit":"<提交短号>","date":"2026-11-09","recordedAt":"…","sampleVersion":"frozen-2026-11-09","sampleHash":"d1e88f56…","liveRecallSampleVersion":"live-2026-11-09-gate","liveRecallSampleHash":"f8a01f90…","pageCheckSampleVersion":"page-2026-11-09-gate","pageCheckSampleHash":"4fc586ce…","corpusSampleVersion":"corpus-2026-11-09-normalized","corpusSampleHash":"1d5e4c6b…","metrics":{"gateAgreement":100,"negativeRejection":100,"positiveNotFalselyRejected":100,"traceability":100,"liveRecall":50,"liveRecallVerifiable":0,"pageFetchSuccess":7.7,"pageVerbatimPass":0,"corpusReadable":100,"corpusTwoField":100,"corpusThreeField":null,"retrievalQueriesPerClaim":1.33}}
 ```
 
 同一提交、同一组读数重跑不会重复追加。看趋势读整张表，不要只跟上一行比。

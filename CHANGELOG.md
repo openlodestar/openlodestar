@@ -6,6 +6,13 @@
 
 ### Changed
 
+- **10 页冻结样本按新机构口径只读重判，两字段可核率实测 1/4，取代早前推算的 4/4**（`examples/corpus-pages/corpus-pages-2026-11-09.json`、`docs/corpus-page-adjudication.md`、`docs/scorecard.md`、`benchmark/history.jsonl`）：
+  - **怎么来的**：经主人授权，从主项目库只读重导出 10 页正文（一条 `SELECT`，会话设 `default_transaction_read_only`，不写库、不改主项目代码），`scripts/score-corpus-pages.ts --dump` 整体重判后 `--write` 写回冻结样本。
+  - **读数（时点 2026-11-24，口径=新机构判据）**：正文可读率 10/10 不变；两字段 **1/4 = 25.0%**（旧口径整页命中 2/4）；三字段仍「未测」。日期判据实测 4/4 全核上（旧口径 2/7）。
+  - **与推算差在哪**：早前文档推算两字段 4/4，前提是「结构区域在快照上抽得出来」；实际 `content_snapshot` 是纯文本，`extractHouseRegions` 靠标签/class 定位，文本快照上 4 页可裁决页里 3 页抽不出任何结构区域 → 机构记「判不了」（设计行为），只有 bonhams `lot/42` 快照残留部分结构标记而命中。两字段的提升路径是补结构材料（存原始 HTML 或按站点文本结构映射），不是放宽判据。
+  - **样本换版一处**：bonhams `lot/27` 旧快照仅 1,133 字符近似空壳，重导出为 50,000 字符整页（仍截断），哈希已刷新并在样本头注明；其余 9 页哈希未动。
+  - **验证**：`pnpm typecheck` 通过、`pnpm test` 48 文件 698 例全绿、`pnpm run scorecard` 跑通并追加历史行（两字段较上一行 −75.0 个百分点，系基线从未实测、由推算值换成实测值所致，非功能退步）。
+
 - **预筛两处判据按落点表实测结果修正：季节日期改为放行并标「定位信息不全」，日期稳定性投票键下沉到月**（`src/lodestar/intake/triage.ts`、`src/lodestar/intake/elicitation.ts`、`src/lodestar/intake/record-container.ts`、`src/lodestar/packs/pack.ts`、`src/lodestar/packs/porcelain/index.ts`、`src/lodestar/types.ts`、`src/lodestar/adjudicate/index.ts`、`src/lodestar/packs/packs.test.ts`、`src/lodestar/triage-landing.test.ts`、`src/lodestar/adjudicate/adjudicate-claim.test.ts`、`docs/triage-landing.md`）：
   - **季节日期不再整条拒**：日期只写季节（「秋季」）此前被判 `not-decidable-vague`，是落点表里唯一经路由验证的真误杀——漏过去路由会送 `verify`，拒收又让整条记录永远凑不齐关键字段，且拒收不省检索。现在由策略包的 `locatorIncompleteOf` 判定（日期没写四位年份且出现春/夏/秋/冬），判 true 时**放行并写 `triage.locatorIncomplete: true`**；裁决出的每一行证据也带同一颗标记，下游能看出这一维弱在哪。「2021年秋」有年份、能落到 9–11 月窗口，不算定位不全。缺省不提供该方法的包行为不变。
   - **稳定性投票键按归一化月份比**：`dateText` 的 `valueMatchKey` 从「只取年份」改为「取归一化月份」（`M11`），覆盖 `2021年11月` / `2021-11` / `十一月` 三种写法（补了中文数字月份解析）；同一记录内不同年份本就由 `recordMatchKey` 分成不同记录，月份键不需要带年份。新增 `valueRepeatsSame` 处理精度差：一方只写到年份（`2014`）时能并进同年的「2014年5月」，所以「2014年5月 / 2014-05 / 2014」这种真稳定样本不会被拆散；而 11/12/10 月必须拆成三条变体。

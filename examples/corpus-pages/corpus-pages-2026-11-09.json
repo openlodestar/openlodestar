@@ -2,7 +2,7 @@
   "version": 2,
   "kind": "corpus-page-replay",
   "capturedAt": "2026-11-09T11:30:49.031Z",
-  "rejudgedAt": "2026-11-09T11:46:45.599Z",
+  "rejudgedAt": "2026-11-24T09:55:18.395Z",
   "source": "shadow_db.pages.content_snapshot（主项目库，只读查询导出；本文件不含库连接）",
   "sampling": {
     "stratification": "按「正文类型（原始页/适配器模板）× 来源域名」分层，层内按 md5(id) 排序取前 N",
@@ -31,13 +31,13 @@
     "raw": 4,
     "template": 3,
     "article": 3,
-    "truncatedAt50k": 2,
+    "truncatedAt50k": 3,
     "adjudicable": 4,
-    "houseHit": 6,
-    "houseAlias": 1,
+    "houseHit": 2,
+    "houseAlias": 0,
     "dateHit": 2,
-    "dateNormalized": 5,
-    "twoFieldHits": 4,
+    "dateNormalized": 4,
+    "twoFieldHits": 1,
     "verbatimTwoFieldHits": 2,
     "sessionMeasured": 0,
     "threeFieldHits": 0
@@ -47,8 +47,8 @@
     "readable": 10,
     "readableRate": 100,
     "adjudicable": 4,
-    "twoFieldHits": 4,
-    "twoFieldRate": 100,
+    "twoFieldHits": 1,
+    "twoFieldRate": 25,
     "verbatimTwoFieldHits": 2,
     "sessionMeasured": 0,
     "threeFieldHits": 0,
@@ -57,10 +57,10 @@
       "template": 3,
       "article": 3,
       "unreadable": 0,
-      "truncated": 2
+      "truncated": 3
     },
     "judgment": {
-      "houseMiss": 0,
+      "houseUnjudgeable": 3,
       "dateMiss": 0,
       "dateYearUnresolved": 0,
       "sessionNotMeasured": 4
@@ -121,7 +121,8 @@
           "canonical": "邦瀚斯",
           "matchedAs": "Bonhams",
           "verbatim": true,
-          "detail": "断言原样出现在正文里"
+          "position": "header",
+          "detail": "机构名原样出现在页头/站内导航里"
         },
         "date": {
           "status": "hit",
@@ -203,12 +204,13 @@
         "readable": true,
         "adjudicable": false,
         "house": {
-          "status": "hit",
-          "quote": "Bonhams",
+          "status": "unjudgeable",
+          "quote": null,
           "canonical": "邦瀚斯",
-          "matchedAs": "Bonhams",
-          "verbatim": true,
-          "detail": "断言原样出现在正文里"
+          "matchedAs": null,
+          "verbatim": false,
+          "position": null,
+          "detail": "页头、面包屑、标题区、场次抬头里都没有拍行明文；正文里的顺带提及、推广位、邮箱、页脚声明不算机构证据"
         },
         "date": {
           "status": "normalized",
@@ -235,7 +237,7 @@
           "date": false,
           "twoFields": false
         },
-        "twoFieldsVerified": true,
+        "twoFieldsVerified": false,
         "threeFieldsVerified": null
       }
     },
@@ -290,12 +292,13 @@
         "readable": true,
         "adjudicable": true,
         "house": {
-          "status": "hit",
-          "quote": "Christie's",
+          "status": "unjudgeable",
+          "quote": null,
           "canonical": "佳士得",
-          "matchedAs": "Christie's",
-          "verbatim": true,
-          "detail": "断言原样出现在正文里"
+          "matchedAs": null,
+          "verbatim": false,
+          "position": null,
+          "detail": "页头、面包屑、标题区、场次抬头里都没有拍行明文；正文里的顺带提及、推广位、邮箱、页脚声明不算机构证据"
         },
         "date": {
           "status": "normalized",
@@ -322,7 +325,7 @@
           "date": false,
           "twoFields": false
         },
-        "twoFieldsVerified": true,
+        "twoFieldsVerified": false,
         "threeFieldsVerified": null
       }
     },
@@ -377,12 +380,13 @@
         "readable": true,
         "adjudicable": true,
         "house": {
-          "status": "hit",
-          "quote": "Sotheby's",
+          "status": "unjudgeable",
+          "quote": null,
           "canonical": "苏富比",
-          "matchedAs": "Sotheby's",
-          "verbatim": true,
-          "detail": "断言原样出现在正文里"
+          "matchedAs": null,
+          "verbatim": false,
+          "position": null,
+          "detail": "页头、面包屑、标题区、场次抬头里都没有拍行明文；正文里的顺带提及、推广位、邮箱、页脚声明不算机构证据"
         },
         "date": {
           "status": "normalized",
@@ -409,7 +413,7 @@
           "date": false,
           "twoFields": false
         },
-        "twoFieldsVerified": true,
+        "twoFieldsVerified": false,
         "threeFieldsVerified": null
       }
     },
@@ -466,12 +470,13 @@
         "readable": true,
         "adjudicable": false,
         "house": {
-          "status": "alias",
-          "quote": "佳士得",
+          "status": "unjudgeable",
+          "quote": null,
           "canonical": "佳士得",
-          "matchedAs": "佳士得",
+          "matchedAs": null,
           "verbatim": false,
-          "detail": "正文写「佳士得」，与断言「Christie's」是同一机构（佳士得）的另一种写法"
+          "position": null,
+          "detail": "页头、面包屑、标题区、场次抬头里都没有拍行明文；正文里的顺带提及、推广位、邮箱、页脚声明不算机构证据"
         },
         "date": {
           "status": "normalized",
@@ -493,11 +498,11 @@
           "detail": "场次层缺 sessionName、sessionDate、houseCanonical、language：这一层没有材料，记未测（不是 0）"
         },
         "verbatimBaseline": {
-          "house": false,
+          "house": true,
           "date": false,
           "twoFields": false
         },
-        "twoFieldsVerified": true,
+        "twoFieldsVerified": false,
         "threeFieldsVerified": null
       }
     },
@@ -505,15 +510,15 @@
       "domain": "www.bonhams.com",
       "url": "https://www.bonhams.com/auction/32202/lot/27/a-massive-embroidered-chinese-opera-wall-hanging-late-qing-dynasty",
       "kind": "template",
-      "snapshotChars": 1133,
-      "truncatedAt50k": false,
-      "plainChars": 827,
+      "snapshotChars": 50000,
+      "truncatedAt50k": true,
+      "plainChars": 38840,
       "readable": true,
       "eventTime": "2026-11-02",
       "priceRaw": "Hammer price: £2,000",
       "sourceArm": "targeted",
       "saleUrl": "https://www.bonhams.com/auction/32202/",
-      "textHash": "1107090a6988e4da",
+      "textHash": "a9f0c6531931d4bf",
       "fields": [
         {
           "key": "auctionHouse",
@@ -538,7 +543,7 @@
       ],
       "verified": false,
       "verdict": "不可核",
-      "excerpt": "[ { \"title\": \"A MASSIVE EMBROIDERED 'CHINESE OPERA' WALL HANGING Late Qing Dynasty\", \"price\": \"2000\", \"currency\": \"GBP\", \"status\": \"sold\", \"imageUrl\": \"https://images1.bonhams.com/image?src=Images/live/2026-09/28/25852337-39-3.jpg\", \"description\": null, \"transactionDate\": null } ] <article><h1>A MAS",
+      "excerpt": "<!DOCTYPE html><html><head><title>Bonhams : A MASSIVE EMBROIDERED 'CHINESE OPERA' WALL HANGING Late Qing Dynasty</title><style>*,*::before,*::after{box-sizing:border-box;}/*!sc*/ html,body,div,span,applet,object,iframe,h1,h2,h3,h4,h5,h6,p,blockquote,pre,a,abbr,acronym,address,big,cite,code,del,dfn,e",
       "asserted": {
         "house": "Bonhams",
         "date": "2 November 2026",
@@ -548,24 +553,25 @@
         "url": "https://www.bonhams.com/auction/32202/lot/27/a-massive-embroidered-chinese-opera-wall-hanging-late-qing-dynasty",
         "domain": "www.bonhams.com",
         "kind": "template",
-        "chars": 827,
+        "chars": 38840,
         "readable": true,
         "adjudicable": false,
         "house": {
           "status": "hit",
-          "quote": "bonhams",
+          "quote": "Bonhams",
           "canonical": "邦瀚斯",
           "matchedAs": "Bonhams",
           "verbatim": true,
-          "detail": "断言原样出现在正文里"
+          "position": "title",
+          "detail": "机构名原样出现在标题区里"
         },
         "date": {
-          "status": "normalized",
-          "quote": "2026-11-02T10:00:00+00:00",
-          "normalized": "2026-11-02",
-          "yearSource": "page",
+          "status": "absent",
+          "quote": null,
+          "normalized": null,
+          "yearSource": null,
           "verbatim": false,
-          "detail": "写法不同，归一后是同一天（页面写法「2026-11-02T10:00:00+00:00」）"
+          "detail": "页面没有日期写法"
         },
         "session": {
           "status": "not-measured",
@@ -583,7 +589,7 @@
           "date": false,
           "twoFields": false
         },
-        "twoFieldsVerified": true,
+        "twoFieldsVerified": false,
         "threeFieldsVerified": null
       }
     },
@@ -808,12 +814,13 @@
         "readable": true,
         "adjudicable": true,
         "house": {
-          "status": "hit",
-          "quote": "finarte",
+          "status": "unjudgeable",
+          "quote": null,
           "canonical": null,
-          "matchedAs": "Finarte",
-          "verbatim": true,
-          "detail": "断言原样出现在正文里"
+          "matchedAs": null,
+          "verbatim": false,
+          "position": null,
+          "detail": "页头、面包屑、标题区、场次抬头里都没有拍行明文；正文里的顺带提及、推广位、邮箱、页脚声明不算机构证据"
         },
         "date": {
           "status": "hit",
@@ -840,7 +847,7 @@
           "date": true,
           "twoFields": true
         },
-        "twoFieldsVerified": true,
+        "twoFieldsVerified": false,
         "threeFieldsVerified": null
       }
     }

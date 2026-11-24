@@ -246,6 +246,55 @@ const PARAPHRASE_FRAMES = [
   '请列出{query}，并给出每场的拍卖机构、年份与专场名称；回答短是合格，编造场次是不合格',
 ];
 
+const CN_MONTHS: Record<string, number> = {
+  一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10, 十一: 11, 十二: 12,
+};
+
+/** 季节词的锚点月：只为让"秋季 / 秋拍 / 2021年秋"落到同一个键，不代表它精确到月 */
+const CN_SEASONS: Record<string, number> = { 春: 3, 夏: 6, 秋: 9, 冬: 12 };
+
+/** 文本里定位到几月（只写年份时不算；季节取锚点月） */
+function explicitMonthOf(value: string): number | null {
+  // 中文月份：十一月 / 十二月 / 一月……
+  const cn = value.match(/(十[一二]?|[一二三四五六七八九])\s*月/);
+  if (cn) return CN_MONTHS[cn[1]] ?? null;
+  // 不带年份的阿拉伯月份：11月
+  const arabic = value.match(/(?:^|\D)(1[0-2]|0?[1-9])\s*月/);
+  if (arabic) return Number(arabic[1]);
+  // 2021-11 / 2021.11 / 2021/11
+  const iso = value.match(/(?:^|\D)(?:1[89]\d{2}|20\d{2})[-/.](1[0-2]|0?[1-9])(?!\d)/);
+  if (iso) return Number(iso[1]);
+  // 只写季节：秋季 / 秋拍 / 深秋 → 锚点月
+  const season = value.match(/(春|夏|秋|冬)/);
+  return season ? CN_SEASONS[season[1]] : null;
+}
+
+/**
+ * 日期值归一化到"几月"（1–12；拿不到月返回 null）。
+ *
+ * 为什么稳定性要按月比：只按年比会把"11 月 / 12 月 / 10 月"当成同一个变体，
+ * 同句换个月份照样判稳定，于是拿一个随机月份去核。
+ *
+ * 为什么年份不进这个键：不同年份在 `recordMatchKey` 里已经分成不同记录，
+ * 同一记录内的日期值共享同一个年份槽位；把年份再写进键只会让
+ * "2021年11月" 与 "十一月" 这类写法对不上。
+ */
+function monthNumberOf(value: string): number | null {
+  const explicit = explicitMonthOf(value);
+  if (explicit !== null) return explicit;
+  // 只写到年份时解析器会补成 1 月（2014 → 2014-01-01）：那是精度缺失，不是"1 月"
+  const scope = parseTimeScope(value);
+  return scope.from ? Number(scope.from.slice(5, 7)) : null;
+}
+
+/** 日期值里写出的四位年份（没有返回 null） */
+function yearNumberOf(value: string): string | null {
+  const scope = parseTimeScope(value);
+  if (scope.from) return scope.from.slice(0, 4);
+  const raw = value.match(/(1[89]\d{2}|20\d{2})/);
+  return raw ? raw[1] : null;
+}
+
 export const porcelainPack: DomainPack = {
   id: 'porcelain',
   label: '瓷器拍卖专场',
@@ -285,8 +334,10 @@ export const porcelainPack: DomainPack = {
       case 'auctionHouse':
         return canonicalHouseName(value);
       case 'dateText': {
-        const scope = parseTimeScope(value);
-        return scope.from ? scope.from.slice(0, 4) : normalizeText(value);
+        const month = monthNumberOf(value);
+        // 同月不同写法（2021年11月 / 2021-11 / 十一月）归同一个键——否则归一化本身
+        // 会把真稳定样本判成不稳定；换月则必须分开，不再被"同一年"抹平。
+        return month === null ? normalizeText(value) : `M${String(month).padStart(2, '0')}`;
       }
       case 'sessionName':
         // 模型两次给"珍瓷雅玩"与"珍瓷雅玩专场"是同一样东西，不该被算成两个变体刷低稳定率
@@ -294,6 +345,34 @@ export const porcelainPack: DomainPack = {
       default:
         return normalizeText(value);
     }
+  },
+
+  /**
+   * 日期只写到季节（秋季 / 秋拍 / 金秋）时，定位信息不全：放行送核，但打标记。
+   * 有四位年份就算定位够——"2021年秋"能落到 9–11 月窗口，不算弱。
+   */
+  locatorIncompleteOf(fieldKey, value) {
+    if (fieldKey !== 'dateText') return false;
+    if (/\d{4}/.test(value)) return false;
+    return /[春夏秋冬]/.test(value);
+  },
+
+  /**
+   * 日期稳定性：同月按时、缺月按年。
+   * 「2014」与「2014年5月」是同一场的精度差（不拆），「2021年11月」与「12月」是两回事（必须拆）。
+   */
+  valueRepeatsSame(fieldKey, a, b) {
+    if (fieldKey !== 'dateText') return false;
+    const yearA = yearNumberOf(a);
+    const yearB = yearNumberOf(b);
+    if (yearA !== null && yearB !== null && yearA !== yearB) return false;
+    const monthA = explicitMonthOf(a);
+    const monthB = explicitMonthOf(b);
+    if (monthA !== null && monthB !== null) return monthA === monthB;
+    if (monthA !== null || monthB !== null) return true; // 一方有月、一方只有年：精度差
+    // 两边都只定位到年（或都定位不到）：年份相同才算同一场；都缺年份则退回文本相等
+    if (yearA !== null && yearB !== null) return yearA === yearB;
+    return normalizeText(a) === normalizeText(b);
   },
 
   querySurfaces(fieldKey, value) {
@@ -346,13 +425,15 @@ export const porcelainPack: DomainPack = {
       return { route: 'decompose', mode: 'L3', reason: 'aggregate-statistic' };
     }
     // 未来事件：当前无法查证。
-    // 两位以上年份按"是否晚于今年"判断；相对说法（明年／后年／来年／下一年）没有年份，
+    // 两位以上年份按"是否晚于今年"判断；相对说法（明年／后年／来年／下一年／次年）没有年份，
     // 但只要有过去年份在场，就按"混合句"放行去核——宁可花检索，也不整条误杀。
+    // 「次年」的锚点是句子里已经写出的那一年（「2021年秋拍，次年春拍」指 2022 年），
+    // 所以同样只在句中没有任何过去年份时才拒收；句中完全没有年份时它就是无从定位，拒收。
     const currentYear = new Date().getFullYear();
     const years = [...input.atomicText.matchAll(/(1[89]\d{2}|20\d{2})/g)].map((match) => Number(match[1]));
     const hasPastYear = years.some((year) => year <= currentYear);
     const hasFutureYear = years.some((year) => year > currentYear);
-    const hasRelativeFuture = /明年|后年|来年|下一年/.test(text);
+    const hasRelativeFuture = /明年|后年|来年|下一年|次年/.test(text);
     if (hasFutureYear || (hasRelativeFuture && !hasPastYear)) {
       return { route: 'reject', mode: null, reason: 'future-event' };
     }

@@ -335,7 +335,13 @@ export async function elicit(
   const recordStability = new Map<string, boolean>(
     records.map((r) => [r.recordId, r.recordHits >= options.minStabilityHits]),
   );
-  const passed = applyTriage(kept, { minStabilityHits: options.minStabilityHits, recordStability });
+  const passed = applyTriage(kept, {
+    minStabilityHits: options.minStabilityHits,
+    recordStability,
+    // 季节日期这类"定位信息不全"由包判定；判 true 时放行并打标记，不再整条拒收
+    locatorIncompleteOf: (claim) =>
+      claim.fieldKey !== null && (pack.locatorIncompleteOf?.(claim.fieldKey, claim.object) ?? false),
+  });
 
   return {
     queryId,

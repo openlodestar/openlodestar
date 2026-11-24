@@ -173,6 +173,23 @@ export interface DomainPack {
   valueMatchKey(fieldKey: string, value: string): string;
 
   /**
+   * 这条字段值是不是"定位信息不全、但仍值得送去核"（例如日期只写到季节，没有年份/月份）。
+   *
+   * 用途只有一个：让预筛在"写不出精确时间"这类形式上不再整条拒收，而是放行并打标记，
+   * 下游据此把该维度当弱证据。缺省不提供 = 形式不足一律按原判据拒收（旧行为）。
+   */
+  locatorIncompleteOf?(fieldKey: string, value: string): boolean;
+
+  /**
+   * 稳定性投票的补充判据：两个**等价键不同**的取值，算不算同一次复现。
+   *
+   * 为什么需要它：有些差异是精度差而不是矛盾——「2014」与「2014年5月」说的是同一场，
+   * 不该因为一次只写到年就被判成不稳定；而「2021年11月」与「2021年12月」必须分开。
+   * 缺省不提供 = 只认 `valueMatchKey` 相等（旧行为）。
+   */
+  valueRepeatsSame?(fieldKey: string, a: string, b: string): boolean;
+
+  /**
    * 字段值的**等价写法集合**（第 0 个是拼检索串用的首选形态）。
    *
    * 只喂两处：拼查询串、页面预筛。**不回写断言内容**——被核验的命题永远是

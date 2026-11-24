@@ -16,5 +16,9 @@
   "pageChecks": {
     "version": "page-2026-11-09-gate",
     "samples": ["porcelain-2021-autumn", "cg-2021-autumn"]
+  },
+  "corpusPages": {
+    "version": "corpus-2026-11-09-normalized",
+    "file": "examples/corpus-pages/corpus-pages-2026-11-09.json"
   }
 }

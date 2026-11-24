@@ -120,6 +120,13 @@ export interface ClaimProvenance {
 export interface TriageInfo {
   passed: boolean;
   reason: string;
+  /**
+   * 放行、但这一维的定位信息不全（目前唯一来源：日期只写到季节，没有年份/月份）。
+   *
+   * 这类输入不再整条拒收：路由会把它送核，拒掉反而让整条记录永远凑不齐关键字段。
+   * 下游据此把该字段当弱证据——它照常参与裁决与共现，只是不能假装"时间已精确定位"。
+   */
+  locatorIncomplete?: boolean;
 }
 
 /** 路由结论 */
@@ -186,6 +193,11 @@ export interface EvidenceRecord {
   recordId: string | null;
   /** 抓取失败/判定理由等观测 */
   note?: string;
+  /**
+   * 该断言被预筛标为"定位信息不全"（如日期只写季节）时，这条证据逐行带上同一颗标记。
+   * 读法：这一维的证据仍然算数，但不能被当成"时间已精确定位"的强证据。
+   */
+  locatorIncomplete?: boolean;
   /**
    * 这条证据落在哪个判据维度上（形如 `porcelain:dateText`，只取维度注册表里的名字）。
    * 可选：老证据没有这一列，读作"从没送进核验"（`unchecked`）；`state === 'unchecked'` 的行没有这一列。

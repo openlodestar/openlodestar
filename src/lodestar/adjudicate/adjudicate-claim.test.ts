@@ -404,3 +404,60 @@ describe('抓取耗时读数（PageFetchLog）', () => {
     expect(result.pageFetches).toEqual([]);
   });
 });
+
+describe('预筛标记：定位信息不全要落到证据行', () => {
+  const seasonClaim = (over: Partial<ClaimRecord> = {}) =>
+    claim({
+      claimId: 'cl-season',
+      fieldKey: 'dateText',
+      atomicText: '中国嘉德于秋季举办「彩瓷雅集」专场',
+      subject: '中国嘉德',
+      predicate: '举办时间',
+      object: '秋季',
+      timeScope: { from: null, to: null },
+      ...over,
+    });
+
+  it('放行但标了定位不全的断言，证据行带 locatorIncomplete', async () => {
+    (captureEvidencePage as Mock).mockImplementation(
+      async (_store: LodestarStore, evidenceId: string, url: string) =>
+        capturedPage(url, {
+          text: `中国嘉德 秋季 彩瓷雅集 专场拍卖 正文 ${url}`,
+          snapshotRef: `snapshots/${evidenceId}.txt`,
+        }),
+    );
+    const result = await adjudicateClaim({
+      store: memoryStore(),
+      pack: porcelainPack,
+      claim: seasonClaim({
+        triage: { passed: true, reason: 'specific-and-decidable', locatorIncomplete: true },
+      }),
+      values: { auctionHouse: '中国嘉德', dateText: '秋季', sessionName: '彩瓷雅集' },
+      ablations: NO_ABLATIONS,
+      runId: 'run-weak-locator',
+      traceId: 'tr-weak-locator',
+      sharedRetrieval: sharedRetrieval(['https://a.test/1']),
+    });
+
+    expect(result.evidence).toHaveLength(1);
+    // 这一维仍然算数，只是下游能看出"时间没精确定位"
+    expect(result.evidence[0].locatorIncomplete).toBe(true);
+  });
+
+  it('没有标记的普通断言不多写这个字段（旧底稿形状不变）', async () => {
+    const result = await adjudicateClaim({
+      store: memoryStore(),
+      pack: porcelainPack,
+      claim: seasonClaim({ claimId: 'cl-plain', object: '禹贡Ⅰ', atomicText: '北京保利2021年举办「禹贡Ⅰ」专场' }),
+      values: { auctionHouse: '北京保利', dateText: '禹贡Ⅰ', sessionName: '禹贡Ⅰ' },
+      ablations: NO_ABLATIONS,
+      runId: 'run-plain',
+      traceId: 'tr-plain',
+      sharedRetrieval: sharedRetrieval(['https://a.test/1']),
+    });
+
+    expect(result.evidence).toHaveLength(1);
+    expect(result.evidence[0].locatorIncomplete).toBeUndefined();
+  });
+});
+

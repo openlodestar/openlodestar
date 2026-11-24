@@ -251,18 +251,23 @@ scripts/serve-demo.mjs      docs/ 下静态页面的本地预览（只绑 127.0.
 scripts/backfill-evidence-dimensions.ts 既有证据行的判据维度回填（规则优先、模型兜底、逐字子串校验）
 docs/demo-design-guide.md   演示方法论：一条演示该证明什么、怎么挑素材、怎么摆证据
 docs/time-window-rules.md   时间窗口的两条口径：断言侧不扩、证据侧上下各放宽一个月
-docs/assertion-routing-e2e.md 断言路由五个分支的句子级落点表（离线端到端，含两个错误方向的样本）
-docs/triage-landing.md      预筛层句子级落点表：四类拒收各自花多少检索，以及两类会误杀可核断言的情况
+docs/assertion-routing-e2e.md 断言路由五个分支的句子级落点表（离线端到端，含两个方向的误判清单）
+docs/triage-landing.md      预筛层句子级落点表：五类真实入口输入各自落哪个路由分支、花多少检索；季节日期放行并标「定位信息不全」、日期稳定性按归一化月份比的判据也在此
 docs/search-replay.md       冻结检索结果回放：语言探针、0 召回补发、编造链接判据、域名真实性闸、静态自洽 4/8 与抓页可核 0/8
-docs/scorecard.md           评分卡：八个分项各自出分、样本锁与历史表，以及进步/退步/没变化的前后对照
+docs/scorecard.md           评分卡：十一个分项各自出分、样本锁与历史表，以及进步/退步/没变化的前后对照
 docs/browser-render-evaluation.md 浏览器渲染的代价评估与定向实测：四条路径、684 MB 内核、实测两页 0 可核（只评估，未引入依赖）
+docs/corpus-page-adjudication.md 给已入库页面做裁决：日期/机构判据归一（引文仍逐字）、场次层最小契约、三档读数（10 页样本正文可读 10/10、两字段 4/4、三字段未测）；库里 47% 的「正文」是抽取模板
+docs/session-layer-evidence.md 场次层证据实测：46 条真事件里只有 1 页有原文；抓 10 个场次页后三字段可核 29/46（63.0%），做法是「场次页核一次、整场共用」，含成立前提、机械自检、快照与重核触发、加新站清单与六条失效条件；另有一次真实渲染复核（只救回日期，机构仍判不了）
 benchmark/                  评分卡的固定考卷：批次清单、检索样本清单、抓页样本清单、人工金标准、基线读数与历史表
 scripts/scorecard.ts        离线评分卡（零外部调用、重跑同分；用例数不进分）
 scripts/capture-page-checks.ts  抓页可核：只抓已召回候选页，逐字核对关键字段，冻成回放样本（默认不联网）
+scripts/score-corpus-pages.ts  已入库页面裁决：三档读数；给只读导出时重判并写回冻结样本（零外部调用）
+scripts/score-session-pages.ts 场次层实测：逐页查专场名、逐场次量机构/日期两字段，区分原文与模板（零外部调用）
 scripts/capture-domain-checks.ts 域名真实性闸：只做 DNS 解析，淘汰"地址不存在"的候选，冻成回放样本（零 HTTP）
 scripts/capture-search-replay.ts 检索结果采集与冻结（默认干跑只列查询，--allow-spend 才联网）
 scripts/probe-search-language.ts 语言探针：同义中英文查询的控制变量对照（只走 llm-web，默认干跑）
 examples/replay-search/     冻结的检索回放样本（采集时的模型名、上限、逐条结果）
+examples/corpus-pages/      已入库页面正文的裁决样本（10 页分层抽样；不存全文，无库连接）
 docs/evidence-grading-proposal.md 证据分级的架构：抽取 → 逐维比较 → 汇总，加维度＝注册一份实现
 .env.example                在线链路的环境变量模板（复制为 .env；离线命令不需要）
 .github/                    CI 与 issue 模板

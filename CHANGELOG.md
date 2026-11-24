@@ -6,6 +6,30 @@
 
 ### Changed
 
+- **10 页冻结样本按新机构口径只读重判，两字段可核率实测 1/4，取代早前推算的 4/4**（`examples/corpus-pages/corpus-pages-2026-11-09.json`、`docs/corpus-page-adjudication.md`、`docs/scorecard.md`、`benchmark/history.jsonl`）：
+  - **怎么来的**：经主人授权，从主项目库只读重导出 10 页正文（一条 `SELECT`，会话设 `default_transaction_read_only`，不写库、不改主项目代码），`scripts/score-corpus-pages.ts --dump` 整体重判后 `--write` 写回冻结样本。
+  - **读数（时点 2026-11-24，口径=新机构判据）**：正文可读率 10/10 不变；两字段 **1/4 = 25.0%**（旧口径整页命中 2/4）；三字段仍「未测」。日期判据实测 4/4 全核上（旧口径 2/7）。
+  - **与推算差在哪**：早前文档推算两字段 4/4，前提是「结构区域在快照上抽得出来」；实际 `content_snapshot` 是纯文本，`extractHouseRegions` 靠标签/class 定位，文本快照上 4 页可裁决页里 3 页抽不出任何结构区域 → 机构记「判不了」（设计行为），只有 bonhams `lot/42` 快照残留部分结构标记而命中。两字段的提升路径是补结构材料（存原始 HTML 或按站点文本结构映射），不是放宽判据。
+  - **样本换版一处**：bonhams `lot/27` 旧快照仅 1,133 字符近似空壳，重导出为 50,000 字符整页（仍截断），哈希已刷新并在样本头注明；其余 9 页哈希未动。
+  - **验证**：`pnpm typecheck` 通过、`pnpm test` 48 文件 698 例全绿、`pnpm run scorecard` 跑通并追加历史行（两字段较上一行 −75.0 个百分点，系基线从未实测、由推算值换成实测值所致，非功能退步）。
+
+- **预筛两处判据按落点表实测结果修正：季节日期改为放行并标「定位信息不全」，日期稳定性投票键下沉到月**（`src/lodestar/intake/triage.ts`、`src/lodestar/intake/elicitation.ts`、`src/lodestar/intake/record-container.ts`、`src/lodestar/packs/pack.ts`、`src/lodestar/packs/porcelain/index.ts`、`src/lodestar/types.ts`、`src/lodestar/adjudicate/index.ts`、`src/lodestar/packs/packs.test.ts`、`src/lodestar/triage-landing.test.ts`、`src/lodestar/adjudicate/adjudicate-claim.test.ts`、`docs/triage-landing.md`）：
+  - **季节日期不再整条拒**：日期只写季节（「秋季」）此前被判 `not-decidable-vague`，是落点表里唯一经路由验证的真误杀——漏过去路由会送 `verify`，拒收又让整条记录永远凑不齐关键字段，且拒收不省检索。现在由策略包的 `locatorIncompleteOf` 判定（日期没写四位年份且出现春/夏/秋/冬），判 true 时**放行并写 `triage.locatorIncomplete: true`**；裁决出的每一行证据也带同一颗标记，下游能看出这一维弱在哪。「2021年秋」有年份、能落到 9–11 月窗口，不算定位不全。缺省不提供该方法的包行为不变。
+  - **稳定性投票键按归一化月份比**：`dateText` 的 `valueMatchKey` 从「只取年份」改为「取归一化月份」（`M11`），覆盖 `2021年11月` / `2021-11` / `十一月` 三种写法（补了中文数字月份解析）；同一记录内不同年份本就由 `recordMatchKey` 分成不同记录，月份键不需要带年份。新增 `valueRepeatsSame` 处理精度差：一方只写到年份（`2014`）时能并进同年的「2014年5月」，所以「2014年5月 / 2014-05 / 2014」这种真稳定样本不会被拆散；而 11/12/10 月必须拆成三条变体。
+  - **反例测试各一条**：`packs.test.ts` 钉住「同月三种写法 → 同一个键、换月必须不同键」与「只写年份能并进同年同月、换月/跨年不能并」；`triage-landing.test.ts` 钉住「月份变 → 日期那条 `unstable-replay`、机构与专场名照常放行（放行 2 + 拒收 1、仍 4 次检索）」与「季节日期 → 放行 3 条、带标记、4 次检索、无拒收断言」；`adjudicate-claim.test.ts` 钉住「标记写进证据行、无标记的断言不写该字段」。
+  - **落点表复跑**：季节行由「拒收」变「放行 + 标记」；月份行由「放行 3 条」变「放行 2 + 拒收 1（日期）」；其余行（完整可核、那件呢、这个值多少、瓷器值钱吗、专场名变、混合句）的落点、理由与检索花费逐行不变。验证：`npx vitest run src/lodestar` 481 例全绿，`npx tsc --noEmit` 通过；全程离线、未调真实模型、未联网、Serper 0。
+
+- **机构判据从「整页任意位置出现即命中」改成「命中必须落在站点结构位置」，并把一场三页的决策闸跑掉了**（`src/lodestar/corpus-adjudication.ts`、`src/lodestar/corpus-adjudication.test.ts`、`scripts/score-corpus-pages.ts`、`scripts/score-session-pages.ts`、`scripts/scorecard.ts`、`docs/corpus-page-adjudication.md`、`docs/session-layer-evidence.md`）：
+  - **为什么改**：旧口径把 `malmeida@christies.com`（员工邮箱）和推广卡片「illustrated with pieces offered at Christie's」都判成机构命中。真实原文页 `christies.com.cn/en/lot/lot-6608461` 的页头/面包屑/标题区/场次抬头里没有任何拍行明文，正确结论是「判不了」。
+  - **新规则**：只认四个结构位置——页头与站内导航（`<header>`/`<nav>`）、面包屑（class/id/aria-label 含 `breadcrumb`）、标题区（`<title>`/`<h1>`）、场次抬头（class/id 同时含 `sale|auction` 与 `title|name|heading|header`）。正文段落与图注、推广卡片、员工邮箱、页脚声明、图片 alt、meta 标签一律不算。四个区域都没有拍行明文时记 `unjudgeable`（判不了），不再有 `absent`（没有）；评分卡的对应计数由 `houseMiss` 改名为 `houseUnjudgeable`。
+  - **如实写清的代价**：拍行名只在图片 alt/CSS 背景里、站点不用 `<header>/<nav>`、场次抬头命名不含 sale/auction 关键词、单件页面包屑只写场次编号这四种真命中会被判成「判不了」；补法是按站点加结构映射，不是退回整页扫描。
+  - **验证**：该页实测机构 `unjudgeable`、位置 `null`；日期仍 `normalized`（引文 `29 Oct 2026`），两字段因此不成立。`npx tsc --noEmit` 通过；`npx vitest run src/lodestar/corpus-adjudication.test.ts` 全绿（39 例，本轮新增结构位置正反例、邮箱/推广位/页脚不算、抽不出区域、真实页复算共 15 例）。
+  - **决策闸实测（3 次 HTTP、0 失败、serper 0、未用浏览器）**：Bonhams 32090 / 32202 两页同时含三样明文（页头 `Bonhams`、场次名逐字、日期归一 `28 October 2026` / `2 November 2026`），正文 26,613 / 33,672 字符；Christie's 29896 只有场次名是明文，正文 1,292 字符、场次抬头是空自定义元素，机构与日期只在 JSON-LD 与 meta 里。结论：路 A 成立但按站点分批，实测可撑 19/46 条事件；Christie's 的 17 条记「未测」，不记 0。
+  - **口径提醒**：旧冻结样本（10 页 / 46 页）里存的机构判定是旧口径算的，样本不含原始 HTML，离线无法按新口径重判；下一轮重新导出正文后要把这两处读数一起刷新。
+  - **余下 5 个 Bonhams 场次页、2 个 Christie's 补抓与完整判定（7 次 HTTP、0 失败）**：32388 / 32203 / 32697 / 31803 / 32511 五页都没有被拦、不是脚本壳，页头 `Bonhams`、场次名、日期三样都成立；正文 8,642–35,728 字符。其中 32697、32511 的库内 `sale_name` 用 `: ` 把主标题与副标题拼成一串，页面上是 `<h1>` + 紧邻副标题两块，按「每段逐字、顺序一致」判命中并标「分段」，整串严格比会误报「没写」。补抓的 Christie's 30213 / 31076 两页与 29896 同形态：HTTP 200、跨域跳到 `.com.cn`、正文分别只有 1,041 / 1,014 字符，`<h1>` 有场次名，机构与日期仍是空自定义元素，日期只有公告里「只到月」的 `June 2025`（判据记 `mismatch` 不记 `absent`）。以场次页为底稿判 46 条事件（分母已补满）：**三字段全中 29 条（63.0%，Bonhams 7 个场次）、一字段 17 条（Christie's 三页只核到专场名）、两字段 0、判不了 0、未测 0**。做法确认是「场次页核一次、整场共用」（10 页覆盖 46 条，抓取量 1/4.6），代价是"事件属于这场"由关联键担保而不是页面担保。`docs/session-layer-evidence.md` 第十节已把这个模式写全：一条事件算"属于某场"的五条成立前提、六个可跑的机械自检、场次页快照与抓取时间的落库要求（事件只挂 `snapshotId`）、快照过期后的五类重核触发，以及加新站时的五步操作清单；六条失效条件单列在最后。
+  - **渲染复核：只救回日期，救不回机构（1 页、2 次抓取、1 次浏览器启动、0 页面内失败、serper 0）**：对最可能救回的 Christie's 30213 做了一次真实渲染——本机已缓存的 Playwright Chromium（未下载内核、未改 `package.json`、未动 CI），`www.christies.com` 直连被 `ERR_CONNECTION_RESET`，改打同页落点 `.com.cn` 得 200；`networkidle` 20 秒内没等到（站点有长轮询），按 `domcontentloaded` + 滚动到底 + 等 3 秒取 DOM，判据一字未改。正文从 1,041 字符升到 46,918（DOM 69.8 万字节，裸抓的 3.6 倍），场次名仍逐字命中，日期由 `mismatch` 变 `normalized`（可见明文 `17 SEP 2026`），但**机构仍是 `unjudgeable`**——页头/面包屑/标题区/场次抬头四个结构区域里都没有拍行明文，整页唯一一次 `Christie's` 在推广卡片里。结论：这 17 条渲染后最多升到「两字段」，三字段仍是 29/46（63.0%），**不值得默认开**（单页 30.5 秒，10 个场次一轮约 5 分钟只换来一档）。同时补齐文档章节号从「五」跳到「七」的缺口：原第七、八节改为第六、七节，新增第八节记录这次渲染复核，后续章节编号不变。
+- **机构拿不到可见明文时降为域名断言，口径写死；三字段上限 29/46 = 63.0% 同时定死**（`docs/corpus-page-adjudication.md`、`docs/session-layer-evidence.md`）：佳士得的机构名只在图形标识里，可见明文拿不到。这类情况记一条 `证据种类 = domain`、`verbatim = false`、`quote = null` 的域名断言（落点主域名 ↔ 别名表里的机构），并写死四条：不进逐字证据（仍记 `unjudgeable`，不改写成命中）、不进三字段分母（三字段只认同一张场次页上三样都是可见明文）、渲染与 JSON-LD/meta 与域名断言三者互不折算、不许先记域名再当机构命中。判定标准收成一句：分子里的每一条都必须能指向同一张场次页上的一段可见明文引文。现状上限写死为 **29 条 = 63.0%，另外 17 条结构性卡死**，并明确禁止为了凑数把渲染、JSON-LD/meta 或域名断言混进三字段。
+- **路由：相对年份词补「次年」，并把三条判据的误判清单一次列全**（`src/lodestar/packs/porcelain/index.ts`、`src/lodestar/packs/packs.test.ts`、`docs/assertion-routing-e2e.md`）：未来事件、主观评价/真伪判断、含主观修饰的可核断言这三处漏判此前已经修掉（现在 `branch-landing.test.ts` 九条样本的第 4、7、8 行都已是「是」）；本轮补上用户点名的「次年」——它的锚点是句中已写出的那一年（「2021年秋拍，次年春拍」指 2022 年），所以与明年/后年走同一条闸：句中有过去年份就放行去核，一个年份都没有时按无从定位拒收（理由仍标 `future-event`，标签偏差已写进清单）。`docs/assertion-routing-e2e.md` 的误判清单重写成两个方向：该拒没拒五条（词表外的未来说法、只提未来但带过去年份、词表外的评语、评价落在主语/原子句、真伪判断被抽成中性字段），该核被拒四条（中性事实嵌评价词且进了命题字段、真伪词只是被引述内容、次年锚点在上一句、将来时说法没有年份）。验证：`npx vitest run src/lodestar/branch-landing.test.ts src/lodestar/packs/packs.test.ts` 64 例全绿，`npx tsc --noEmit` 通过；全程离线、未调模型、Serper 0。
 - **判据维度把「没核过」从「判不了」里拆出来：新增 `unchecked`，不再混成一个 `unknown`**（`src/lodestar/types.ts`、`src/lodestar/dimensions/index.ts`、`src/lodestar/adjudicate/index.ts`、`scripts/backfill-evidence-dimensions.ts`、`src/demo-page/build-demo-data.ts`、`src/demo-page/build-demo-game.ts`、`src/lodestar/examples.test.ts`、`docs/evidence-grading-proposal.md`、`docs/time-window-rules.md`、`docs/assets/demo.js`、`docs/assets/demo-match.js`、`docs/demo.html`）：
   - **三种情况分开落**：`unchecked`＝这一维从没送进核验（字段没接维度实现，或证据行是判据层上线前、回填也没补标记的旧行）；`unknown`＝核过了，但原文里摘不出可回链的逐字值；`conflict`＝摘到了，但与断言矛盾。三者折算权重都是 0，**分值一个都没变**，变的是"为什么这张单只有弱坐标"的解释——"没查"和"查了判不了"不再说成同一句话。
   - **先把可得性补上，再改语义**：裁决链现在每条新证据都写 `state`（没接维度实现就写 `unchecked`）；回填脚本也把三种情况分开写（没实现/断言不在库里 → `unchecked`；摘不出值或值不是引文子串 → `dimension` + `unknown`；摘到值 → 六态之一）。7 批冻结语料 82 条证据里，此前 12 条没有判据列：10 条字段有实现、摘不出值，回填后落 `unknown`；2 条是 `fieldKey` 为空的场次级证据（`ev-0019` 支持、`ev-0020` 反驳），落 `unchecked`。回填没有新增支持、没有新增冲突，9 份演示记录的 `gate`、坐标档位与分数逐条不变，`poly-2021-autumn` 的 22 条读数逐字不变。
@@ -19,6 +43,14 @@
   - **读数**：`npx vitest run src/lodestar src/demo-page` 27 文件 **419 例**全通过；`pnpm typecheck` 通过；`pnpm run demo:data`、`demo:game`、`demo:sort` 三份生成物重跑后与提交内容一致；全程零联网、零模型调用。
 
 ### Added
+
+- **预筛层（提问环）补上真实入口落点表：五类输入逐条量「放到哪个路由分支、花不花检索」，并用「漏过去路由会怎么处理」判误杀**（`src/lodestar/triage-landing.test.ts`、`docs/triage-landing.md`）：
+  - **为什么补**：此前弃权、稳定性不足、指代未消解、过于笼统这几类拒收只有 `triage.ts` 的纯函数单测，没有一条走完「模型作答 → 对齐 → 原子化 → 预筛」的整条输入链；而九条外部提交样本从路由开始，不经过这一层。「它会不会误杀可核断言」一直没人量过。
+  - **怎么跑**：固定模型应答驱动三轮复问，覆盖完整可核、缺主语（「那件呢」「这个值多少」）、过于笼统（「瓷器值钱吗」）、稳定性不足（月份变 / 专场名变）、混合句（可核事实 + 闲聊）五类输入；放行的断言再交给 `runQuery` 真跑一遍，量实际检索次数，被拒的断言另跑一遍量「若放行要花多少」。检索段是永远返回空结果的冻结桩、翻译桩固定失败，全程离线、未调真实模型、未联网、Serper 0。测试 14 例全绿，`npx tsc --noEmit` 通过。
+  - **落点读数**：完整可核三条全放行、落 `verify`、花 4 次；「那件呢」追问一次没补到东西 → 拒收、0 次（若放行 4 次，路由同样拒）；「这个值多少」三条全拒、0 次（若放行会落 `verify` 白花 4 次）；「瓷器值钱吗」放行 1 条、拒收 2 条、仍花 4 次；月份变放行 2 + 拒收 1（日期 `unstable-replay`）；专场名三变全拒 9 条、0 次（若放行 12 次）；混合句放行 4 条，闲聊那条被路由按物品级个体断言拒掉、不额外花钱。
+  - **误杀判定按路由结论重算**：此前唯一经路由验证为真误杀的是「日期只写季节」——漏过去路由会送 `verify`，拒收则让整条记录永远凑不齐关键字段，且拒收不省检索；该条已在本轮改成「放行 + 定位信息不全标记」。此前把「缺机构」也算误杀，实测漏过去路由同样判 `reject:unresolvable-reference`，改为「正确的提前拒，省 4 次」。另外「这个值多少」「早些年」两类路由根本拦不住，预筛是它们唯一的闸。
+  - **月份级不稳定已修**：日期字段的稳定性投票键下沉到归一化月份，同句换月（11 / 12 / 10 月）不再被当成同一变体；同月不同写法仍归同一变体，只写年份的精度差不拆散真稳定样本。详见本轮 Changed 的第一条。
+  - **结论**：拿不准「这条能不能核」时倾向放行（代价是每个记录组最多 4 次检索 + 多问用户一句）；拿不准「这句话是不是断言」时倾向拦下（路由对空主语之外的形式空洞没有兜底）。
 
 - **断言路由的五个分支补上端到端落点样本：一张表看清"该拒的有没有花检索、该核的有没有被整条丢掉"**（`src/lodestar/branch-landing.test.ts`、`docs/assertion-routing-e2e.md`）：
   - **为什么补**：冻结语料里的 39 条断言全是存在型命题，另外五个分支（物品级个体断言、聚合统计、未来事件、自指、主观评价）此前只有策略包层单测，没有一条走完「入库 → 路由 → 检索或拒收」。

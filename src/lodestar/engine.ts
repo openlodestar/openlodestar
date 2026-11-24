@@ -1063,6 +1063,7 @@ export async function compareAcrossRecordPool(input: {
       traceId: gap.page.traceId,
       fieldKey: claim.fieldKey,
       recordId: claim.recordId,
+      ...(claim.triage.locatorIncomplete ? { locatorIncomplete: true } : {}),
       note:
         `复用 ${gap.page.evidenceId} 已抓正文补比对（本记录页面池，零检索零抓取）` +
         (outcome.pageTopic ? `；页面主题：${outcome.pageTopic}` : ''),
